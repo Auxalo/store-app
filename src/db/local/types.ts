@@ -1,6 +1,7 @@
 import type { CommandType, SyncCollection } from "@/commands/definitions";
 import type { UnitCode } from "@/lib/units";
 import type { StockMovementType } from "@/schemas/product";
+import type { PaymentMethod } from "@/schemas/sale";
 import type { WireDoc } from "@/schemas/sync";
 
 /** Fields every synced business record carries (spec §33). */
@@ -61,6 +62,86 @@ export interface StockMovement {
   syncSeq?: number;
 }
 
+export interface Customer extends SyncedBase {
+  name: string;
+  phone: string;
+  address: string;
+  notes: string;
+  /** Poisha this customer owes us (negative: we owe them). Server balance plus unsynced local sales. */
+  balance: number;
+  /** Normalized words for the search index. Computed on this device, never synced. */
+  searchWords: string[];
+}
+
+export interface Sale {
+  id: string;
+  storeId: string;
+  invoiceNo: string;
+  customerId: string | null;
+  customerName: string;
+  subtotal: number;
+  discount: number;
+  total: number;
+  paid: number;
+  due: number;
+  paymentMethod: PaymentMethod;
+  notes: string;
+  status: "active" | "voided";
+  itemCount: number;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  deviceId: string;
+  version: number;
+  voidedAt?: string | null;
+  voidReason?: string;
+  voidedBy?: string | null;
+  deletedAt?: string | null;
+  syncSeq?: number;
+}
+
+/** A sale line, copied at sale time so the receipt never changes when a product is edited. */
+export interface SaleItem {
+  id: string;
+  saleId: string;
+  productId: string;
+  productName: string;
+  productNameBn: string;
+  unit: UnitCode;
+  qty: number;
+  listPrice: number;
+  unitPrice: number;
+  unitCost: number;
+  discount: number;
+  lineTotal: number;
+  createdAt: string;
+}
+
+/** Money owed between the store and a customer or supplier. Balance = sum of entries. Append-only. */
+export interface LedgerEntry {
+  id: string;
+  storeId: string;
+  partyType: "customer" | "supplier";
+  partyId: string;
+  /** Poisha. Positive: they owe us more. Negative: they paid / we owe them. */
+  amountDelta: number;
+  refType: string;
+  refId: string;
+  note: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  deviceId: string;
+  version: number;
+  syncSeq?: number;
+}
+
+/** Work in progress that must survive a reload (the cart). Never synced. */
+export interface Draft {
+  key: string;
+  value: unknown;
+}
+
 export interface Setting extends Omit<SyncedBase, "createdBy"> {
   /** Same as `id`: settings are keyed by their name. */
   key: string;
@@ -116,4 +197,6 @@ export interface MetaValues {
   lastAttemptAt: number;
   /** serverTime − deviceTime in ms; large values mean the device clock is wrong. */
   clockOffsetMs: number;
+  /** Per device, per month: the last invoice sequence number used ("2610" → 42). */
+  invoiceSeq: Record<string, number>;
 }

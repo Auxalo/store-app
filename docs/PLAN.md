@@ -552,3 +552,15 @@ Defaults I'll use unless you say otherwise:
   - Zod `.partial()` keeps `.default()` values, so a one-field product edit would have been padded with defaults (prices 0, names empty) and wiped the record. Edit schemas are now built from validators without defaults.
   - The precache matched exact URLs, so `/products/view?id=…` was not available offline. The service worker now ignores query strings when matching precached pages.
   - A one-word search like "suga" loaded 2,000 full records just to sort them (2 s in the test environment); fixed by the id-intersection approach above.
+
+### Phase 4 notes
+
+- **Scope pulled in:** customers (list, add, edit, delete, due balance) and the money ledger were built here because a credit sale needs them; Phase 5 adds statements, collections and suppliers on top.
+- **A sale is one operation touching many records** (the sale and its lines, one stock movement per line, each product's stock, the customer's balance and a ledger entry), applied in one Mongo transaction and in one Dexie transaction. Outbox entries index every record they touch (`entityIds`), so unsynced sales are replayed onto server data correctly.
+- **Totals are never trusted from a device:** one shared function (`src/lib/sale-math.ts`) computes them on the screen, on the device database and on the server. A sale priced differently from the list price needs the `sale.priceOverride` permission, checked on the server.
+- **Ids of everything a sale creates are derived from the sale id** (`<saleId>:m0`, `:l`, …) so the device and server agree and a retry can never create a second copy.
+- **Invoice numbers** are `<device code>-<YYMM>-<4-digit counter>` using a counter only that device touches; two devices can never issue the same number without talking to each other.
+- **Cancelling a sale** adds reversing movements and ledger entries and marks the sale cancelled; history is never edited or deleted.
+- **Cart** lives in the device database (`drafts` table) via Zustand's async persist, so a reload or crash keeps it; held carts are persisted too.
+- **Receipt** prints on 58 mm, 80 mm or A4 (print CSS hides everything else), in the current language, fully offline.
+- **Traps found by testing:** `useMemo`-free money inputs lose a typed decimal point if controlled directly from the store (fixed with `MoneyField`); one-word searches can match thousands of products (id-set intersection, see Phase 3).

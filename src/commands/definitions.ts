@@ -9,6 +9,14 @@ import {
   categoryUpdatePayload,
 } from "@/schemas/category";
 import {
+  customerCreateInput,
+  customerCreatePayload,
+  customerDeleteInput,
+  customerDeletePayload,
+  customerUpdateInput,
+  customerUpdatePayload,
+} from "@/schemas/customer";
+import {
   productCreateInput,
   productCreatePayload,
   productDeleteInput,
@@ -18,6 +26,12 @@ import {
   stockAdjustInput,
   stockAdjustPayload,
 } from "@/schemas/product";
+import {
+  saleCreateInput,
+  saleCreatePayload,
+  saleVoidInput,
+  saleVoidPayload,
+} from "@/schemas/sale";
 import { settingSetInput, settingSetPayload } from "@/schemas/setting";
 
 /** Bump when a payload shape changes incompatibly; the server rejects versions it cannot read. */
@@ -29,6 +43,9 @@ export const SYNC_COLLECTIONS = [
   "settings",
   "products",
   "stockMovements",
+  "customers",
+  "sales",
+  "ledgerEntries",
 ] as const;
 export type SyncCollection = (typeof SYNC_COLLECTIONS)[number];
 
@@ -101,6 +118,58 @@ export const COMMANDS = {
     payload: stockAdjustPayload,
     entityIds: (p: { productId: string }) => [p.productId],
   },
+  "customer.create": {
+    collection: "customers",
+    permission: "sale.create",
+    input: customerCreateInput,
+    payload: customerCreatePayload,
+    entityIds: (p: { id: string }) => [p.id],
+  },
+  "customer.update": {
+    collection: "customers",
+    permission: "sale.create",
+    input: customerUpdateInput,
+    payload: customerUpdatePayload,
+    entityIds: (p: { id: string }) => [p.id],
+  },
+  "customer.delete": {
+    collection: "customers",
+    permission: "product.edit",
+    input: customerDeleteInput,
+    payload: customerDeletePayload,
+    entityIds: (p: { id: string }) => [p.id],
+  },
+  "sale.create": {
+    collection: "sales",
+    permission: "sale.create",
+    input: saleCreateInput,
+    payload: saleCreatePayload,
+    // The sale, every product whose stock it moves, and the customer who may owe the balance.
+    entityIds: (p: {
+      id: string;
+      customerId: string | null;
+      lines: Array<{ productId: string }>;
+    }) => [
+      p.id,
+      ...new Set(p.lines.map((l) => l.productId)),
+      ...(p.customerId ? [p.customerId] : []),
+    ],
+  },
+  "sale.void": {
+    collection: "sales",
+    permission: "sale.void",
+    input: saleVoidInput,
+    payload: saleVoidPayload,
+    entityIds: (p: {
+      saleId: string;
+      customerId: string | null;
+      lines: Array<{ productId: string }>;
+    }) => [
+      p.saleId,
+      ...new Set(p.lines.map((l) => l.productId)),
+      ...(p.customerId ? [p.customerId] : []),
+    ],
+  },
   "setting.set": {
     collection: "settings",
     permission: "settings.manage",
@@ -112,6 +181,10 @@ export const COMMANDS = {
 
 export type CommandType = keyof typeof COMMANDS;
 export type CommandInput<T extends CommandType> = z.infer<
+  (typeof COMMANDS)[T]["input"]
+>;
+/** What callers may pass (defaults not yet applied). Handlers receive the parsed CommandInput. */
+export type CommandArgs<T extends CommandType> = z.input<
   (typeof COMMANDS)[T]["input"]
 >;
 export type CommandPayload<T extends CommandType> = z.infer<

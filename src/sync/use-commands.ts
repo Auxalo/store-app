@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useProfile } from "@/auth/use-auth";
-import type { CommandInput, CommandType } from "@/commands/definitions";
+import type { CommandArgs, CommandType } from "@/commands/definitions";
 import { runCommand } from "@/commands/local/run";
 import { getLocalDb } from "@/db/local/db";
 import { getDeviceId } from "@/db/local/meta";
@@ -16,7 +16,7 @@ export function useCommands() {
   const profile = useProfile();
 
   return useCallback(
-    async <T extends CommandType>(type: T, input: CommandInput<T>) => {
+    async <T extends CommandType>(type: T, input: CommandArgs<T>) => {
       const db = getLocalDb();
       const ctx = {
         storeId: profile.storeId,

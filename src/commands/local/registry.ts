@@ -3,6 +3,13 @@ import type { StoreDB } from "@/db/local/db";
 import { searchWords } from "@/lib/search";
 import type { CommandInput, CommandPayload, CommandType } from "../definitions";
 import { AlreadyExistsError, NotFoundError } from "../errors";
+import {
+  customerCreate,
+  customerDelete,
+  customerUpdate,
+  saleCreate,
+  saleVoid,
+} from "./sales";
 
 export interface LocalContext {
   storeId: string;
@@ -145,6 +152,13 @@ export const localCommands: { [T in CommandType]: LocalHandler<T> } = {
     });
     return input;
   },
+
+  "customer.create": (db, ctx, input, now) =>
+    customerCreate(db, ctx, input, now),
+  "customer.update": (db, _ctx, input, now) => customerUpdate(db, input, now),
+  "customer.delete": (db, _ctx, input, now) => customerDelete(db, input, now),
+  "sale.create": (db, ctx, input, now) => saleCreate(db, ctx, input, now),
+  "sale.void": (db, ctx, input, now) => saleVoid(db, ctx, input, now),
 
   "setting.set": async (db, ctx, input, now) => {
     const existing = await db.settings.get(input.key);

@@ -1,9 +1,14 @@
 import Dexie, { type EntityTable } from "dexie";
 import type {
   Category,
+  Customer,
+  Draft,
+  LedgerEntry,
   MetaRow,
   OutboxOp,
   Product,
+  Sale,
+  SaleItem,
   Setting,
   StockMovement,
 } from "./types";
@@ -19,6 +24,11 @@ export class StoreDB extends Dexie {
   settings!: EntityTable<Setting, "id">;
   products!: EntityTable<Product, "id">;
   stockMovements!: EntityTable<StockMovement, "id">;
+  customers!: EntityTable<Customer, "id">;
+  sales!: EntityTable<Sale, "id">;
+  saleItems!: EntityTable<SaleItem, "id">;
+  ledgerEntries!: EntityTable<LedgerEntry, "id">;
+  drafts!: EntityTable<Draft, "key">;
   outbox!: EntityTable<OutboxOp, "seq">;
   syncMeta!: EntityTable<MetaRow, "key">;
 
@@ -50,6 +60,15 @@ export class StoreDB extends Dexie {
             op.entityIds ??= [op.entityId];
           }),
       );
+
+    // v3: customers, sales (with their lines), the money ledger and unsaved drafts (the cart).
+    this.version(3).stores({
+      customers: "id, phone, name, *searchWords, deletedAt",
+      sales: "id, invoiceNo, createdAt, customerId, status, [status+createdAt]",
+      saleItems: "id, saleId, productId, createdAt",
+      ledgerEntries: "id, partyId, createdAt, [partyId+createdAt]",
+      drafts: "key",
+    });
   }
 }
 

@@ -1,5 +1,5 @@
-import { PagePlaceholder } from "@/components/shared/page-placeholder";
+import { PosScreen } from "@/components/pos/pos-screen";
 
 export default function Page() {
-  return <PagePlaceholder />;
+  return <PosScreen />;
 }

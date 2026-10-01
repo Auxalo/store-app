@@ -8,7 +8,10 @@ import {
   masterUpdate,
 } from "./master-data";
 import { productConfig, productCreate, stockAdjust } from "./products";
+import { saleCreate, saleVoid } from "./sales";
 import type { ApplyResult, ServerHandler } from "./types";
+
+const customers: MasterConfig = { collection: "customers", criticalFields: [] };
 
 const categories: MasterConfig = {
   collection: "categories",
@@ -64,6 +67,15 @@ export const serverCommands: { [T in CommandType]: ServerHandler<T> } = {
     ),
   "product.delete": (ctx, { id }) => masterDelete(ctx, productConfig, id),
   "stock.adjust": (ctx, payload) => stockAdjust(ctx, payload),
+
+  // balance is maintained by sales and payments ($inc), never set by a person.
+  "customer.create": (ctx, { id, ...fields }) =>
+    masterCreate(ctx, customers, id, { ...fields, balance: 0 }),
+  "customer.update": (ctx, { id, baseVersion, changes }) =>
+    masterUpdate(ctx, customers, id, baseVersion, changes),
+  "customer.delete": (ctx, { id }) => masterDelete(ctx, customers, id),
+  "sale.create": (ctx, payload) => saleCreate(ctx, payload),
+  "sale.void": (ctx, payload) => saleVoid(ctx, payload),
 
   // Settings are tiny key/value records: the most recent action wins.
   "setting.set": async (ctx, { key, value }): Promise<ApplyResult> => {

@@ -1,5 +1,5 @@
-import { PagePlaceholder } from "@/components/shared/page-placeholder";
+import { SalesScreen } from "@/components/sales/sales-screen";
 
 export default function Page() {
-  return <PagePlaceholder />;
+  return <SalesScreen />;
 }

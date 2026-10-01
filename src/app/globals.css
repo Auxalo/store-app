@@ -149,3 +149,24 @@ html {
   -webkit-text-size-adjust: 100%;
   touch-action: manipulation;
 }
+
+/* Printing: show only the receipt (thermal 58/80 mm or A4); paper size comes from the receipt itself. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #print-receipt,
+  #print-receipt * {
+    visibility: visible;
+  }
+  #print-receipt {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    /* biome-ignore lint/complexity/noImportantStyles: must beat the receipt's max-width utility when printing */
+    max-width: none !important;
+    padding: 0;
+    background: #fff;
+    color: #000;
+  }
+}

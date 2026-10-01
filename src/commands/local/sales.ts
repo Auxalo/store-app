@@ -1,0 +1,320 @@
+import type { StoreDB } from "@/db/local/db";
+import { getMeta, setMeta } from "@/db/local/meta";
+import { DEFAULT_TIME_ZONE } from "@/lib/constants";
+import {
+  computeTotals,
+  lineAmount,
+  qtyByProduct,
+  saleRecordIds,
+} from "@/lib/sale-math";
+import { searchWords } from "@/lib/search";
+import type { CommandInput, CommandPayload } from "../definitions";
+import { AlreadyExistsError, NotFoundError } from "../errors";
+import type { LocalContext } from "./registry";
+
+/** "2610" for October 2026 in the store's time zone. */
+function yearMonth(iso: string, timeZone = DEFAULT_TIME_ZONE): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    year: "2-digit",
+    month: "2-digit",
+  }).formatToParts(new Date(iso));
+  const get = (type: string) =>
+    parts.find((p) => p.type === type)?.value ?? "00";
+  return `${get("year")}${get("month")}`;
+}
+
+/**
+ * Invoice numbers look like "A-2610-0042": the device's code, the month, and a counter that only
+ * this device uses. Two devices selling offline can therefore never issue the same number, with
+ * no coordination. The counter is bumped in the same transaction as the sale itself.
+ */
+export async function nextInvoiceNo(
+  db: StoreDB,
+  deviceId: string,
+  now: string,
+): Promise<string> {
+  const code =
+    (await getMeta(db, "deviceCode")) ?? deviceId.slice(0, 4).toUpperCase();
+  const month = yearMonth(now);
+  const counters = (await getMeta(db, "invoiceSeq")) ?? {};
+  const seq = (counters[month] ?? 0) + 1;
+  await setMeta(db, "invoiceSeq", { ...counters, [month]: seq });
+  return `${code}-${month}-${String(seq).padStart(4, "0")}`;
+}
+
+const customerWords = (c: { name: string; phone: string }) =>
+  searchWords(c.name, c.phone);
+
+export async function customerCreate(
+  db: StoreDB,
+  ctx: LocalContext,
+  input: CommandInput<"customer.create">,
+  now: string,
+) {
+  if (await db.customers.get(input.id))
+    throw new AlreadyExistsError("customer");
+  await db.customers.add({
+    ...input,
+    balance: 0,
+    storeId: ctx.storeId,
+    createdAt: now,
+    updatedAt: now,
+    createdBy: ctx.actorUserId,
+    deviceId: ctx.deviceId,
+    version: 1,
+    deletedAt: null,
+    searchWords: customerWords(input),
+  });
+  return input;
+}
+
+export async function customerUpdate(
+  db: StoreDB,
+  input: CommandInput<"customer.update">,
+  now: string,
+) {
+  const doc = await db.customers.get(input.id);
+  if (!doc || doc.deletedAt) throw new NotFoundError("customer");
+  const next = { ...doc, ...input.changes };
+  await db.customers.update(input.id, {
+    ...input.changes,
+    searchWords: customerWords(next),
+    version: doc.version + 1,
+    updatedAt: now,
+  });
+  return { ...input, baseVersion: doc.version };
+}
+
+export async function customerDelete(
+  db: StoreDB,
+  input: CommandInput<"customer.delete">,
+  now: string,
+) {
+  const doc = await db.customers.get(input.id);
+  if (!doc || doc.deletedAt) throw new NotFoundError("customer");
+  await db.customers.update(input.id, {
+    deletedAt: now,
+    version: doc.version + 1,
+    updatedAt: now,
+  });
+  return { ...input, baseVersion: doc.version };
+}
+
+/** Moves a product's stock and records the movement, if the product still exists on this device. */
+async function moveStock(
+  db: StoreDB,
+  productId: string,
+  delta: number,
+  now: string,
+) {
+  const product = await db.products.get(productId);
+  if (!product || product.deletedAt) return false;
+  await db.products.update(productId, {
+    stock: product.stock + delta,
+    version: product.version + 1,
+    updatedAt: now,
+  });
+  return true;
+}
+
+export async function saleCreate(
+  db: StoreDB,
+  ctx: LocalContext,
+  input: CommandInput<"sale.create">,
+  now: string,
+): Promise<CommandPayload<"sale.create">> {
+  if (await db.sales.get(input.id)) throw new AlreadyExistsError("sale");
+
+  const invoiceNo = await nextInvoiceNo(db, ctx.deviceId, now);
+  const totals = computeTotals(input.lines, input.discount, input.tendered);
+
+  // Lines: a snapshot of what was sold, and (when the product still exists) the stock leaving.
+  const live = new Set<string>();
+  for (const productId of new Set(input.lines.map((l) => l.productId))) {
+    const product = await db.products.get(productId);
+    if (product && !product.deletedAt) live.add(productId);
+  }
+  await db.saleItems.bulkAdd(
+    input.lines.map((line, index) => ({
+      id: saleRecordIds.item(input.id, index),
+      saleId: input.id,
+      productId: line.productId,
+      productName: line.productName,
+      productNameBn: line.productNameBn,
+      unit: line.unit,
+      qty: line.qty,
+      listPrice: line.listPrice,
+      unitPrice: line.unitPrice,
+      unitCost: line.unitCost,
+      discount: line.discount,
+      lineTotal: lineAmount(line),
+      createdAt: now,
+    })),
+  );
+  await db.stockMovements.bulkAdd(
+    input.lines.flatMap((line, index) =>
+      live.has(line.productId)
+        ? [
+            {
+              id: saleRecordIds.movement(input.id, index),
+              storeId: ctx.storeId,
+              productId: line.productId,
+              type: "sale" as const,
+              qtyDelta: -line.qty,
+              note: "",
+              refType: "sale",
+              refId: input.id,
+              createdAt: now,
+              createdBy: ctx.actorUserId,
+              deviceId: ctx.deviceId,
+            },
+          ]
+        : [],
+    ),
+  );
+  for (const [productId, qty] of qtyByProduct(input.lines)) {
+    if (live.has(productId)) await moveStock(db, productId, -qty, now);
+  }
+
+  // Whatever was not paid becomes the customer's due, recorded in the ledger.
+  if (totals.due > 0 && input.customerId) {
+    const customer = await db.customers.get(input.customerId);
+    if (customer && !customer.deletedAt) {
+      await db.customers.update(customer.id, {
+        balance: customer.balance + totals.due,
+        version: customer.version + 1,
+        updatedAt: now,
+      });
+      await db.ledgerEntries.add({
+        id: saleRecordIds.ledger(input.id),
+        storeId: ctx.storeId,
+        partyType: "customer",
+        partyId: customer.id,
+        amountDelta: totals.due,
+        refType: "sale",
+        refId: input.id,
+        note: invoiceNo,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: ctx.actorUserId,
+        deviceId: ctx.deviceId,
+        version: 1,
+      });
+    }
+  }
+
+  await db.sales.add({
+    id: input.id,
+    storeId: ctx.storeId,
+    invoiceNo,
+    customerId: input.customerId,
+    customerName: input.customerName,
+    subtotal: totals.subtotal,
+    discount: totals.discount,
+    total: totals.total,
+    paid: totals.paid,
+    due: totals.due,
+    paymentMethod: input.paymentMethod,
+    notes: input.notes,
+    status: "active",
+    itemCount: input.lines.length,
+    createdAt: now,
+    updatedAt: now,
+    createdBy: ctx.actorUserId,
+    deviceId: ctx.deviceId,
+    version: 1,
+    deletedAt: null,
+  });
+
+  return { ...input, invoiceNo };
+}
+
+/** Cancelling a sale never edits it: it adds reversing movements and ledger entries and flags the sale. */
+export async function saleVoid(
+  db: StoreDB,
+  ctx: LocalContext,
+  input: CommandInput<"sale.void">,
+  now: string,
+): Promise<CommandPayload<"sale.void">> {
+  const sale = await db.sales.get(input.saleId);
+  if (!sale) throw new NotFoundError("sale");
+  if (sale.status === "voided") throw new AlreadyExistsError("void");
+  const items = await db.saleItems.where("saleId").equals(sale.id).sortBy("id");
+  // Same order as when the sale was created, so reversal ids line up with the server's.
+  const ordered = items.sort(
+    (a, b) => Number(a.id.split(":i")[1]) - Number(b.id.split(":i")[1]),
+  );
+
+  const live = new Set<string>();
+  for (const productId of new Set(ordered.map((i) => i.productId))) {
+    const product = await db.products.get(productId);
+    if (product && !product.deletedAt) live.add(productId);
+  }
+  await db.stockMovements.bulkAdd(
+    ordered.flatMap((item, index) =>
+      live.has(item.productId)
+        ? [
+            {
+              id: saleRecordIds.voidMovement(sale.id, index),
+              storeId: ctx.storeId,
+              productId: item.productId,
+              type: "sale_return" as const,
+              qtyDelta: item.qty,
+              note: sale.invoiceNo,
+              refType: "sale_void",
+              refId: sale.id,
+              createdAt: now,
+              createdBy: ctx.actorUserId,
+              deviceId: ctx.deviceId,
+            },
+          ]
+        : [],
+    ),
+  );
+  for (const [productId, qty] of qtyByProduct(ordered)) {
+    if (live.has(productId)) await moveStock(db, productId, qty, now);
+  }
+
+  if (sale.due > 0 && sale.customerId) {
+    const customer = await db.customers.get(sale.customerId);
+    if (customer && !customer.deletedAt) {
+      await db.customers.update(customer.id, {
+        balance: customer.balance - sale.due,
+        version: customer.version + 1,
+        updatedAt: now,
+      });
+      await db.ledgerEntries.add({
+        id: saleRecordIds.voidLedger(sale.id),
+        storeId: ctx.storeId,
+        partyType: "customer",
+        partyId: customer.id,
+        amountDelta: -sale.due,
+        refType: "sale_void",
+        refId: sale.id,
+        note: sale.invoiceNo,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: ctx.actorUserId,
+        deviceId: ctx.deviceId,
+        version: 1,
+      });
+    }
+  }
+
+  await db.sales.update(sale.id, {
+    status: "voided",
+    voidedAt: now,
+    voidReason: input.reason,
+    voidedBy: ctx.actorUserId,
+    version: sale.version + 1,
+    updatedAt: now,
+  });
+
+  return {
+    ...input,
+    customerId: sale.customerId,
+    due: sale.due,
+    lines: ordered.map((i) => ({ productId: i.productId, qty: i.qty })),
+  };
+}
