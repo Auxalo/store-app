@@ -17,6 +17,13 @@ import {
   customerUpdatePayload,
 } from "@/schemas/customer";
 import {
+  expenseCreateInput,
+  expenseCreatePayload,
+  expenseVoidInput,
+  expenseVoidPayload,
+} from "@/schemas/expense";
+import { paymentInput, paymentPayload } from "@/schemas/payment";
+import {
   productCreateInput,
   productCreatePayload,
   productDeleteInput,
@@ -26,6 +33,13 @@ import {
   stockAdjustInput,
   stockAdjustPayload,
 } from "@/schemas/product";
+import { purchaseCreateInput, purchaseCreatePayload } from "@/schemas/purchase";
+import {
+  purchaseReturnInput,
+  purchaseReturnPayload,
+  saleReturnInput,
+  saleReturnPayload,
+} from "@/schemas/return";
 import {
   saleCreateInput,
   saleCreatePayload,
@@ -33,6 +47,14 @@ import {
   saleVoidPayload,
 } from "@/schemas/sale";
 import { settingSetInput, settingSetPayload } from "@/schemas/setting";
+import {
+  supplierCreateInput,
+  supplierCreatePayload,
+  supplierDeleteInput,
+  supplierDeletePayload,
+  supplierUpdateInput,
+  supplierUpdatePayload,
+} from "@/schemas/supplier";
 
 /** Bump when a payload shape changes incompatibly; the server rejects versions it cannot read. */
 export const OP_SCHEMA_VERSION = 1;
@@ -46,6 +68,11 @@ export const SYNC_COLLECTIONS = [
   "customers",
   "sales",
   "ledgerEntries",
+  "suppliers",
+  "purchases",
+  "payments",
+  "expenses",
+  "returns",
 ] as const;
 export type SyncCollection = (typeof SYNC_COLLECTIONS)[number];
 
@@ -168,6 +195,101 @@ export const COMMANDS = {
       p.saleId,
       ...new Set(p.lines.map((l) => l.productId)),
       ...(p.customerId ? [p.customerId] : []),
+    ],
+  },
+  "supplier.create": {
+    collection: "suppliers",
+    permission: "purchase.manage",
+    input: supplierCreateInput,
+    payload: supplierCreatePayload,
+    entityIds: (p: { id: string }) => [p.id],
+  },
+  "supplier.update": {
+    collection: "suppliers",
+    permission: "purchase.manage",
+    input: supplierUpdateInput,
+    payload: supplierUpdatePayload,
+    entityIds: (p: { id: string }) => [p.id],
+  },
+  "supplier.delete": {
+    collection: "suppliers",
+    permission: "purchase.manage",
+    input: supplierDeleteInput,
+    payload: supplierDeletePayload,
+    entityIds: (p: { id: string }) => [p.id],
+  },
+  "purchase.create": {
+    collection: "purchases",
+    permission: "purchase.manage",
+    input: purchaseCreateInput,
+    payload: purchaseCreatePayload,
+    entityIds: (p: {
+      id: string;
+      supplierId: string | null;
+      lines: Array<{ productId: string }>;
+    }) => [
+      p.id,
+      ...new Set(p.lines.map((l) => l.productId)),
+      ...(p.supplierId ? [p.supplierId] : []),
+    ],
+  },
+  // Money in from a customer (a due being collected) and money out to a supplier.
+  "payment.collect": {
+    collection: "payments",
+    permission: "sale.create",
+    input: paymentInput,
+    payload: paymentPayload,
+    entityIds: (p: { id: string; partyId: string }) => [p.id, p.partyId],
+  },
+  "payment.pay": {
+    collection: "payments",
+    permission: "purchase.manage",
+    input: paymentInput,
+    payload: paymentPayload,
+    entityIds: (p: { id: string; partyId: string }) => [p.id, p.partyId],
+  },
+  "expense.create": {
+    collection: "expenses",
+    permission: "expense.manage",
+    input: expenseCreateInput,
+    payload: expenseCreatePayload,
+    entityIds: (p: { id: string }) => [p.id],
+  },
+  "expense.void": {
+    collection: "expenses",
+    permission: "expense.manage",
+    input: expenseVoidInput,
+    payload: expenseVoidPayload,
+    entityIds: (p: { id: string }) => [p.id],
+  },
+  "saleReturn.create": {
+    collection: "returns",
+    permission: "sale.void",
+    input: saleReturnInput,
+    payload: saleReturnPayload,
+    entityIds: (p: {
+      id: string;
+      customerId: string | null;
+      lines: Array<{ productId: string }>;
+    }) => [
+      p.id,
+      ...new Set(p.lines.map((l) => l.productId)),
+      ...(p.customerId ? [p.customerId] : []),
+    ],
+  },
+  "purchaseReturn.create": {
+    collection: "returns",
+    permission: "purchase.manage",
+    input: purchaseReturnInput,
+    payload: purchaseReturnPayload,
+    entityIds: (p: {
+      id: string;
+      supplierId: string | null;
+      lines: Array<{ productId: string }>;
+    }) => [
+      p.id,
+      ...new Set(p.lines.map((l) => l.productId)),
+      ...(p.supplierId ? [p.supplierId] : []),
     ],
   },
   "setting.set": {

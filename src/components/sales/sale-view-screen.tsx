@@ -1,7 +1,7 @@
 "use client";
 
 import { useLiveQuery } from "dexie-react-hooks";
-import { Ban, Printer } from "lucide-react";
+import { Ban, Printer, Undo2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
 import { Receipt } from "@/components/pos/receipt";
+import { ReturnDialog } from "@/components/returns/return-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,6 +32,7 @@ export function SaleViewScreen() {
   const { role, storeName } = useProfile();
   const id = useSearchParams().get("id") ?? "";
   const [voiding, setVoiding] = useState(false);
+  const [returning, setReturning] = useState(false);
   const [reason, setReason] = useState("");
 
   const data = useLiveQuery(async () => {
@@ -74,6 +76,16 @@ export function SaleViewScreen() {
         {can(role, "sale.void") && sale.status === "active" ? (
           <Button
             variant="outline"
+            onClick={() => setReturning(true)}
+            data-testid="return-items"
+          >
+            <Undo2 aria-hidden />
+            {t("returns.title")}
+          </Button>
+        ) : null}
+        {can(role, "sale.void") && sale.status === "active" ? (
+          <Button
+            variant="outline"
             onClick={() => setVoiding(true)}
             data-testid="void-sale"
           >
@@ -89,6 +101,13 @@ export function SaleViewScreen() {
       >
         <Receipt sale={sale} items={items} storeName={storeName ?? ""} />
       </div>
+
+      <ReturnDialog
+        kind="sale"
+        refId={id}
+        open={returning}
+        onClose={() => setReturning(false)}
+      />
 
       <AlertDialog open={voiding} onOpenChange={setVoiding}>
         <AlertDialogContent>

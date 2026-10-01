@@ -32,3 +32,34 @@ export async function addCategory(page: Page, name: string, nameBn: string) {
   await page.getByLabel("বাংলা নাম").fill(nameBn);
   await page.getByRole("button", { name: "সংরক্ষণ" }).click();
 }
+
+export interface NewProduct {
+  name: string;
+  nameBn: string;
+  price: string;
+  stock: string;
+  barcode?: string;
+}
+
+export async function createProduct(page: Page, p: NewProduct) {
+  await page.goto("/products/new");
+  await page.getByLabel("পণ্যের নাম").fill(p.name);
+  await page.getByLabel("বাংলা নাম").fill(p.nameBn);
+  await page.getByLabel("বিক্রয়মূল্য (৳)").fill(p.price);
+  await page.getByLabel(/এখন হাতে স্টক/).fill(p.stock);
+  if (p.barcode) await page.getByLabel("বারকোড").fill(p.barcode);
+  await page.getByRole("button", { name: "সংরক্ষণ" }).click();
+  await expect(page).toHaveURL(/\/products$/);
+}
+
+export const search = (page: Page) =>
+  page.getByPlaceholder("খুঁজুন বা বারকোড স্ক্যান করুন");
+export const tapProduct = (page: Page, text: string) =>
+  page.getByTestId("picker-row").filter({ hasText: text }).click();
+
+/** On a phone the cart is a sheet behind the bottom bar; on a desktop it is always visible. */
+export async function openCart(page: Page) {
+  const bar = page.getByTestId("view-cart");
+  if (await bar.isVisible()) await bar.click();
+  await expect(page.getByTestId("cart-panel")).toBeVisible();
+}

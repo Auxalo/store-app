@@ -1,5 +1,5 @@
-import { PagePlaceholder } from "@/components/shared/page-placeholder";
+import { PaymentsScreen } from "@/components/payments/payments-screen";
 
 export default function Page() {
-  return <PagePlaceholder />;
+  return <PaymentsScreen />;
 }

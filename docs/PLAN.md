@@ -564,3 +564,13 @@ Defaults I'll use unless you say otherwise:
 - **Cart** lives in the device database (`drafts` table) via Zustand's async persist, so a reload or crash keeps it; held carts are persisted too.
 - **Receipt** prints on 58 mm, 80 mm or A4 (print CSS hides everything else), in the current language, fully offline.
 - **Traps found by testing:** `useMemo`-free money inputs lose a typed decimal point if controlled directly from the store (fixed with `MoneyField`); one-word searches can match thousands of products (id-set intersection, see Phase 3).
+
+### Phase 5 notes
+
+- **One ledger pattern for every kind of money owed.** Customers (what they owe us) and suppliers (what we owe them) keep a `balance` that only ever changes by `$inc` in the same transaction as a ledger entry, written by sales, purchases, payments and returns. `balance == Σ ledger entries` is checked in the server and cross-device tests.
+- **New commands:** `supplier.*`, `purchase.create`, `payment.collect` / `payment.pay`, `expense.create` / `expense.void`, `saleReturn.create`, `purchaseReturn.create`. All are idempotent by operation id, and every record they create has an id derived from the document id (`<id>:m0`, `:l`, …).
+- **Returns never touch the original invoice.** A return is its own document. The server checks what is still returnable against all earlier returns inside the transaction, so two devices returning the same goods at once leave exactly one accepted (tested with a race); the loser is marked failed on its device and its screen is restored.
+- **Purchases** can update each product's purchase price (audited as a price change) and number themselves per device and month like invoices (`P-A-2610-0001`).
+- **Refunds use the price the customer paid per unit** (line discounts and the cart-level discount are not apportioned across returned units); noted as a known simplification.
+- **Customers and suppliers share one screen component** (`PartiesScreen`) and one detail component with a statement showing the running balance after every entry.
+- **Timing tests now run on their own** (`pnpm test:perf`, part of `pnpm check`): run in parallel with database-heavy suites the numbers were noise.

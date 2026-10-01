@@ -1,5 +1,6 @@
 import type { CommandType, SyncCollection } from "@/commands/definitions";
 import type { UnitCode } from "@/lib/units";
+import type { ExpenseCategory } from "@/schemas/expense";
 import type { StockMovementType } from "@/schemas/product";
 import type { PaymentMethod } from "@/schemas/sale";
 import type { WireDoc } from "@/schemas/sync";
@@ -128,6 +129,132 @@ export interface LedgerEntry {
   refType: string;
   refId: string;
   note: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  deviceId: string;
+  version: number;
+  syncSeq?: number;
+}
+
+export interface Supplier extends SyncedBase {
+  name: string;
+  phone: string;
+  email: string;
+  address: string;
+  contactPerson: string;
+  notes: string;
+  /** Poisha we owe this supplier (negative: they owe us). */
+  balance: number;
+  searchWords: string[];
+}
+
+export interface Purchase {
+  id: string;
+  storeId: string;
+  /** Our own number for the purchase, e.g. P-A-2610-0001. */
+  purchaseNo: string;
+  /** The supplier's invoice number, if any. */
+  invoiceRef: string;
+  supplierId: string | null;
+  supplierName: string;
+  /** Day the goods arrived, yyyy-mm-dd. */
+  date: string;
+  subtotal: number;
+  discount: number;
+  total: number;
+  paid: number;
+  due: number;
+  paymentMethod: PaymentMethod;
+  notes: string;
+  itemCount: number;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  deviceId: string;
+  version: number;
+  deletedAt?: string | null;
+  syncSeq?: number;
+}
+
+export interface PurchaseItem {
+  id: string;
+  purchaseId: string;
+  productId: string;
+  productName: string;
+  productNameBn: string;
+  unit: UnitCode;
+  qty: number;
+  unitCost: number;
+  discount: number;
+  lineTotal: number;
+  createdAt: string;
+}
+
+/** Money received from a customer or paid to a supplier. */
+export interface Payment {
+  id: string;
+  storeId: string;
+  partyType: "customer" | "supplier";
+  partyId: string;
+  partyName: string;
+  amount: number;
+  method: PaymentMethod;
+  note: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  deviceId: string;
+  version: number;
+  syncSeq?: number;
+}
+
+export interface Expense {
+  id: string;
+  storeId: string;
+  category: ExpenseCategory;
+  amount: number;
+  description: string;
+  date: string;
+  method: PaymentMethod;
+  notes: string;
+  status: "active" | "voided";
+  voidReason?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  deviceId: string;
+  version: number;
+  syncSeq?: number;
+}
+
+export interface ReturnLine {
+  itemIndex: number;
+  productId: string;
+  productName: string;
+  productNameBn: string;
+  unit: UnitCode;
+  qty: number;
+  /** Refund per unit (the sale price, or for purchases the cost). */
+  unitAmount: number;
+}
+
+/** A return keeps the original invoice untouched; it is its own record. */
+export interface ReturnDoc {
+  id: string;
+  storeId: string;
+  kind: "sale" | "purchase";
+  returnNo: string;
+  /** The sale or purchase being returned against. */
+  refId: string;
+  refNo: string;
+  partyId: string | null;
+  partyName: string;
+  lines: ReturnLine[];
+  total: number;
+  settlement: "cash" | "credit";
+  restock: boolean;
+  notes: string;
   createdAt: string;
   updatedAt: string;
   createdBy: string;

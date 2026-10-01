@@ -3,14 +3,20 @@ import type {
   Category,
   Customer,
   Draft,
+  Expense,
   LedgerEntry,
   MetaRow,
   OutboxOp,
+  Payment,
   Product,
+  Purchase,
+  PurchaseItem,
+  ReturnDoc,
   Sale,
   SaleItem,
   Setting,
   StockMovement,
+  Supplier,
 } from "./types";
 
 /**
@@ -29,6 +35,12 @@ export class StoreDB extends Dexie {
   saleItems!: EntityTable<SaleItem, "id">;
   ledgerEntries!: EntityTable<LedgerEntry, "id">;
   drafts!: EntityTable<Draft, "key">;
+  suppliers!: EntityTable<Supplier, "id">;
+  purchases!: EntityTable<Purchase, "id">;
+  purchaseItems!: EntityTable<PurchaseItem, "id">;
+  payments!: EntityTable<Payment, "id">;
+  expenses!: EntityTable<Expense, "id">;
+  returns!: EntityTable<ReturnDoc, "id">;
   outbox!: EntityTable<OutboxOp, "seq">;
   syncMeta!: EntityTable<MetaRow, "key">;
 
@@ -68,6 +80,16 @@ export class StoreDB extends Dexie {
       saleItems: "id, saleId, productId, createdAt",
       ledgerEntries: "id, partyId, createdAt, [partyId+createdAt]",
       drafts: "key",
+    });
+
+    // v4: suppliers, purchases (with their lines), payments, expenses and returns.
+    this.version(4).stores({
+      suppliers: "id, phone, name, *searchWords, deletedAt",
+      purchases: "id, purchaseNo, date, createdAt, supplierId",
+      purchaseItems: "id, purchaseId, productId, createdAt",
+      payments: "id, partyId, partyType, createdAt",
+      expenses: "id, date, category, status, createdAt",
+      returns: "id, kind, refId, createdAt",
     });
   }
 }

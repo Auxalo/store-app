@@ -1,39 +1,17 @@
-import { expect, type Page, test } from "@playwright/test";
-import { indicator, signIn, signUp } from "./helpers";
+import { expect, test } from "@playwright/test";
+import {
+  createProduct,
+  indicator,
+  openCart,
+  search,
+  signIn,
+  signUp,
+  tapProduct,
+} from "./helpers";
 
 test.afterEach(async ({ page }) => {
   await page.goto("about:blank").catch(() => undefined);
 });
-
-interface NewProduct {
-  name: string;
-  nameBn: string;
-  price: string;
-  stock: string;
-  barcode?: string;
-}
-
-async function createProduct(page: Page, p: NewProduct) {
-  await page.goto("/products/new");
-  await page.getByLabel("পণ্যের নাম").fill(p.name);
-  await page.getByLabel("বাংলা নাম").fill(p.nameBn);
-  await page.getByLabel("বিক্রয়মূল্য (৳)").fill(p.price);
-  await page.getByLabel(/এখন হাতে স্টক/).fill(p.stock);
-  if (p.barcode) await page.getByLabel("বারকোড").fill(p.barcode);
-  await page.getByRole("button", { name: "সংরক্ষণ" }).click();
-  await expect(page).toHaveURL(/\/products$/);
-}
-
-const search = (page: Page) => page.getByPlaceholder("খুঁজুন বা বারকোড স্ক্যান করুন");
-const tapProduct = (page: Page, text: string) =>
-  page.getByTestId("picker-row").filter({ hasText: text }).click();
-
-/** On a phone the cart is a sheet behind the bottom bar; on a desktop it is always visible. */
-async function openCart(page: Page) {
-  const bar = page.getByTestId("view-cart");
-  if (await bar.isVisible()) await bar.click();
-  await expect(page.getByTestId("cart-panel")).toBeVisible();
-}
 
 test("a sale made offline: instant, receipt, stock down, then synced to a second device", async ({
   page,
@@ -175,7 +153,7 @@ test("selling on credit adds to the customer's due; cancelling the sale puts eve
 
   // The customer now owes 50, and stock is 7.
   await page.goto("/customers");
-  await expect(page.getByTestId("customer-balance")).toContainText("বাকি ৳৫০");
+  await expect(page.getByTestId("party-balance")).toContainText("বাকি ৳৫০");
   await page.goto("/inventory");
   await expect(
     page.getByTestId("product-row").filter({ hasText: "ফ্রেশ দুধ" }),
@@ -189,7 +167,7 @@ test("selling on credit adds to the customer's due; cancelling the sale puts eve
   await expect(page.locator("#print-receipt")).toContainText("বাতিল");
 
   await page.goto("/customers");
-  await expect(page.getByTestId("customer-balance")).toHaveCount(0);
+  await expect(page.getByTestId("party-balance")).toHaveCount(0);
   await page.goto("/inventory");
   await expect(
     page.getByTestId("product-row").filter({ hasText: "ফ্রেশ দুধ" }),

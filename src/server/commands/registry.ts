@@ -8,8 +8,18 @@ import {
   masterUpdate,
 } from "./master-data";
 import { productConfig, productCreate, stockAdjust } from "./products";
+import {
+  expenseCreate,
+  expenseVoid,
+  paymentCreate,
+  purchaseCreate,
+  purchaseReturnCreate,
+  saleReturnCreate,
+} from "./purchasing";
 import { saleCreate, saleVoid } from "./sales";
 import type { ApplyResult, ServerHandler } from "./types";
+
+const suppliers: MasterConfig = { collection: "suppliers", criticalFields: [] };
 
 const customers: MasterConfig = { collection: "customers", criticalFields: [] };
 
@@ -76,6 +86,19 @@ export const serverCommands: { [T in CommandType]: ServerHandler<T> } = {
   "customer.delete": (ctx, { id }) => masterDelete(ctx, customers, id),
   "sale.create": (ctx, payload) => saleCreate(ctx, payload),
   "sale.void": (ctx, payload) => saleVoid(ctx, payload),
+
+  "supplier.create": (ctx, { id, ...fields }) =>
+    masterCreate(ctx, suppliers, id, { ...fields, balance: 0 }),
+  "supplier.update": (ctx, { id, baseVersion, changes }) =>
+    masterUpdate(ctx, suppliers, id, baseVersion, changes),
+  "supplier.delete": (ctx, { id }) => masterDelete(ctx, suppliers, id),
+  "purchase.create": (ctx, payload) => purchaseCreate(ctx, payload),
+  "payment.collect": (ctx, payload) => paymentCreate(ctx, "customer", payload),
+  "payment.pay": (ctx, payload) => paymentCreate(ctx, "supplier", payload),
+  "expense.create": (ctx, payload) => expenseCreate(ctx, payload),
+  "expense.void": (ctx, payload) => expenseVoid(ctx, payload),
+  "saleReturn.create": (ctx, payload) => saleReturnCreate(ctx, payload),
+  "purchaseReturn.create": (ctx, payload) => purchaseReturnCreate(ctx, payload),
 
   // Settings are tiny key/value records: the most recent action wins.
   "setting.set": async (ctx, { key, value }): Promise<ApplyResult> => {

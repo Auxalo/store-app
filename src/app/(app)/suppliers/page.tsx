@@ -1,5 +1,5 @@
-import { PagePlaceholder } from "@/components/shared/page-placeholder";
+import { PartiesScreen } from "@/components/parties/parties-screen";
 
 export default function Page() {
-  return <PagePlaceholder />;
+  return <PartiesScreen kind="supplier" />;
 }

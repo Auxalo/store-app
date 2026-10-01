@@ -12,8 +12,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check:i18n": "node scripts/check-i18n.mjs",
-    "check": "pnpm lint && pnpm typecheck && pnpm check:i18n && pnpm test",
-    "db:dev": "node scripts/dev-db.mjs"
+    "check": "pnpm lint && pnpm typecheck && pnpm check:i18n && pnpm test && pnpm test:perf",
+    "db:dev": "node scripts/dev-db.mjs",
+    "test:perf": "vitest run --config vitest.perf.config.mts"
   },
   "dependencies": {
     "@date-fns/tz": "^1.5.0",

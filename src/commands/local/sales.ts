@@ -25,23 +25,29 @@ function yearMonth(iso: string, timeZone = DEFAULT_TIME_ZONE): string {
 }
 
 /**
- * Invoice numbers look like "A-2610-0042": the device's code, the month, and a counter that only
+ * Document numbers look like "A-2610-0042": the device's code, the month, and a counter that only
  * this device uses. Two devices selling offline can therefore never issue the same number, with
- * no coordination. The counter is bumped in the same transaction as the sale itself.
+ * no coordination. The counter is bumped in the same transaction as the document itself.
+ * `prefix` separates other documents ("P" purchases, "R" returns) into their own series.
  */
-export async function nextInvoiceNo(
+export async function nextDocNo(
   db: StoreDB,
   deviceId: string,
   now: string,
+  prefix = "",
 ): Promise<string> {
   const code =
     (await getMeta(db, "deviceCode")) ?? deviceId.slice(0, 4).toUpperCase();
   const month = yearMonth(now);
+  const key = `${prefix}${month}`;
   const counters = (await getMeta(db, "invoiceSeq")) ?? {};
-  const seq = (counters[month] ?? 0) + 1;
-  await setMeta(db, "invoiceSeq", { ...counters, [month]: seq });
-  return `${code}-${month}-${String(seq).padStart(4, "0")}`;
+  const seq = (counters[key] ?? 0) + 1;
+  await setMeta(db, "invoiceSeq", { ...counters, [key]: seq });
+  return `${prefix ? `${prefix}-` : ""}${code}-${month}-${String(seq).padStart(4, "0")}`;
 }
+
+export const nextInvoiceNo = (db: StoreDB, deviceId: string, now: string) =>
+  nextDocNo(db, deviceId, now);
 
 const customerWords = (c: { name: string; phone: string }) =>
   searchWords(c.name, c.phone);

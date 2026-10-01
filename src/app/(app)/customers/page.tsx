@@ -1,5 +1,5 @@
-import { CustomersScreen } from "@/components/customers/customers-screen";
+import { PartiesScreen } from "@/components/parties/parties-screen";
 
 export default function Page() {
-  return <CustomersScreen />;
+  return <PartiesScreen kind="customer" />;
 }

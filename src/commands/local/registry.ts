@@ -4,6 +4,17 @@ import { searchWords } from "@/lib/search";
 import type { CommandInput, CommandPayload, CommandType } from "../definitions";
 import { AlreadyExistsError, NotFoundError } from "../errors";
 import {
+  expenseCreate,
+  expenseVoid,
+  paymentCreate,
+  purchaseCreate,
+  purchaseReturnCreate,
+  saleReturnCreate,
+  supplierCreate,
+  supplierDelete,
+  supplierUpdate,
+} from "./purchasing";
+import {
   customerCreate,
   customerDelete,
   customerUpdate,
@@ -159,6 +170,23 @@ export const localCommands: { [T in CommandType]: LocalHandler<T> } = {
   "customer.delete": (db, _ctx, input, now) => customerDelete(db, input, now),
   "sale.create": (db, ctx, input, now) => saleCreate(db, ctx, input, now),
   "sale.void": (db, ctx, input, now) => saleVoid(db, ctx, input, now),
+
+  "supplier.create": (db, ctx, input, now) =>
+    supplierCreate(db, ctx, input, now),
+  "supplier.update": (db, _ctx, input, now) => supplierUpdate(db, input, now),
+  "supplier.delete": (db, _ctx, input, now) => supplierDelete(db, input, now),
+  "purchase.create": (db, ctx, input, now) =>
+    purchaseCreate(db, ctx, input, now),
+  "payment.collect": (db, ctx, input, now) =>
+    paymentCreate(db, ctx, "customer", input, now),
+  "payment.pay": (db, ctx, input, now) =>
+    paymentCreate(db, ctx, "supplier", input, now),
+  "expense.create": (db, ctx, input, now) => expenseCreate(db, ctx, input, now),
+  "expense.void": (db, _ctx, input, now) => expenseVoid(db, input, now),
+  "saleReturn.create": (db, ctx, input, now) =>
+    saleReturnCreate(db, ctx, input, now),
+  "purchaseReturn.create": (db, ctx, input, now) =>
+    purchaseReturnCreate(db, ctx, input, now),
 
   "setting.set": async (db, ctx, input, now) => {
     const existing = await db.settings.get(input.key);

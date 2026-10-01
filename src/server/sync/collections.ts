@@ -29,6 +29,14 @@ export async function ensureSyncIndexes(db: Db): Promise<void> {
     db
       .collection("ledgerEntries")
       .createIndex({ storeId: 1, partyId: 1, createdAt: 1 }),
+    ...["suppliers", "purchases", "payments", "expenses", "returns"].map(
+      (name) => db.collection(name).createIndex({ storeId: 1, syncSeq: 1 }),
+    ),
+    db.collection("returns").createIndex({ storeId: 1, kind: 1, refId: 1 }),
+    db.collection("purchases").createIndex({ storeId: 1, date: -1 }),
+    db
+      .collection("payments")
+      .createIndex({ storeId: 1, partyId: 1, createdAt: -1 }),
     db.collection("auditLogs").createIndex({ storeId: 1, at: -1 }),
     db
       .collection(COL.devices)

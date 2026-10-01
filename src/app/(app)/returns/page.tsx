@@ -1,5 +1,5 @@
-import { PagePlaceholder } from "@/components/shared/page-placeholder";
+import { ReturnsScreen } from "@/components/returns/returns-screen";
 
 export default function Page() {
-  return <PagePlaceholder />;
+  return <ReturnsScreen />;
 }
