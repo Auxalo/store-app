@@ -87,6 +87,11 @@ export async function masterUpdate(
   id: string,
   baseVersion: number,
   changes: Record<string, unknown>,
+  /** Runs inside the transaction after the change is written (e.g. to record an audit line). */
+  onApplied?: (
+    before: StoredDoc,
+    applied: Record<string, unknown>,
+  ) => Promise<void>,
 ): Promise<ApplyResult> {
   const col = ctx.db.collection<StoredDoc>(cfg.collection);
   const doc = await col.findOne(
@@ -132,6 +137,7 @@ export async function masterUpdate(
     },
     { returnDocument: "after", session: ctx.session },
   );
+  await onApplied?.(doc, effective);
   return applied(cfg, updated ?? doc);
 }
 

@@ -8,24 +8,43 @@ import {
   categoryUpdateInput,
   categoryUpdatePayload,
 } from "@/schemas/category";
+import {
+  productCreateInput,
+  productCreatePayload,
+  productDeleteInput,
+  productDeletePayload,
+  productUpdateInput,
+  productUpdatePayload,
+  stockAdjustInput,
+  stockAdjustPayload,
+} from "@/schemas/product";
 import { settingSetInput, settingSetPayload } from "@/schemas/setting";
 
 /** Bump when a payload shape changes incompatibly; the server rejects versions it cannot read. */
 export const OP_SCHEMA_VERSION = 1;
 
 /** Collections that sync both ways. Each has a Dexie table and a Mongo collection of the same name. */
-export const SYNC_COLLECTIONS = ["categories", "settings"] as const;
+export const SYNC_COLLECTIONS = [
+  "categories",
+  "settings",
+  "products",
+  "stockMovements",
+] as const;
 export type SyncCollection = (typeof SYNC_COLLECTIONS)[number];
 
 interface CommandDef {
+  /** The collection of the record this command is "about" (used to clean up a rejected create). */
   collection: SyncCollection;
   permission: Permission;
   /** What the UI passes to runCommand. */
   input: z.ZodType;
   /** What is queued and sent; the local handler may add fields such as baseVersion. */
   payload: z.ZodType;
-  /** The entity the operation targets (used to order and overlay pending operations). */
-  entityId: (payload: never) => string;
+  /**
+   * Every record the operation changes, primary one first. Used to re-apply unsynced operations
+   * on top of server data (so a pull never makes a pending change disappear).
+   */
+  entityIds: (payload: never) => string[];
 }
 
 /**
@@ -38,28 +57,56 @@ export const COMMANDS = {
     permission: "product.create",
     input: categoryCreateInput,
     payload: categoryCreatePayload,
-    entityId: (p: { id: string }) => p.id,
+    entityIds: (p: { id: string }) => [p.id],
   },
   "category.update": {
     collection: "categories",
     permission: "product.edit",
     input: categoryUpdateInput,
     payload: categoryUpdatePayload,
-    entityId: (p: { id: string }) => p.id,
+    entityIds: (p: { id: string }) => [p.id],
   },
   "category.delete": {
     collection: "categories",
     permission: "product.edit",
     input: categoryDeleteInput,
     payload: categoryDeletePayload,
-    entityId: (p: { id: string }) => p.id,
+    entityIds: (p: { id: string }) => [p.id],
+  },
+  "product.create": {
+    collection: "products",
+    permission: "product.create",
+    input: productCreateInput,
+    payload: productCreatePayload,
+    entityIds: (p: { id: string }) => [p.id],
+  },
+  "product.update": {
+    collection: "products",
+    permission: "product.edit",
+    input: productUpdateInput,
+    payload: productUpdatePayload,
+    entityIds: (p: { id: string }) => [p.id],
+  },
+  "product.delete": {
+    collection: "products",
+    permission: "product.edit",
+    input: productDeleteInput,
+    payload: productDeletePayload,
+    entityIds: (p: { id: string }) => [p.id],
+  },
+  "stock.adjust": {
+    collection: "products",
+    permission: "stock.adjust",
+    input: stockAdjustInput,
+    payload: stockAdjustPayload,
+    entityIds: (p: { productId: string }) => [p.productId],
   },
   "setting.set": {
     collection: "settings",
     permission: "settings.manage",
     input: settingSetInput,
     payload: settingSetPayload,
-    entityId: (p: { key: string }) => p.key,
+    entityIds: (p: { key: string }) => [p.key],
   },
 } as const satisfies Record<string, CommandDef>;
 
@@ -75,6 +122,6 @@ export function isCommandType(value: string): value is CommandType {
   return Object.hasOwn(COMMANDS, value);
 }
 
-export function entityIdOf(type: CommandType, payload: unknown): string {
-  return (COMMANDS[type].entityId as (p: unknown) => string)(payload);
+export function entityIdsOf(type: CommandType, payload: unknown): string[] {
+  return (COMMANDS[type].entityIds as (p: unknown) => string[])(payload);
 }

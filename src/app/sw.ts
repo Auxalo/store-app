@@ -23,6 +23,9 @@ declare const self: ServiceWorkerGlobalScope;
  */
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
+  // Detail pages are one static page that reads "?id=…" in the browser (so any product, even one
+  // created offline, opens from the precache). Match precached pages whatever the query string.
+  precacheOptions: { ignoreURLParametersMatching: [/.*/] },
   // Only an explicit "Update" tap activates a waiting worker, so a sale is never interrupted.
   skipWaiting: false,
   clientsClaim: true,

@@ -1,5 +1,5 @@
-import { PagePlaceholder } from "@/components/shared/page-placeholder";
+import { ProductCatalog } from "@/components/products/product-catalog";
 
 export default function Page() {
-  return <PagePlaceholder />;
+  return <ProductCatalog mode="inventory" />;
 }

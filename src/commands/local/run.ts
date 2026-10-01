@@ -6,7 +6,7 @@ import {
   COMMANDS,
   type CommandInput,
   type CommandType,
-  entityIdOf,
+  entityIdsOf,
   OP_SCHEMA_VERSION,
 } from "../definitions";
 import { PermissionError } from "../errors";
@@ -49,7 +49,8 @@ export async function runCommand<T extends CommandType>(
       operationId,
       type,
       collection: def.collection,
-      entityId: entityIdOf(type, payload),
+      entityId: entityIdsOf(type, payload)[0],
+      entityIds: entityIdsOf(type, payload),
       schemaVersion: OP_SCHEMA_VERSION,
       payload,
       actorUserId: ctx.actorUserId,

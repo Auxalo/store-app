@@ -1,4 +1,5 @@
 import type { CommandType } from "@/commands/definitions";
+import { writeAudit } from "../audit";
 import { allocSeq } from "../sync/txn";
 import {
   type MasterConfig,
@@ -6,6 +7,7 @@ import {
   masterDelete,
   masterUpdate,
 } from "./master-data";
+import { productConfig, productCreate, stockAdjust } from "./products";
 import type { ApplyResult, ServerHandler } from "./types";
 
 const categories: MasterConfig = {
@@ -37,6 +39,31 @@ export const serverCommands: { [T in CommandType]: ServerHandler<T> } = {
   "category.update": (ctx, { id, baseVersion, changes }) =>
     masterUpdate(ctx, categories, id, baseVersion, changes),
   "category.delete": (ctx, { id }) => masterDelete(ctx, categories, id),
+
+  "product.create": (ctx, payload) => productCreate(ctx, payload),
+  "product.update": (ctx, { id, baseVersion, changes }) =>
+    masterUpdate(
+      ctx,
+      productConfig,
+      id,
+      baseVersion,
+      changes,
+      async (before, applied) => {
+        for (const field of ["purchasePrice", "sellingPrice"] as const) {
+          if (field in applied && applied[field] !== before[field]) {
+            await writeAudit(ctx, {
+              action: "product.priceChange",
+              entity: "product",
+              entityId: id,
+              oldValue: { [field]: before[field] },
+              newValue: { [field]: applied[field] },
+            });
+          }
+        }
+      },
+    ),
+  "product.delete": (ctx, { id }) => masterDelete(ctx, productConfig, id),
+  "stock.adjust": (ctx, payload) => stockAdjust(ctx, payload),
 
   // Settings are tiny key/value records: the most recent action wins.
   "setting.set": async (ctx, { key, value }): Promise<ApplyResult> => {

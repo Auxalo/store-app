@@ -1,4 +1,5 @@
 import type { SyncCollection } from "@/commands/definitions";
+import { searchWords } from "@/lib/search";
 import type { WireDoc } from "@/schemas/sync";
 import type { StoreDB } from "./db";
 import type { OutboxOp, OutboxStatus } from "./types";
@@ -14,14 +15,39 @@ function overlay(doc: Doc, op: OutboxOp): Doc {
   const bump = { version: doc.version + 1, updatedAt: op.createdAt };
   switch (op.type) {
     case "category.update":
+    case "product.update":
       return { ...doc, ...(payload.changes as object), ...bump };
     case "category.delete":
+    case "product.delete":
       return { ...doc, deletedAt: op.createdAt, ...bump };
     case "setting.set":
       return { ...doc, value: payload.value, ...bump };
+    case "stock.adjust":
+      // Stock is the server's sum plus the movements this device has not synced yet.
+      return {
+        ...doc,
+        stock: (doc.stock as number) + (payload.qtyDelta as number),
+        ...bump,
+      };
     default:
       return doc; // creates: the server already has the record
   }
+}
+
+/** Fields that exist only on this device (never synced), derived from the synced ones. */
+export function withLocalFields(collection: SyncCollection, doc: Doc): Doc {
+  if (collection === "products") {
+    return {
+      ...doc,
+      searchWords: searchWords(
+        doc.name as string,
+        doc.nameBn as string,
+        doc.sku as string,
+        doc.barcode as string,
+      ),
+    };
+  }
+  return doc;
 }
 
 /**
@@ -48,17 +74,15 @@ export async function applyServerDocs(
       continue;
 
     const unconfirmed = await db.outbox
-      .where("entityId")
+      .where("entityIds")
       .equals(incoming.id)
-      .filter(
-        (op) => op.collection === collection && UNCONFIRMED.includes(op.status),
-      )
+      .filter((op) => UNCONFIRMED.includes(op.status))
       .sortBy("seq");
 
     const merged = unconfirmed.reduce<Doc>(
       (doc, op) => overlay(doc, op),
       incoming as Doc,
     );
-    await table.put(merged);
+    await table.put(withLocalFields(collection, merged));
   }
 }

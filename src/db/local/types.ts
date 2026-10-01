@@ -1,4 +1,6 @@
 import type { CommandType, SyncCollection } from "@/commands/definitions";
+import type { UnitCode } from "@/lib/units";
+import type { StockMovementType } from "@/schemas/product";
 import type { WireDoc } from "@/schemas/sync";
 
 /** Fields every synced business record carries (spec §33). */
@@ -23,6 +25,42 @@ export interface Category extends SyncedBase {
   isActive: boolean;
 }
 
+export interface Product extends SyncedBase {
+  name: string;
+  nameBn: string;
+  sku: string;
+  barcode: string;
+  categoryId: string | null;
+  unit: UnitCode;
+  /** Poisha per 1 unit. */
+  purchasePrice: number;
+  sellingPrice: number;
+  /** Milli-units. Server stock plus movements this device has not synced yet. */
+  stock: number;
+  lowStockThreshold: number;
+  description: string;
+  isActive: boolean;
+  /** Normalized words for the search index. Computed on this device, never synced. */
+  searchWords: string[];
+}
+
+/** One line of the stock ledger. Append-only: stock is the sum of movements, never overwritten. */
+export interface StockMovement {
+  id: string;
+  storeId: string;
+  productId: string;
+  type: StockMovementType;
+  /** Signed change in milli-units. */
+  qtyDelta: number;
+  note: string;
+  refType?: string | null;
+  refId?: string | null;
+  createdAt: string;
+  createdBy: string;
+  deviceId: string;
+  syncSeq?: number;
+}
+
 export interface Setting extends Omit<SyncedBase, "createdBy"> {
   /** Same as `id`: settings are keyed by their name. */
   key: string;
@@ -44,7 +82,10 @@ export interface OutboxOp {
   operationId: string;
   type: CommandType;
   collection: SyncCollection;
+  /** Primary record the operation is about. */
   entityId: string;
+  /** Every record it changes (indexed, so unsynced operations can be replayed per record). */
+  entityIds: string[];
   schemaVersion: number;
   payload: unknown;
   actorUserId: string;

@@ -6,7 +6,10 @@ import { COL } from "./collections";
 
 export const DEFAULT_PULL_LIMIT = 500;
 
-const emptyChanges = (): PullChanges => ({ categories: [], settings: [] });
+const emptyChanges = (): PullChanges =>
+  Object.fromEntries(
+    SYNC_COLLECTIONS.map((c) => [c, []]),
+  ) as unknown as PullChanges;
 
 /**
  * Returns everything in the store that changed after `cursor`, oldest first, in pages.

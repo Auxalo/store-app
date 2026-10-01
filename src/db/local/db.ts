@@ -1,5 +1,12 @@
 import Dexie, { type EntityTable } from "dexie";
-import type { Category, MetaRow, OutboxOp, Setting } from "./types";
+import type {
+  Category,
+  MetaRow,
+  OutboxOp,
+  Product,
+  Setting,
+  StockMovement,
+} from "./types";
 
 /**
  * The on-device database. The UI reads and writes only this; the sync engine moves data
@@ -10,6 +17,8 @@ import type { Category, MetaRow, OutboxOp, Setting } from "./types";
 export class StoreDB extends Dexie {
   categories!: EntityTable<Category, "id">;
   settings!: EntityTable<Setting, "id">;
+  products!: EntityTable<Product, "id">;
+  stockMovements!: EntityTable<StockMovement, "id">;
   outbox!: EntityTable<OutboxOp, "seq">;
   syncMeta!: EntityTable<MetaRow, "key">;
 
@@ -22,6 +31,25 @@ export class StoreDB extends Dexie {
       outbox: "++seq, &operationId, entityId, status, [status+seq]",
       syncMeta: "key",
     });
+
+    // v2: products, the stock ledger, and a multi-entry index on the outbox so one operation can
+    // touch several records. Existing queued operations get their entityIds filled in.
+    this.version(2)
+      .stores({
+        products:
+          "id, sku, barcode, categoryId, name, *searchWords, isActive, updatedAt, deletedAt",
+        stockMovements: "id, productId, createdAt, [productId+createdAt]",
+        outbox:
+          "++seq, &operationId, entityId, *entityIds, status, [status+seq]",
+      })
+      .upgrade((tx) =>
+        tx
+          .table("outbox")
+          .toCollection()
+          .modify((op: { entityId: string; entityIds?: string[] }) => {
+            op.entityIds ??= [op.entityId];
+          }),
+      );
   }
 }
 

@@ -542,3 +542,13 @@ Defaults I'll use unless you say otherwise:
   - `SerwistProvider` defaults `reloadOnOnline` to `true`, which reloads the page every time Wi-Fi reconnects, mid-sale in a shop. It is disabled; the sync engine handles reconnects without a reload. This caused 25% failures in a 40-run offline-navigation stress test and 0% after the fix.
   - ICU plurals need a number: passing a pre-formatted `"১"` printed "NaN". Plural messages take `count` (number) and `n` (formatted display value).
   - Better Auth's login rate limit (brute-force protection) is on in production builds and stores counters in the database. Only the e2e run turns it off, with an explicit `E2E_DISABLE_RATE_LIMIT=1`.
+
+### Phase 3 notes
+
+- **Deviations:** no separate `units` collection; the unit is a fixed list in `src/lib/units.ts` (each with how many decimals a quantity may have). Barcode/SKU uniqueness is checked on the device before saving (offline-safe); two devices can still create the same code at the same time, which is flagged to the user rather than rejected.
+- **Stock model as built:** the displayed stock is the server's number with this device's unsynced movements replayed on top, derived from the outbox (`applyServerDocs`), so no separate `pendingDelta` field exists. The server changes stock only with `$inc` in the same transaction that writes the movement.
+- **Search:** typed words are split exactly like indexed words; the index is queried for ids only, the id sets of all words are intersected, and records are read only for the survivors. 20,000 products stay under the test budget even in the slow fake-IndexedDB environment.
+- **Traps found by testing (all guarded by tests):**
+  - Zod `.partial()` keeps `.default()` values, so a one-field product edit would have been padded with defaults (prices 0, names empty) and wiped the record. Edit schemas are now built from validators without defaults.
+  - The precache matched exact URLs, so `/products/view?id=…` was not available offline. The service worker now ignores query strings when matching precached pages.
+  - A one-word search like "suga" loaded 2,000 full records just to sort them (2 s in the test environment); fixed by the id-intersection approach above.

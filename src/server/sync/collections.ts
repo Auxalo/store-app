@@ -16,6 +16,12 @@ export async function ensureSyncIndexes(db: Db): Promise<void> {
   await Promise.all([
     db.collection("categories").createIndex({ storeId: 1, syncSeq: 1 }),
     db.collection("settings").createIndex({ storeId: 1, syncSeq: 1 }),
+    db.collection("products").createIndex({ storeId: 1, syncSeq: 1 }),
+    db.collection("stockMovements").createIndex({ storeId: 1, syncSeq: 1 }),
+    db
+      .collection("stockMovements")
+      .createIndex({ storeId: 1, productId: 1, createdAt: 1 }),
+    db.collection("auditLogs").createIndex({ storeId: 1, at: -1 }),
     db
       .collection(COL.devices)
       .createIndex({ storeId: 1, code: 1 }, { unique: true }),
