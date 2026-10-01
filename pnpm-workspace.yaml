@@ -6,3 +6,5 @@ ignoredBuiltDependencies:
   - unrs-resolver
   - "@swc/core"
   - "@parcel/watcher"
+overrides:
+  browserslist: ">=4.28.7"

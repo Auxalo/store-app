@@ -36,8 +36,12 @@ export async function nextDocNo(
   now: string,
   prefix = "",
 ): Promise<string> {
+  // Until the server has given this device a short code, use the random end of its id. (The start
+  // of a time-ordered id is the same for devices created around the same time, which made their
+  // invoice numbers collide.)
   const code =
-    (await getMeta(db, "deviceCode")) ?? deviceId.slice(0, 4).toUpperCase();
+    (await getMeta(db, "deviceCode")) ??
+    deviceId.replaceAll("-", "").slice(-4).toUpperCase();
   const month = yearMonth(now);
   const key = `${prefix}${month}`;
   const counters = (await getMeta(db, "invoiceSeq")) ?? {};

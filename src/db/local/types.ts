@@ -342,4 +342,6 @@ export interface MetaValues {
   clockOffsetMs: number;
   /** Per device, per month: the last invoice sequence number used ("2610" → 42). */
   invoiceSeq: Record<string, number>;
+  /** When old, already-sent operations were last cleared out. */
+  lastPruneAt: number;
 }

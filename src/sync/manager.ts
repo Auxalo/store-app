@@ -3,6 +3,7 @@ import { getLocalDb, type StoreDB } from "@/db/local/db";
 import { getDeviceId, getMeta, setMeta } from "@/db/local/meta";
 import { APP_VERSION } from "@/lib/app-version";
 import { recoverInterrupted, resetBackoff, syncOnce } from "./engine";
+import { pruneIfDue } from "./prune";
 import { type SyncProblem, useSyncStore } from "./store";
 import { createFetchTransport, TransportError } from "./transport";
 
@@ -202,6 +203,7 @@ class SyncManager {
         }
       }
       void refreshStaff(db); // keep the offline "who is working?" list current
+      void pruneIfDue(db).catch(() => undefined);
       this.patch({
         problem: null,
         lastSyncAt: await getMeta(db, "lastSyncAt"),
