@@ -144,3 +144,58 @@ export async function registerDevice(
 export function deviceCookieValue(deviceId: string, token: string): string {
   return encodeURIComponent(`${deviceId}.${token}`);
 }
+
+export interface DeviceInfo {
+  id: string;
+  code: string;
+  name: string;
+  createdAt: string;
+  lastSeenAt: string;
+  revokedAt: string | null;
+}
+
+export async function listDevices(
+  db: Db,
+  storeId: string,
+): Promise<DeviceInfo[]> {
+  const docs = await db
+    .collection<DeviceDoc>(COL.devices)
+    .find({ storeId })
+    .sort({ createdAt: 1 })
+    .toArray();
+  return docs.map((d) => ({
+    id: d._id,
+    code: d.code,
+    name: d.name,
+    createdAt: d.createdAt.toISOString(),
+    lastSeenAt: d.lastSeenAt.toISOString(),
+    revokedAt: d.revokedAt ? d.revokedAt.toISOString() : null,
+  }));
+}
+
+export async function renameDevice(
+  db: Db,
+  storeId: string,
+  id: string,
+  name: string,
+): Promise<boolean> {
+  const result = await db
+    .collection<DeviceDoc>(COL.devices)
+    .updateOne({ _id: id, storeId }, { $set: { name } });
+  return result.matchedCount > 0;
+}
+
+/** A revoked device is refused by every sync endpoint. Its unsynced work stays safe on the device. */
+export async function revokeDevice(
+  db: Db,
+  storeId: string,
+  id: string,
+): Promise<boolean> {
+  const result = await db
+    .collection<DeviceDoc>(COL.devices)
+    .updateOne(
+      { _id: id, storeId, revokedAt: { $in: [null, undefined] } as never },
+      { $set: { revokedAt: new Date() } },
+    );
+  return result.matchedCount > 0;
+}

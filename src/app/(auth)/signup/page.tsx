@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { type OwnerSignupInput, ownerSignupSchema } from "@/schemas/auth";
+import { useActiveUser } from "@/stores/active-user";
 
 export default function SignupPage() {
   const t = useTranslations("auth");
@@ -60,7 +61,8 @@ export default function SignupPage() {
       router.replace("/login");
       return;
     }
-    router.replace("/dashboard");
+    useActiveUser.getState().openAsAccount();
+    router.replace("/");
   });
 
   return (

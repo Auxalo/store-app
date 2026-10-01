@@ -17,6 +17,9 @@ import {
   Wallet,
 } from "lucide-react";
 
+import type { Permission, Role } from "@/auth/permissions";
+import { can } from "@/auth/permissions";
+
 export type NavKey =
   | "dashboard"
   | "pos"
@@ -167,6 +170,31 @@ export const navGroups: readonly NavGroupKey[] = [
   "money",
   "system",
 ];
+
+/** What a role needs to see each entry; entries not listed are open to everyone signed in. */
+const NAV_PERMISSION: Partial<Record<NavKey, Permission>> = {
+  dashboard: "dashboard.view",
+  categories: "product.edit",
+  purchases: "purchase.manage",
+  returns: "sale.void",
+  suppliers: "purchase.manage",
+  expenses: "expense.manage",
+  reports: "report.view",
+  settings: "settings.manage",
+};
+
+/** The menu for a role. (Screens also check permissions themselves; this just hides dead ends.) */
+export function navItemsFor(role: Role | undefined): NavItem[] {
+  return navItems.filter((item) => {
+    const needed = NAV_PERMISSION[item.key];
+    return !needed || can(role, needed);
+  });
+}
+
+/** Where a role starts: the dashboard if it may see it, otherwise the counter. */
+export function homeFor(role: Role | undefined): "/dashboard" | "/pos" {
+  return can(role, "dashboard.view") ? "/dashboard" : "/pos";
+}
 
 export function findNavItem(pathname: string): NavItem | undefined {
   return navItems.find(

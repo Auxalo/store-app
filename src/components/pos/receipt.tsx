@@ -1,7 +1,9 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import type { StoreProfile } from "@/components/settings/settings-screen";
 import type { Sale, SaleItem } from "@/db/local/types";
+import { useSetting } from "@/hooks/use-setting";
 import { useFormat } from "@/i18n/use-format";
 import { cn } from "@/lib/utils";
 import { type ReceiptPaper, usePreferences } from "@/stores/preferences";
@@ -14,6 +16,8 @@ const PAPER: Record<
   "80mm": { page: "80mm auto", width: "max-w-[80mm]", text: "text-xs" },
   a4: { page: "A4", width: "max-w-[190mm]", text: "text-sm" },
 };
+
+const NO_PROFILE: StoreProfile = { name: "", address: "", phone: "" };
 
 interface ReceiptProps {
   sale: Sale;
@@ -33,6 +37,8 @@ export function Receipt({ sale, items, storeName }: ReceiptProps) {
   const locale = usePreferences((s) => s.locale);
   const paper = usePreferences((s) => s.receiptPaper);
   const size = PAPER[paper];
+  const profile = useSetting<StoreProfile>("store.profile", NO_PROFILE).value;
+  const footer = useSetting<string>("receipt.footer", "").value;
   const itemName = (i: SaleItem) =>
     locale === "bn" && i.productNameBn ? i.productNameBn : i.productName;
 
@@ -48,7 +54,9 @@ export function Receipt({ sale, items, storeName }: ReceiptProps) {
       <style media="print">{`@page { size: ${size.page}; margin: 3mm; }`}</style>
 
       <div className="text-center">
-        <p className="text-base font-bold">{storeName}</p>
+        <p className="text-base font-bold">{profile.name || storeName}</p>
+        {profile.address ? <p>{profile.address}</p> : null}
+        {profile.phone ? <p>{profile.phone}</p> : null}
         {sale.status === "voided" ? (
           <p className="mt-1 border border-black px-1 font-bold">
             {t("cancelled")}
@@ -115,7 +123,7 @@ export function Receipt({ sale, items, storeName }: ReceiptProps) {
         <Line label={t("method")} value={tp(sale.paymentMethod)} />
       </div>
 
-      <p className="mt-3 text-center">{t("thanks")}</p>
+      <p className="mt-3 text-center">{footer || t("thanks")}</p>
     </div>
   );
 }

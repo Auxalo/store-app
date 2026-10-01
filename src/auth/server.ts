@@ -3,6 +3,7 @@ import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { nextCookies } from "better-auth/next-js";
 import { username } from "better-auth/plugins";
+import { ObjectId } from "mongodb";
 import { getMongoClient } from "@/db/server/mongo";
 import { serverEnv } from "@/lib/env";
 
@@ -53,6 +54,22 @@ async function createAuth() {
       expiresIn: 60 * 60 * 24 * 30,
       updateAge: 60 * 60 * 24,
       cookieCache: { enabled: true, maxAge: 5 * 60 },
+    },
+    // A deactivated person cannot start a new session (existing ones are ended when they are
+    // deactivated), so their password stops working at once.
+    databaseHooks: {
+      session: {
+        create: {
+          before: async (session) => {
+            const user = ObjectId.isValid(session.userId)
+              ? await db
+                  .collection("user")
+                  .findOne({ _id: new ObjectId(session.userId) })
+              : null;
+            if (user?.isActive === false) return false;
+          },
+        },
+      },
     },
     // Brute-force protection stays on in production. Counters live in the database so they hold
     // across serverless instances. Only the e2e suite opts out, with an explicit variable.

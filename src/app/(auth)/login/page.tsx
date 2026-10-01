@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { type LoginInput, loginSchema } from "@/schemas/auth";
+import { useActiveUser } from "@/stores/active-user";
 
 export default function LoginPage() {
   const t = useTranslations("auth");
@@ -50,7 +51,8 @@ export default function LoginPage() {
       );
       return;
     }
-    router.replace("/dashboard");
+    useActiveUser.getState().openAsAccount();
+    router.replace("/");
   });
 
   return (

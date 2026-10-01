@@ -18,7 +18,7 @@ import {
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { navGroups, navItems } from "@/config/nav";
+import { navGroups, navItemsFor } from "@/config/nav";
 
 /** Desktop sidebar; on phones it opens as a sheet from the bottom bar's "More" button. */
 export function AppSidebar() {
@@ -61,7 +61,7 @@ export function AppSidebar() {
             <SidebarGroupLabel>{t(`navGroups.${group}`)}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {navItems
+                {navItemsFor(profile.role)
                   .filter((item) => item.group === group)
                   .map((item) => (
                     <SidebarMenuItem key={item.key}>

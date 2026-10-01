@@ -1,5 +1,5 @@
-import { PagePlaceholder } from "@/components/shared/page-placeholder";
+import { SettingsScreen } from "@/components/settings/settings-screen";
 
 export default function Page() {
-  return <PagePlaceholder />;
+  return <SettingsScreen />;
 }

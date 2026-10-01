@@ -1,11 +1,21 @@
 "use client";
 
-import { Languages, LogOut, Monitor, Moon, Sun } from "lucide-react";
+import { useLiveQuery } from "dexie-react-hooks";
+import {
+  KeyRound,
+  Languages,
+  LogOut,
+  Monitor,
+  Moon,
+  Repeat,
+  Sun,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import { useState } from "react";
 import { signOut, useProfile } from "@/auth/use-auth";
+import { PinDialog } from "@/components/lock/pin-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,8 +41,10 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { getLocalDb } from "@/db/local/db";
 import { useFormat } from "@/i18n/use-format";
 import type { NumeralSystem } from "@/lib/format";
+import { useActiveUser } from "@/stores/active-user";
 import { usePreferences } from "@/stores/preferences";
 import { useSyncStatus } from "@/sync/use-sync-status";
 import { InstallAppMenuItem } from "./install-app";
@@ -48,6 +60,16 @@ export function UserMenu() {
   const f = useFormat();
   const { pending } = useSyncStatus();
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
+  const [settingPin, setSettingPin] = useState(false);
+  const lock = useActiveUser((st) => st.lock);
+  const pinUsers = useLiveQuery(
+    () =>
+      getLocalDb()
+        .localUsers.filter((u) => u.isActive && !!u.pinHash)
+        .count(),
+    [],
+    0,
+  );
 
   async function doSignOut() {
     await signOut();
@@ -127,6 +149,20 @@ export function UserMenu() {
             </DropdownMenuSubContent>
           </DropdownMenuSub>
 
+          {pinUsers > 0 ? (
+            <DropdownMenuItem onSelect={lock} data-testid="switch-user">
+              <Repeat aria-hidden />
+              {t("lock.switchUser")}
+            </DropdownMenuItem>
+          ) : null}
+          <DropdownMenuItem
+            onSelect={() => setSettingPin(true)}
+            data-testid="set-my-pin"
+          >
+            <KeyRound aria-hidden />
+            {t("pin.setMine")}
+          </DropdownMenuItem>
+
           <InstallAppMenuItem />
 
           <DropdownMenuSeparator />
@@ -141,6 +177,14 @@ export function UserMenu() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <PinDialog
+        userId={profile.userId}
+        userName={profile.name}
+        self
+        open={settingPin}
+        onClose={() => setSettingPin(false)}
+      />
 
       <AlertDialog open={confirmingSignOut} onOpenChange={setConfirmingSignOut}>
         <AlertDialogContent>

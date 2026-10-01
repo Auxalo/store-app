@@ -574,3 +574,13 @@ Defaults I'll use unless you say otherwise:
 - **Refunds use the price the customer paid per unit** (line discounts and the cart-level discount are not apportioned across returned units); noted as a known simplification.
 - **Customers and suppliers share one screen component** (`PartiesScreen`) and one detail component with a statement showing the running balance after every entry.
 - **Timing tests now run on their own** (`pnpm test:perf`, part of `pnpm check`): run in parallel with database-heavy suites the numbers were noise.
+
+### Phase 6 notes
+
+- **Offline unlock.** PINs (4–6 digits) are hashed on the device (PBKDF2-SHA256, 310k rounds); the server stores only the hash and sends it to the store's devices via `GET /api/staff` (device cookie or session). A device can therefore check a PIN with no internet. Trade-off: anyone who can read a device's IndexedDB could brute-force a 4–6 digit PIN offline. The PIN is a counter convenience, not a vault: the account password still guards the server, and a revoked device or deactivated person is cut off on the next sync.
+- **Lockout.** 4 free mistakes, then 30 s doubling (cap 15 min); from the 15th the PIN stops working until an online password sign-in. Counters live in `localUsers` and survive reloads.
+- **Gate behaviour.** With no PINs in the store nothing changes. Once anyone has a PIN the counter asks "who is working?" on start and after `security.idleLockMinutes` (default 10). If the owner adds the first PIN mid-session they are not locked out (`asAccount`); a password sign-in also counts as unlocking. The staff screen warns when others have PINs and the owner does not.
+- **Roles.** The active person's role drives nav, screens and what the receipt/forms show; the server still checks permission per operation from the actor id, reading role and active flag fresh from the database. Deactivating someone deletes their sessions and blocks new ones (`session.create.before` hook).
+- **Staff, devices, audit** are online-only owner screens (a clear "needs internet" message offline). The owner can never be demoted or deactivated. Revoking a device refuses its pushes; its queued work stays on the device.
+- **Settings** (`store.profile`, `receipt.footer`, `security.idleLockMinutes`) are synced settings; paper size is per device. JSON backup and CSV exports are generated in the browser (no uploads).
+- **Deferred:** VAT/tax on receipts, per-staff sales targets.

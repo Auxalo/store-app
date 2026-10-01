@@ -1,3 +1,4 @@
+import { refreshStaff } from "@/auth/staff-cache";
 import { getLocalDb, type StoreDB } from "@/db/local/db";
 import { getDeviceId, getMeta, setMeta } from "@/db/local/meta";
 import { APP_VERSION } from "@/lib/app-version";
@@ -200,6 +201,7 @@ class SyncManager {
           throw error;
         }
       }
+      void refreshStaff(db); // keep the offline "who is working?" list current
       this.patch({
         problem: null,
         lastSyncAt: await getMeta(db, "lastSyncAt"),

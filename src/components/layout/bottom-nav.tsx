@@ -4,8 +4,9 @@ import { Menu } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { useProfile } from "@/auth/use-auth";
 import { useSidebar } from "@/components/ui/sidebar";
-import { navItems } from "@/config/nav";
+import { navItemsFor } from "@/config/nav";
 import { cn } from "@/lib/utils";
 
 const itemClass =
@@ -15,6 +16,7 @@ const itemClass =
 export function BottomNav() {
   const t = useTranslations("nav");
   const pathname = usePathname();
+  const { role } = useProfile();
   const { setOpenMobile } = useSidebar();
 
   return (
@@ -22,7 +24,7 @@ export function BottomNav() {
       aria-label={t("menu")}
       className="fixed inset-x-0 bottom-0 z-30 flex border-t bg-background pb-[env(safe-area-inset-bottom)] md:hidden"
     >
-      {navItems
+      {navItemsFor(role)
         .filter((item) => item.bottom)
         .map((item) => {
           const active =

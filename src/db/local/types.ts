@@ -263,6 +263,22 @@ export interface ReturnDoc {
   syncSeq?: number;
 }
 
+/**
+ * A person who can work on this device. Copied from the server so the "who is working?" screen and
+ * PIN check work offline. The wrong-PIN counters are local to this device.
+ */
+export interface LocalUser {
+  userId: string;
+  name: string;
+  username: string;
+  role: "owner" | "manager" | "cashier";
+  isActive: boolean;
+  pinSalt?: string;
+  pinHash?: string;
+  failedPins: number;
+  lastFailedAt: number;
+}
+
 /** Work in progress that must survive a reload (the cart). Never synced. */
 export interface Draft {
   key: string;

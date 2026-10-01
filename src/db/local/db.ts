@@ -5,6 +5,7 @@ import type {
   Draft,
   Expense,
   LedgerEntry,
+  LocalUser,
   MetaRow,
   OutboxOp,
   Payment,
@@ -41,6 +42,7 @@ export class StoreDB extends Dexie {
   payments!: EntityTable<Payment, "id">;
   expenses!: EntityTable<Expense, "id">;
   returns!: EntityTable<ReturnDoc, "id">;
+  localUsers!: EntityTable<LocalUser, "userId">;
   outbox!: EntityTable<OutboxOp, "seq">;
   syncMeta!: EntityTable<MetaRow, "key">;
 
@@ -91,6 +93,9 @@ export class StoreDB extends Dexie {
       expenses: "id, date, category, status, createdAt",
       returns: "id, kind, refId, createdAt",
     });
+
+    // v5: the people who can work on this device (for offline PIN sign-in).
+    this.version(5).stores({ localUsers: "userId" });
   }
 }
 

@@ -7,15 +7,18 @@ import { type ReactNode, useEffect } from "react";
 import { useAuth } from "@/auth/use-auth";
 import { LanguageSwitch } from "@/components/layout/language-switch";
 import { FullScreenLoader } from "@/components/shared/full-screen-loader";
+import { homeFor } from "@/config/nav";
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   const t = useTranslations("app");
   const auth = useAuth();
   const router = useRouter();
 
+  const role = auth.status === "authenticated" ? auth.profile.role : undefined;
+
   useEffect(() => {
-    if (auth.status === "authenticated") router.replace("/dashboard");
-  }, [auth.status, router]);
+    if (auth.status === "authenticated") router.replace(homeFor(role));
+  }, [auth.status, role, router]);
 
   if (auth.status === "authenticated") return <FullScreenLoader />;
 

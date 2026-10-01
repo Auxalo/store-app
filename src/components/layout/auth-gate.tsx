@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect } from "react";
 import { ProfileProvider, useAuth } from "@/auth/use-auth";
+import { ActiveUserGate } from "@/components/lock/active-user-gate";
 import { FullScreenLoader } from "@/components/shared/full-screen-loader";
 import { SyncProvider } from "./sync-provider";
 
@@ -18,7 +19,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (auth.status !== "authenticated") return <FullScreenLoader />;
   return (
     <ProfileProvider profile={auth.profile}>
-      <SyncProvider>{children}</SyncProvider>
+      <SyncProvider>
+        <ActiveUserGate>{children}</ActiveUserGate>
+      </SyncProvider>
     </ProfileProvider>
   );
 }
