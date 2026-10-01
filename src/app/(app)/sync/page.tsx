@@ -1,5 +1,5 @@
-import { PagePlaceholder } from "@/components/shared/page-placeholder";
+import { SyncScreen } from "@/components/sync/sync-screen";
 
 export default function Page() {
-  return <PagePlaceholder />;
+  return <SyncScreen />;
 }

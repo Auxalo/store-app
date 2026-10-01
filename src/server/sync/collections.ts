@@ -1,0 +1,32 @@
+import type { Db } from "mongodb";
+
+/** Mongo collection names used by the sync engine (business collections match SYNC_COLLECTIONS). */
+export const COL = {
+  stores: "stores",
+  devices: "devices",
+  appliedOps: "appliedOps",
+  users: "user", // owned by Better Auth
+} as const;
+
+const ensured = new WeakSet<Db>();
+
+/** Creates the indexes sync relies on. Idempotent; runs once per process per database. */
+export async function ensureSyncIndexes(db: Db): Promise<void> {
+  if (ensured.has(db)) return;
+  await Promise.all([
+    db.collection("categories").createIndex({ storeId: 1, syncSeq: 1 }),
+    db.collection("settings").createIndex({ storeId: 1, syncSeq: 1 }),
+    db
+      .collection(COL.devices)
+      .createIndex({ storeId: 1, code: 1 }, { unique: true }),
+    db.collection(COL.appliedOps).createIndex({ storeId: 1 }),
+    // Idempotency records only need to outlive any realistic retry window.
+    db
+      .collection(COL.appliedOps)
+      .createIndex(
+        { appliedAt: 1 },
+        { expireAfterSeconds: 60 * 60 * 24 * 180 },
+      ),
+  ]);
+  ensured.add(db);
+}

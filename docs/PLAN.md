@@ -523,3 +523,22 @@ Defaults I'll use unless you say otherwise:
 - **English number grouping:** `en-BD` groups as `125,000`; shops in Bangladesh write `1,25,000`. English uses `en-IN` grouping with a leading ৳; Bangla uses `bn-BD`. Covered by unit tests in `src/lib/__tests__/format.test.ts`.
 - **Local dev DB:** `pnpm db:dev` starts a persistent single-node MongoDB replica set (transactions need one). No MongoDB install needed.
 - **Offline testing:** `pnpm exec playwright test` builds, starts the production server and drives the system Chrome (override with `PW_CHANNEL=msedge`). The Claude desktop browser pane does not support service workers, so it can't be used for offline checks.
+
+### Phase 2 notes
+
+- **Deviations from the plan:**
+  - No separate `/api/sync/bootstrap`. A new device pulls from cursor 0 in pages, which is the same thing with one code path less. A transaction-history window parameter will be added in Phase 4 when sales exist.
+  - Dexie schema v1 declares only the tables used so far (`categories`, `settings`, `outbox`, `syncMeta`). Later phases add tables with `db.version(n)`, which is non-destructive and avoids guessing indexes.
+  - The categories screen was pulled forward from Phase 3 to serve as the proof vehicle for sync.
+  - Operations are ordered by an auto-increment `seq` (not timestamps) so two operations created in the same millisecond can never swap.
+- **Sync design as built:**
+  - Each command has a shared definition (`src/commands/definitions.ts`: schemas and permission), a local handler (Dexie) and a server handler (Mongo). The compiler enforces that every command has both.
+  - Idempotency record (`appliedOps`) is written in the same Mongo transaction as the change; a retry returns `duplicate`.
+  - Every write bumps the store's `syncSeq` counter, so writers serialize and pull cursors never skip a write. Pull reads the counter first as a stable upper bound.
+  - A batch halts at the first transient failure so a dependent edit can never run ahead of its create.
+  - Server data arriving while the cashier has unsynced edits is merged with those edits replayed on top (`applyServerDocs`), so nothing vanishes.
+  - The sync indicator never says "synced" until a sync has actually completed, and treats "server unreachable" as offline whatever `navigator.onLine` says.
+- **Traps found by testing (all guarded by tests):**
+  - `SerwistProvider` defaults `reloadOnOnline` to `true`, which reloads the page every time Wi-Fi reconnects, mid-sale in a shop. It is disabled; the sync engine handles reconnects without a reload. This caused 25% failures in a 40-run offline-navigation stress test and 0% after the fix.
+  - ICU plurals need a number: passing a pre-formatted `"১"` printed "NaN". Plural messages take `count` (number) and `n` (formatted display value).
+  - Better Auth's login rate limit (brute-force protection) is on in production builds and stores counters in the database. Only the e2e run turns it off, with an explicit `E2E_DISABLE_RATE_LIMIT=1`.

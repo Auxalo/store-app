@@ -14,11 +14,9 @@ const flatten = (obj, prefix = "") =>
       ? flatten(v, `${prefix}${k}.`)
       : [[`${prefix}${k}`, String(v)]],
   );
+// Unique names: English plurals may use {n} in several branches while Bangla has one.
 const placeholders = (s) =>
-  [...s.matchAll(/\{(\w+)/g)]
-    .map((m) => m[1])
-    .sort()
-    .join(",");
+  [...new Set([...s.matchAll(/\{(\w+)/g)].map((m) => m[1]))].sort().join(",");
 
 const en = new Map(flatten(load("en")));
 const bn = new Map(flatten(load("bn")));

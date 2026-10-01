@@ -1,0 +1,63 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { getAuth } from "@/auth/server";
+import { getSyncDeps } from "@/server/deps";
+import { checkDevice, DEVICE_COOKIE, registerDevice } from "@/server/devices";
+import { errorResponse, HttpError, readJson } from "@/server/http";
+
+export const dynamic = "force-dynamic";
+
+const bodySchema = z.object({
+  deviceId: z.uuid(),
+  name: z.string().trim().min(1).max(60).default("Device"),
+});
+
+/**
+ * Makes this browser a trusted device of the signed-in user's store. The device cookie lets the
+ * sync endpoints keep working after the login session expires (a shared shop terminal).
+ */
+export async function POST(request: Request) {
+  try {
+    const auth = await getAuth();
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session) throw new HttpError(401, "UNAUTHORIZED");
+    const user = session.user as {
+      id: string;
+      storeId: string;
+      isActive?: boolean;
+    };
+    if (user.isActive === false) throw new HttpError(403, "USER_INACTIVE");
+
+    const body = bodySchema.parse(await readJson(request));
+    const { db } = await getSyncDeps();
+    const existing = await checkDevice(db, request.headers.get("cookie"));
+    const registration = await registerDevice(db, {
+      storeId: user.storeId,
+      userId: user.id,
+      deviceId: body.deviceId,
+      name: body.name,
+      existing,
+    });
+
+    const response = NextResponse.json({ code: registration.code });
+    if (registration.token) {
+      response.cookies.set(
+        DEVICE_COOKIE,
+        `${body.deviceId}.${registration.token}`,
+        {
+          httpOnly: true,
+          sameSite: "lax",
+          secure: new URL(request.url).protocol === "https:",
+          path: "/",
+          maxAge: 60 * 60 * 24 * 365,
+        },
+      );
+    }
+    return response;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("DEVICE_")) {
+      return errorResponse(new HttpError(403, error.message));
+    }
+    return errorResponse(error);
+  }
+}

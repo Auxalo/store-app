@@ -54,6 +54,12 @@ async function createAuth() {
       updateAge: 60 * 60 * 24,
       cookieCache: { enabled: true, maxAge: 5 * 60 },
     },
+    // Brute-force protection stays on in production. Counters live in the database so they hold
+    // across serverless instances. Only the e2e suite opts out, with an explicit variable.
+    rateLimit: {
+      storage: "database",
+      ...(process.env.E2E_DISABLE_RATE_LIMIT === "1" ? { enabled: false } : {}),
+    },
     plugins: [
       username({ minUsernameLength: 3, maxUsernameLength: 30 }),
       nextCookies(),

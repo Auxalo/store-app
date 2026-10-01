@@ -60,9 +60,10 @@
     "offline": "Offline",
     "synced": "Synced",
     "syncing": "Syncing",
-    "pending": "{count, plural, one {# change pending} other {# changes pending}}",
+    "pending": "{count, plural, one {{n} change pending} other {{n} changes pending}}",
     "issue": "Sync issue",
-    "offlineHint": "You are offline. Everything keeps working and will sync when you are back online."
+    "offlineHint": "You are offline. Everything keeps working and will sync when you are back online.",
+    "pendingChip": "{count}"
   },
   "role": {
     "owner": "Owner",
@@ -116,5 +117,84 @@
   "language": {
     "en": "English",
     "bn": "বাংলা"
+  },
+  "sync": {
+    "title": "Sync status",
+    "statusSynced": "Everything is saved to the cloud.",
+    "statusPending": "{count, plural, one {{n} change is waiting to sync.} other {{n} changes are waiting to sync.}}",
+    "statusSyncing": "Syncing now…",
+    "statusOffline": "No internet. Work continues and will sync automatically.",
+    "statusIssue": "Some changes need attention.",
+    "syncNow": "Sync now",
+    "lastSync": "Last successful sync",
+    "lastAttempt": "Last attempt",
+    "never": "Never",
+    "pending": "Waiting",
+    "failed": "Failed",
+    "conflicts": "Conflicts",
+    "queue": "Needs attention",
+    "queueEmpty": "Nothing needs attention.",
+    "retry": "Try again",
+    "discard": "Discard",
+    "keepMine": "Keep mine",
+    "keepServer": "Keep the other version",
+    "device": "This device",
+    "deviceId": "Device ID",
+    "deviceCode": "Device code",
+    "deviceNotRegistered": "Not registered yet",
+    "cursor": "Synced up to",
+    "storage": "Storage on this device",
+    "storagePersisted": "Protected from automatic cleanup",
+    "storageNotPersisted": "Not protected. Install the app to keep offline data safe.",
+    "storageUsage": "{used} of {quota} used",
+    "clockSkew": "This device's clock is {minutes} minutes off. Fix the date and time for correct reports.",
+    "problem": {
+      "network": "Cannot reach the server. Will retry automatically.",
+      "server": "The server had a problem. Will retry automatically.",
+      "auth": "This device is not authorized. Sign out and sign in again. Your unsynced work is kept.",
+      "upgrade": "Please update the app to keep syncing. Your unsynced work is kept.",
+      "storeMismatch": "This device has unsynced data from another store. Sign in with that store's account to sync it."
+    },
+    "ops": {
+      "categoryCreate": "Add category",
+      "categoryUpdate": "Edit category",
+      "categoryDelete": "Delete category",
+      "settingSet": "Change setting"
+    },
+    "reasons": {
+      "FORBIDDEN": "This account is not allowed to do that.",
+      "NOT_FOUND": "The item no longer exists on the server.",
+      "DELETED": "The item was deleted on another device.",
+      "INVALID_PAYLOAD": "The data was not valid.",
+      "ACTOR_NOT_ALLOWED": "The user is not active in this store.",
+      "CONFLICT": "Changed on two devices at once.",
+      "UNKNOWN_COMMAND": "The app version is out of date.",
+      "UNSUPPORTED_SCHEMA_VERSION": "The app version is out of date.",
+      "DEVICE_MISMATCH": "The device is not recognized.",
+      "ID_COLLISION": "Duplicate record.",
+      "SERVER_BUSY": "The server was busy.",
+      "REJECTED": "The server rejected this change.",
+      "UNKNOWN": "Unknown problem."
+    }
+  },
+  "categories": {
+    "add": "Add category",
+    "edit": "Edit category",
+    "name": "Name",
+    "nameBn": "Bangla name",
+    "description": "Description",
+    "active": "Active",
+    "inactive": "Inactive",
+    "empty": "No categories yet. Add your first one.",
+    "noMatch": "No category matches your search.",
+    "searchPlaceholder": "Search categories",
+    "deleteTitle": "Delete this category?",
+    "deleteBody": "“{name}” will be removed from all devices. Products are not deleted.",
+    "count": "{count, plural, one {{n} category} other {{n} categories}}"
+  },
+  "account": {
+    "signOutPendingTitle": "Sign out with unsynced changes?",
+    "signOutPendingBody": "{count, plural, one {{n} change has} other {{n} changes have}} not reached the cloud yet. It stays safe on this device and syncs when you sign in again.",
+    "signOutConfirm": "Sign out anyway"
   }
 }

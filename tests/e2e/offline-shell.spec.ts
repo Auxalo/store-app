@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
 
+// Stop the page's background sync and service worker before the context closes; closing a
+// context that still has them running can stall for the full test timeout.
+test.afterEach(async ({ page }) => {
+  await page.goto("about:blank").catch(() => undefined);
+});
+
 // Phase 1 exit criteria: install, sign up in Bangla, reload and navigate with no network.
 test("app shell works offline after first load", async ({
   page,

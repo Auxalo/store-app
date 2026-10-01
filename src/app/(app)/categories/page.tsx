@@ -1,5 +1,5 @@
-import { PagePlaceholder } from "@/components/shared/page-placeholder";
+import { CategoriesScreen } from "@/components/categories/categories-screen";
 
 export default function Page() {
-  return <PagePlaceholder />;
+  return <CategoriesScreen />;
 }

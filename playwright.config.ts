@@ -26,6 +26,8 @@ export default defineConfig({
     command: "pnpm build && pnpm start",
     url: "http://localhost:3000/login",
     reuseExistingServer: true,
+    // Tests sign in far more often than any person would; production keeps the limiter on.
+    env: { E2E_DISABLE_RATE_LIMIT: "1" },
     timeout: 240_000,
   },
 });

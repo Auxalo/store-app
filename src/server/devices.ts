@@ -1,0 +1,146 @@
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import type { Db } from "mongodb";
+import { COL } from "./sync/collections";
+import type { DeviceAuth } from "./sync/push";
+
+export const DEVICE_COOKIE = "sa_device";
+
+interface DeviceDoc {
+  _id: string;
+  storeId: string;
+  code: string;
+  name: string;
+  tokenHash: string;
+  createdBy: string;
+  createdAt: Date;
+  lastSeenAt: Date;
+  revokedAt?: Date | null;
+}
+
+const hash = (token: string) =>
+  createHash("sha256").update(token).digest("hex");
+
+/** 1 → A, 26 → Z, 27 → AA. Short, human-readable device codes for invoice numbers. */
+export function deviceCodeFor(n: number): string {
+  let code = "";
+  for (let i = n; i > 0; i = Math.floor((i - 1) / 26))
+    code = String.fromCharCode(65 + ((i - 1) % 26)) + code;
+  return code;
+}
+
+export function parseDeviceCookie(
+  cookieHeader: string | null,
+): { deviceId: string; token: string } | null {
+  const raw = cookieHeader
+    ?.split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${DEVICE_COOKIE}=`));
+  if (!raw) return null;
+  const value = decodeURIComponent(raw.slice(DEVICE_COOKIE.length + 1));
+  const dot = value.indexOf(".");
+  return dot > 0
+    ? { deviceId: value.slice(0, dot), token: value.slice(dot + 1) }
+    : null;
+}
+
+export type DeviceCheck =
+  | { ok: true; device: DeviceAuth & { code: string } }
+  | { ok: false; reason: "missing" | "invalid" | "revoked" };
+
+/** Verifies the device cookie. Sync endpoints trust a device, then check each operation's actor. */
+export async function checkDevice(
+  db: Db,
+  cookieHeader: string | null,
+): Promise<DeviceCheck> {
+  const parsed = parseDeviceCookie(cookieHeader);
+  if (!parsed) return { ok: false, reason: "missing" };
+  const doc = await db
+    .collection<DeviceDoc>(COL.devices)
+    .findOne({ _id: parsed.deviceId });
+  if (!doc) return { ok: false, reason: "invalid" };
+  const expected = Buffer.from(doc.tokenHash, "hex");
+  const actual = Buffer.from(hash(parsed.token), "hex");
+  if (expected.length !== actual.length || !timingSafeEqual(expected, actual))
+    return { ok: false, reason: "invalid" };
+  if (doc.revokedAt) return { ok: false, reason: "revoked" };
+  void db
+    .collection<DeviceDoc>(COL.devices)
+    .updateOne({ _id: doc._id }, { $set: { lastSeenAt: new Date() } });
+  return {
+    ok: true,
+    device: { storeId: doc.storeId, deviceId: doc._id, code: doc.code },
+  };
+}
+
+export interface Registration {
+  code: string;
+  /** Set only when a new token was issued; the caller puts it in the device cookie. */
+  token?: string;
+}
+
+/**
+ * Registers (or re-authorizes) a browser as a trusted device of the store.
+ * `existing` is the result of checking the current cookie: when it already authorizes this device
+ * nothing changes. Otherwise a fresh token is issued (first install, or the cookie was cleared).
+ */
+export async function registerDevice(
+  db: Db,
+  params: {
+    storeId: string;
+    userId: string;
+    deviceId: string;
+    name: string;
+    existing: DeviceCheck;
+  },
+): Promise<Registration> {
+  const { storeId, userId, deviceId, name, existing } = params;
+  const col = db.collection<DeviceDoc>(COL.devices);
+
+  if (
+    existing.ok &&
+    existing.device.deviceId === deviceId &&
+    existing.device.storeId === storeId
+  ) {
+    return { code: existing.device.code };
+  }
+
+  const token = randomBytes(32).toString("base64url");
+  const doc = await col.findOne({ _id: deviceId });
+  if (doc) {
+    if (doc.storeId !== storeId)
+      throw new Error("DEVICE_BELONGS_TO_OTHER_STORE");
+    if (doc.revokedAt) throw new Error("DEVICE_REVOKED");
+    await col.updateOne(
+      { _id: deviceId },
+      { $set: { tokenHash: hash(token), lastSeenAt: new Date() } },
+    );
+    return { code: doc.code, token };
+  }
+
+  const store = await db
+    .collection<{ _id: string; deviceSeq?: number }>(COL.stores)
+    .findOneAndUpdate(
+      { _id: storeId },
+      { $inc: { deviceSeq: 1 } },
+      { returnDocument: "after" },
+    );
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  const code = deviceCodeFor(store.deviceSeq ?? 1);
+  const now = new Date();
+  await col.insertOne({
+    _id: deviceId,
+    storeId,
+    code,
+    name,
+    tokenHash: hash(token),
+    createdBy: userId,
+    createdAt: now,
+    lastSeenAt: now,
+    revokedAt: null,
+  });
+  return { code, token };
+}
+
+export function deviceCookieValue(deviceId: string, token: string): string {
+  return encodeURIComponent(`${deviceId}.${token}`);
+}

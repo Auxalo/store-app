@@ -1,8 +1,10 @@
 import { withSerwist } from "@serwist/turbopack";
 import type { NextConfig } from "next";
+import pkg from "./package.json" with { type: "json" };
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  env: { NEXT_PUBLIC_APP_VERSION: pkg.version },
   poweredByHeader: false,
   async headers() {
     return [

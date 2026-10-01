@@ -25,9 +25,12 @@ export function Providers({ children }: { children: ReactNode }) {
       enableSystem
       disableTransitionOnChange
     >
+      {/* reloadOnOnline (on by default) would reload the page mid-sale whenever Wi-Fi comes
+          back. The sync engine already reacts to reconnects without a reload. */}
       <SerwistProvider
         swUrl="/serwist/sw.js"
         disable={process.env.NODE_ENV === "development"}
+        reloadOnOnline={false}
       >
         {isClient ? (
           <I18nProvider>
