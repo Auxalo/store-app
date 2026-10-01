@@ -584,3 +584,12 @@ Defaults I'll use unless you say otherwise:
 - **Staff, devices, audit** are online-only owner screens (a clear "needs internet" message offline). The owner can never be demoted or deactivated. Revoking a device refuses its pushes; its queued work stays on the device.
 - **Settings** (`store.profile`, `receipt.footer`, `security.idleLockMinutes`) are synced settings; paper size is per device. JSON backup and CSV exports are generated in the browser (no uploads).
 - **Deferred:** VAT/tax on receipts, per-staff sales targets.
+
+### Phase 7 notes
+
+- **One engine for both sides.** `src/reports/compute.ts` is plain functions over plain records. The device feeds it from IndexedDB (`src/reports/local.ts`), the server from MongoDB (`src/server/reports.ts`, `GET /api/reports/summary`). An automated test makes two devices and the server report identical totals for the same range, and checks the numbers by hand (sales, discount, return, cancelled sale ignored, expenses, purchases).
+- **Definitions.** Sales count on the day made; cancelled sales are ignored; a sale return takes back its refund and its cost on the day of the return. Profit = net sales − cost of goods sold (cost is copied onto each sale line at sale time). Net profit = profit − expenses. Purchases are shown but not deducted again (their cost is already in profit once sold). A sale-level discount is spread over its lines so product profit adds up to sale profit.
+- **Days are store days** (Asia/Dhaka), converted to UTC instants for queries. A bug here (an offset string compared against `Z` timestamps) hid behind a generous test range; there is now a tight-range test.
+- **Dashboard** is live (Dexie live queries): today's sales, profit, expenses, purchases, customer and supplier dues, low/out of stock, recent sales, 7/30-day chart (plain CSS bars, no chart library). Profit is hidden without `profit.view`.
+- **Reports**: sales, products (best sellers, by category), profit (expenses by type, purchases), stock (value at cost and retail, low only), dues, stock log; any range, CSV download for each. A source switch recomputes the summary tabs from the server (needs internet; falls back to the device if unreachable).
+- **Not done:** pre-aggregated `dailySummaries` (the server recomputes from documents; the range is capped at 366 days). Worth adding if a store's history grows large.

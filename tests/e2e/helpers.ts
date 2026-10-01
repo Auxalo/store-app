@@ -39,6 +39,8 @@ export interface NewProduct {
   price: string;
   stock: string;
   barcode?: string;
+  /** Purchase price in taka. */
+  cost?: string;
 }
 
 export async function createProduct(page: Page, p: NewProduct) {
@@ -47,6 +49,7 @@ export async function createProduct(page: Page, p: NewProduct) {
   await page.getByLabel("বাংলা নাম").fill(p.nameBn);
   await page.getByLabel("বিক্রয়মূল্য (৳)").fill(p.price);
   await page.getByLabel(/এখন হাতে স্টক/).fill(p.stock);
+  if (p.cost) await page.getByLabel("ক্রয়মূল্য (৳)", { exact: true }).fill(p.cost);
   if (p.barcode) await page.getByLabel("বারকোড").fill(p.barcode);
   await page.getByRole("button", { name: "সংরক্ষণ" }).click();
   await expect(page).toHaveURL(/\/products$/);

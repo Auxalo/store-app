@@ -1,5 +1,5 @@
-import { PagePlaceholder } from "@/components/shared/page-placeholder";
+import { DashboardScreen } from "@/components/dashboard/dashboard-screen";
 
 export default function Page() {
-  return <PagePlaceholder />;
+  return <DashboardScreen />;
 }
