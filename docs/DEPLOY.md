@@ -70,3 +70,7 @@ npx playwright test        # browser tests: offline, sync, POS, staff, reports, 
 - Lighthouse/INP runs on a throttled low-end phone profile in CI.
 - Pre-aggregated daily summaries for very large histories.
 - VAT/tax on receipts, thermal printer drivers beyond the browser's print dialog.
+
+## 10. Demo data (development only)
+
+`pnpm db:seed` builds a demo shop ("রহিম জেনারেল স্টোর") with a month of history: 33 products in Bangla and English, 8 customers, 4 suppliers, about 700 sales, purchases on credit, expenses, returns, cancellations and a monthly stock count (a few items are low or out of stock). It runs the app's own commands and sync code, so everything is exactly what the app would have produced. Sign in as `demo`, `manager` or `cashier` (password `demo1234`). `pnpm db:seed --reset` deletes and rebuilds it. It needs the database from `pnpm db:dev` (or whatever `MONGODB_URI` points to): never run it against a real shop's database.
