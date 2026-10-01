@@ -1,0 +1,120 @@
+{
+  "app": {
+    "name": "Store Manager",
+    "tagline": "Sell, stock and keep accounts — even without internet.",
+    "loading": "Loading…"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "pos": "POS",
+    "products": "Products",
+    "categories": "Categories",
+    "inventory": "Inventory",
+    "sales": "Sales",
+    "purchases": "Purchases",
+    "returns": "Returns",
+    "customers": "Customers",
+    "suppliers": "Suppliers",
+    "expenses": "Expenses",
+    "payments": "Payments",
+    "reports": "Reports",
+    "sync": "Sync status",
+    "settings": "Settings",
+    "home": "Home",
+    "more": "More",
+    "menu": "Menu"
+  },
+  "navGroups": {
+    "main": "Main",
+    "catalog": "Catalog",
+    "transactions": "Transactions",
+    "people": "People",
+    "money": "Money",
+    "system": "System"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "add": "Add",
+    "close": "Close",
+    "back": "Back",
+    "retry": "Try again",
+    "language": "Language",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "numerals": "Digits",
+    "numeralsAuto": "Follow language",
+    "numeralsLatn": "1 2 3",
+    "numeralsBeng": "১ ২ ৩",
+    "logout": "Sign out",
+    "account": "Account",
+    "somethingWrong": "Something went wrong. Please try again."
+  },
+  "status": {
+    "online": "Online",
+    "offline": "Offline",
+    "synced": "Synced",
+    "syncing": "Syncing",
+    "pending": "{count, plural, one {# change pending} other {# changes pending}}",
+    "issue": "Sync issue",
+    "offlineHint": "You are offline. Everything keeps working and will sync when you are back online."
+  },
+  "role": {
+    "owner": "Owner",
+    "manager": "Manager",
+    "cashier": "Cashier"
+  },
+  "auth": {
+    "loginTitle": "Sign in",
+    "loginSubtitle": "Sign in to your store",
+    "username": "Mobile number or username",
+    "usernameHint": "Use the mobile number or username your owner gave you.",
+    "password": "Password",
+    "signIn": "Sign in",
+    "signingIn": "Signing in…",
+    "invalidCredentials": "Wrong username or password.",
+    "needInternetToSignIn": "You need to be online to sign in on this device the first time.",
+    "noStore": "New store?",
+    "createStore": "Create your store",
+    "signUpTitle": "Create your store",
+    "signUpSubtitle": "Set up your store and owner account. You can add staff later.",
+    "storeName": "Store name",
+    "ownerName": "Your name",
+    "createAccount": "Create store",
+    "creating": "Creating…",
+    "haveAccount": "Already have an account?",
+    "usernameTaken": "This username is already taken.",
+    "welcome": "Welcome, {name}"
+  },
+  "validation": {
+    "required": "This field is required",
+    "storeNameMin": "Enter the store name",
+    "ownerNameMin": "Enter your name",
+    "usernameMin": "At least 3 characters",
+    "usernameMax": "At most 30 characters",
+    "usernameFormat": "Use letters, numbers, dot, dash or underscore only",
+    "passwordMin": "At least 8 characters",
+    "passwordMax": "At most 100 characters"
+  },
+  "placeholder": {
+    "title": "{page}",
+    "comingIn": "This screen is built in Phase {phase} of the plan.",
+    "foundation": "The app shell, language, offline install and sign-in are ready."
+  },
+  "pwa": {
+    "install": "Install app",
+    "installIos": "To install: tap Share, then “Add to Home Screen”.",
+    "updateAvailable": "A new version is ready.",
+    "update": "Update",
+    "offlineReady": "Ready to work offline."
+  },
+  "language": {
+    "en": "English",
+    "bn": "বাংলা"
+  }
+}

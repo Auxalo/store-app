@@ -1,0 +1,8 @@
+onlyBuiltDependencies:
+  - esbuild
+  - mongodb-memory-server
+ignoredBuiltDependencies:
+  - sharp
+  - unrs-resolver
+  - "@swc/core"
+  - "@parcel/watcher"

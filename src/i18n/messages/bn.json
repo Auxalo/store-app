@@ -1,0 +1,120 @@
+{
+  "app": {
+    "name": "স্টোর ম্যানেজার",
+    "tagline": "ইন্টারনেট ছাড়াও বিক্রি করুন, স্টক ও হিসাব রাখুন।",
+    "loading": "লোড হচ্ছে…"
+  },
+  "nav": {
+    "dashboard": "ড্যাশবোর্ড",
+    "pos": "বিক্রয় কাউন্টার",
+    "products": "পণ্য",
+    "categories": "ক্যাটাগরি",
+    "inventory": "স্টক",
+    "sales": "বিক্রয়",
+    "purchases": "ক্রয়",
+    "returns": "ফেরত",
+    "customers": "ক্রেতা",
+    "suppliers": "সরবরাহকারী",
+    "expenses": "খরচ",
+    "payments": "পেমেন্ট",
+    "reports": "রিপোর্ট",
+    "sync": "সিঙ্ক অবস্থা",
+    "settings": "সেটিংস",
+    "home": "হোম",
+    "more": "আরও",
+    "menu": "মেনু"
+  },
+  "navGroups": {
+    "main": "প্রধান",
+    "catalog": "পণ্য তালিকা",
+    "transactions": "লেনদেন",
+    "people": "মানুষ",
+    "money": "টাকাপয়সা",
+    "system": "সিস্টেম"
+  },
+  "common": {
+    "save": "সংরক্ষণ",
+    "cancel": "বাতিল",
+    "delete": "মুছুন",
+    "edit": "সম্পাদনা",
+    "search": "খুঁজুন",
+    "add": "যোগ করুন",
+    "close": "বন্ধ করুন",
+    "back": "পেছনে",
+    "retry": "আবার চেষ্টা করুন",
+    "language": "ভাষা",
+    "theme": "থিম",
+    "themeLight": "হালকা",
+    "themeDark": "গাঢ়",
+    "themeSystem": "সিস্টেম",
+    "numerals": "সংখ্যা",
+    "numeralsAuto": "ভাষা অনুযায়ী",
+    "numeralsLatn": "1 2 3",
+    "numeralsBeng": "১ ২ ৩",
+    "logout": "সাইন আউট",
+    "account": "অ্যাকাউন্ট",
+    "somethingWrong": "কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।"
+  },
+  "status": {
+    "online": "অনলাইন",
+    "offline": "অফলাইন",
+    "synced": "সিঙ্ক হয়েছে",
+    "syncing": "সিঙ্ক হচ্ছে",
+    "pending": "{count, plural, other {#টি পরিবর্তন অপেক্ষমাণ}}",
+    "issue": "সিঙ্কে সমস্যা",
+    "offlineHint": "আপনি অফলাইনে আছেন। সব কাজ চলবে এবং ইন্টারনেট এলে নিজে থেকেই সিঙ্ক হবে।"
+  },
+  "role": {
+    "owner": "মালিক",
+    "manager": "ম্যানেজার",
+    "cashier": "ক্যাশিয়ার"
+  },
+  "auth": {
+    "loginTitle": "সাইন ইন",
+    "loginSubtitle": "আপনার দোকানে সাইন ইন করুন",
+    "username": "মোবাইল নম্বর বা ইউজারনেম",
+    "usernameHint": "মালিকের দেওয়া মোবাইল নম্বর বা ইউজারনেম ব্যবহার করুন।",
+    "password": "পাসওয়ার্ড",
+    "signIn": "সাইন ইন",
+    "signingIn": "সাইন ইন হচ্ছে…",
+    "invalidCredentials": "ইউজারনেম বা পাসওয়ার্ড ভুল।",
+    "needInternetToSignIn": "এই ডিভাইসে প্রথমবার সাইন ইন করতে ইন্টারনেট লাগবে।",
+    "noStore": "নতুন দোকান?",
+    "createStore": "দোকান তৈরি করুন",
+    "signUpTitle": "দোকান তৈরি করুন",
+    "signUpSubtitle": "দোকান ও মালিকের অ্যাকাউন্ট খুলুন। কর্মচারী পরে যোগ করতে পারবেন।",
+    "storeName": "দোকানের নাম",
+    "ownerName": "আপনার নাম",
+    "createAccount": "দোকান তৈরি করুন",
+    "creating": "তৈরি হচ্ছে…",
+    "haveAccount": "আগেই অ্যাকাউন্ট আছে?",
+    "usernameTaken": "এই ইউজারনেম আগেই নেওয়া হয়েছে।",
+    "welcome": "স্বাগতম, {name}"
+  },
+  "validation": {
+    "required": "এই ঘরটি পূরণ করতে হবে",
+    "storeNameMin": "দোকানের নাম লিখুন",
+    "ownerNameMin": "আপনার নাম লিখুন",
+    "usernameMin": "কমপক্ষে ৩টি অক্ষর",
+    "usernameMax": "সর্বোচ্চ ৩০টি অক্ষর",
+    "usernameFormat": "শুধু অক্ষর, সংখ্যা, ডট, ড্যাশ বা আন্ডারস্কোর ব্যবহার করুন",
+    "passwordMin": "কমপক্ষে ৮টি অক্ষর",
+    "passwordMax": "সর্বোচ্চ ১০০টি অক্ষর"
+  },
+  "placeholder": {
+    "title": "{page}",
+    "comingIn": "এই পাতাটি পরিকল্পনার ধাপ {phase}-এ তৈরি হবে।",
+    "foundation": "অ্যাপের কাঠামো, ভাষা, অফলাইন ইনস্টল ও সাইন ইন প্রস্তুত।"
+  },
+  "pwa": {
+    "install": "অ্যাপ ইনস্টল করুন",
+    "installIos": "ইনস্টল করতে Share চাপুন, তারপর “Add to Home Screen”।",
+    "updateAvailable": "নতুন সংস্করণ প্রস্তুত।",
+    "update": "আপডেট",
+    "offlineReady": "অফলাইনে কাজ করার জন্য প্রস্তুত।"
+  },
+  "language": {
+    "en": "English",
+    "bn": "বাংলা"
+  }
+}
