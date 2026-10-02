@@ -14,6 +14,7 @@ import { getLocalDb } from "@/db/local/db";
 import { searchCustomers } from "@/db/local/queries/customers";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
+import { isValidPhone, normalizePhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/stores/cart";
 import { useCommands } from "@/sync/use-commands";
@@ -37,6 +38,7 @@ export function CustomerPicker({
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const phoneOk = isValidPhone(phone);
   const [saving, setSaving] = useState(false);
 
   const customers =
@@ -49,14 +51,14 @@ export function CustomerPicker({
   };
 
   async function addCustomer() {
-    if (!name.trim()) return;
+    if (!name.trim() || !phoneOk) return;
     setSaving(true);
     try {
       const id = newId();
       await run("customer.create", {
         id,
         name: name.trim(),
-        phone: phone.trim(),
+        phone: normalizePhone(phone),
       });
       setName("");
       setPhone("");
@@ -102,8 +104,14 @@ export function CustomerPicker({
                 id="new-customer-phone"
                 inputMode="tel"
                 value={phone}
+                aria-invalid={!phoneOk}
                 onChange={(e) => setPhone(e.target.value)}
               />
+              {!phoneOk ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {t("validation.invalidPhone")}
+                </p>
+              ) : null}
             </Field>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button
@@ -113,7 +121,10 @@ export function CustomerPicker({
               >
                 {t("common.cancel")}
               </Button>
-              <Button type="submit" disabled={saving || !name.trim()}>
+              <Button
+                type="submit"
+                disabled={saving || !name.trim() || !phoneOk}
+              >
                 {t("common.save")}
               </Button>
             </div>

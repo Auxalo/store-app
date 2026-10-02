@@ -36,20 +36,25 @@ import {
 } from "@/db/local/queries/customers";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
+import { isValidPhone, normalizePhone } from "@/lib/phone";
 import { useSyncStore } from "@/sync/store";
 import { useCommands } from "@/sync/use-commands";
 
 const text = (max: number) => z.string().trim().max(max);
+/** Optional, but a phone that is given must be a real number; stored as plain digits. */
+const phone = text(30)
+  .refine(isValidPhone, { error: "invalidPhone" })
+  .transform(normalizePhone);
 const schemas = {
   customer: z.object({
     name: text(120).min(1, { error: "required" }),
-    phone: text(30),
+    phone,
     address: text(200),
     notes: text(500),
   }),
   supplier: z.object({
     name: text(120).min(1, { error: "required" }),
-    phone: text(30),
+    phone,
     email: text(120),
     contactPerson: text(120),
     address: text(200),

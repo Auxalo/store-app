@@ -8,7 +8,7 @@ import { useFormat } from "@/i18n/use-format";
 import { cn } from "@/lib/utils";
 import { type SyncIndicator, useSyncStatus } from "@/sync/use-sync-status";
 
-const DOT: Record<SyncIndicator, string> = {
+export const DOT: Record<SyncIndicator, string> = {
   issue: "bg-destructive",
   offline: "bg-amber-500",
   syncing: "bg-sky-500 animate-pulse",

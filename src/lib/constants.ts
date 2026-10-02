@@ -1,2 +1,7 @@
 export const DEFAULT_TIME_ZONE = "Asia/Dhaka";
 export const DEFAULT_CURRENCY = "BDT";
+
+/** Store setting that switches the audit log on. Off unless the owner turns it on. */
+export const AUDIT_SETTING = "audit.enabled";
+/** Audit rows are deleted automatically this long after they were written (TTL index). */
+export const AUDIT_RETENTION_SECONDS = 7 * 24 * 60 * 60;

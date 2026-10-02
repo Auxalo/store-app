@@ -1,12 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSetting } from "@/hooks/use-setting";
 import { useFormat } from "@/i18n/use-format";
+import { AUDIT_SETTING } from "@/lib/constants";
 import { api } from "./api";
 
 interface AuditRow {
@@ -42,6 +45,7 @@ export function AuditScreen() {
   const [more, setMore] = useState(false);
   const [offline, setOffline] = useState(false);
   const [loading, setLoading] = useState(false);
+  const auditOn = useSetting<boolean>(AUDIT_SETTING, false).value;
 
   const load = useCallback(async (before?: string) => {
     setLoading(true);
@@ -74,6 +78,19 @@ export function AuditScreen() {
           className="rounded-lg border border-destructive/40 p-3 text-sm text-destructive"
         >
           {t("audit.needsInternet")}
+        </p>
+      ) : null}
+      {!auditOn ? (
+        <p
+          className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm"
+          data-testid="audit-off"
+        >
+          {t("audit.off")}{" "}
+          {can(role, "settings.manage") ? (
+            <Link href="/settings" className="font-medium text-primary">
+              {t("audit.turnOn")}
+            </Link>
+          ) : null}
         </p>
       ) : null}
       {rows === null && !offline ? <Skeleton className="h-16 w-full" /> : null}

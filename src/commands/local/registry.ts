@@ -21,6 +21,7 @@ import {
   saleCreate,
   saleVoid,
 } from "./sales";
+import { claimSku } from "./sku";
 
 export interface LocalContext {
   storeId: string;
@@ -82,7 +83,11 @@ export const localCommands: { [T in CommandType]: LocalHandler<T> } = {
   "product.create": async (db, ctx, input, now) => {
     if (await db.products.get(input.id))
       throw new AlreadyExistsError("product");
-    const { openingStock, openingMovementId, ...product } = input;
+    const { openingStock, openingMovementId, ...fields } = input;
+    const product = {
+      ...fields,
+      sku: await claimSku(db, ctx.deviceId, fields.sku),
+    };
     await db.products.add({
       ...product,
       stock: openingStock,
@@ -113,7 +118,7 @@ export const localCommands: { [T in CommandType]: LocalHandler<T> } = {
         deviceId: ctx.deviceId,
       });
     }
-    return input;
+    return { ...input, sku: product.sku };
   },
 
   "product.update": async (db, _ctx, input, now) => {

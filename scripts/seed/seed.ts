@@ -5,6 +5,7 @@ import { StoreDB } from "@/db/local/db";
 import { getDeviceId, setMeta } from "@/db/local/meta";
 import type { Product } from "@/db/local/types";
 import { getDb } from "@/db/server/mongo";
+import { AUDIT_SETTING } from "@/lib/constants";
 import { newId } from "@/lib/ids";
 import { startOfStoreDay } from "@/lib/time";
 import { dayKey } from "@/reports/compute";
@@ -191,6 +192,11 @@ async function main() {
   await run(owner, t0 + 1000, "setting.set", {
     key: "receipt.footer",
     value: RECEIPT_FOOTER,
+  });
+  // The demo shows the audit trail, so it is switched on (real shops start with it off).
+  await run(owner, t0 + 1500, "setting.set", {
+    key: AUDIT_SETTING,
+    value: true,
   });
 
   const categoryId = new Map<string, string>();

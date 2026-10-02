@@ -1,4 +1,5 @@
 import type { Db } from "mongodb";
+import { AUDIT_RETENTION_SECONDS } from "@/lib/constants";
 
 /** Mongo collection names used by the sync engine (business collections match SYNC_COLLECTIONS). */
 export const COL = {
@@ -38,6 +39,13 @@ export async function ensureSyncIndexes(db: Db): Promise<void> {
       .collection("payments")
       .createIndex({ storeId: 1, partyId: 1, createdAt: -1 }),
     db.collection("auditLogs").createIndex({ storeId: 1, at: -1 }),
+    // The audit log keeps 7 days; MongoDB deletes older rows on its own (within about a minute).
+    db
+      .collection("auditLogs")
+      .createIndex(
+        { recordedAt: 1 },
+        { expireAfterSeconds: AUDIT_RETENTION_SECONDS },
+      ),
     db
       .collection(COL.devices)
       .createIndex({ storeId: 1, code: 1 }, { unique: true }),

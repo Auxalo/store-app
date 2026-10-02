@@ -603,3 +603,17 @@ Defaults I'll use unless you say otherwise:
 - **Size budgets** (`budget.spec.ts`): first-load JS, compressed, measured at 340 KB (login) to 515 KB (desktop app pages); budgets sit a few percent above. Trimming is the next performance step if cheap phones feel slow.
 - **Deploy**: `docs/DEPLOY.md`.
 - **Not done:** Lighthouse/INP on a throttled device profile, error monitoring, real-device install checks on iOS/Android.
+
+## Sprint 2
+
+Plan: see the sprint plan (S1–S8). Notes per phase below.
+
+### S1 notes — quick wins
+
+- **Audit log is opt-in.** Store setting `audit.enabled` (default off). `writeAudit` checks it with one primary-key read inside the command's transaction, so no caller changed. Rows carry `recordedAt`; a TTL index (`auditLogs.recordedAt`, 7 days) deletes them automatically. The Settings card asks for confirmation before turning it on and explains the storage cost; the audit screen says when it is off. Server tests enable the flag explicitly; the seed turns it on.
+- **Product rules.** A new product needs a name, a purchase price and a selling price, both above zero. The form (and `productCreateInput` / `productUpdateInput`) enforce it, but `productCreatePayload` stays lenient so operations queued by older app versions, and old products with a zero price, still sync. Selling below cost is warned about, not blocked. People who cannot see cost are not asked for it.
+- **SKU.** Blank SKU → the device's next short number (`A0042`, per-device counter `skuSeq`, skipping numbers already used), created in the same transaction and queued in the payload so the server stores the same value. A SKU typed by hand is kept. The form shows what the next one will be.
+- **Phone numbers** are optional but validated (6–15 digits, Bangla digits allowed) and stored as plain digits (`src/lib/phone.ts`).
+- **Sidebar footer:** sync status link and the developer credit (name, website, WhatsApp), reachable on phones through "More".
+- **Tests now run on their own server and database** (`playwright.config.ts`: port 3100, local MongoDB, database `store_app_e2e`), never the database in `.env.local` and never an open dev server.
+- Lesson: a required-field star must not change the label text, or tests that find fields by exact label break; it is drawn with CSS.

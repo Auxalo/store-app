@@ -105,7 +105,9 @@
     "invalidNumber": "Enter a valid number",
     "tooManyDecimals": "Too many decimal places for this unit",
     "customerForDue": "Choose a customer to sell on credit",
-    "supplierForDue": "Choose a supplier to buy on credit"
+    "supplierForDue": "Choose a supplier to buy on credit",
+    "positive": "Must be more than 0",
+    "invalidPhone": "Enter a valid phone number"
   },
   "placeholder": {
     "title": "{page}",
@@ -278,7 +280,10 @@
     "noHistory": "No stock movements yet.",
     "adjustStock": "Adjust stock",
     "notFound": "This product was not found on this device.",
-    "saved": "Saved"
+    "saved": "Saved",
+    "belowCost": "The selling price is below the purchase price.",
+    "skuAuto": "Auto: {sku}",
+    "skuHint": "Leave empty and one is created for you."
   },
   "inventory": {
     "tabAll": "All stock",
@@ -616,7 +621,16 @@
     "exportJson": "Download everything (JSON)",
     "exportCsv": "Download {what} (CSV)",
     "exporting": "Preparing…",
-    "noAccess": "Only the owner can open settings."
+    "noAccess": "Only the owner can open settings.",
+    "auditTitle": "Audit log",
+    "auditToggle": "Keep an audit log",
+    "auditToggleHint": "Records who changed prices, adjusted stock or cancelled sales. Entries are kept for 7 days.",
+    "auditOn": "Audit log is on",
+    "auditOff": "Audit log is off",
+    "auditConfirmTitle": "Turn on the audit log?",
+    "auditConfirmBody": "It is useful for checking who changed what, but it uses a lot of storage in the database. Entries are kept for 7 days and then deleted automatically.",
+    "auditConfirmCancel": "Keep it off",
+    "auditConfirmOk": "Turn on"
   },
   "staff": {
     "add": "Add staff",
@@ -684,7 +698,9 @@
       "sale_void": "Sale cancelled",
       "sale_priceOverride": "Sold at a different price",
       "expense_void": "Expense cancelled"
-    }
+    },
+    "off": "The audit log is off, so new changes are not being recorded.",
+    "turnOn": "Turn it on in Settings"
   },
   "dashboard": {
     "openPos": "Open sales counter",
@@ -785,5 +801,9 @@
       "costValue": "Value at cost",
       "retailValue": "Value at selling price"
     }
+  },
+  "developer": {
+    "label": "Developer",
+    "whatsapp": "WhatsApp"
   }
 }

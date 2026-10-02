@@ -4,11 +4,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
+import { peekSku } from "@/commands/local/sku";
 import { ValidationError } from "@/components/shared/field-text";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +30,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { getLocalDb } from "@/db/local/db";
+import { getDeviceId } from "@/db/local/meta";
 import { findDuplicateCode } from "@/db/local/queries/products";
 import type { Product } from "@/db/local/types";
 import { newId } from "@/lib/ids";
@@ -39,46 +42,52 @@ import { useCommands } from "@/sync/use-commands";
 
 const NONE = "none";
 
-const moneyText = z
+/** A price must be entered and be more than zero. */
+const priceText = z
   .string()
-  .refine((v) => v.trim() === "" || (parseMoney(v) ?? -1) >= 0, {
+  .refine((v) => v.trim() !== "", { error: "required" })
+  .refine((v) => v.trim() === "" || parseMoney(v) !== null, {
     error: "invalidNumber",
-  });
+  })
+  .refine((v) => (parseMoney(v) ?? 1) > 0, { error: "positive" });
 const qtyText = z
   .string()
   .refine((v) => v.trim() === "" || parseQty(v) !== null, {
     error: "invalidNumber",
   });
 
-const formSchema = z
-  .object({
-    name: z.string().trim().min(1, { error: "required" }).max(120),
-    nameBn: z.string().trim().max(120),
-    sku: z.string().trim().max(60),
-    barcode: z.string().trim().max(60),
-    categoryId: z.string(),
-    unit: z.enum(UNIT_CODES),
-    purchasePrice: moneyText,
-    sellingPrice: moneyText,
-    lowStockThreshold: qtyText,
-    openingStock: qtyText,
-    description: z.string().trim().max(500),
-    isActive: z.boolean(),
-  })
-  .superRefine((v, ctx) => {
-    const decimals = unitDecimals(v.unit);
-    for (const field of ["lowStockThreshold", "openingStock"] as const) {
-      const milli = v[field].trim() === "" ? 0 : parseQty(v[field]);
-      if (milli !== null && roundToUnit(milli, decimals) !== milli) {
-        ctx.addIssue({
-          code: "custom",
-          path: [field],
-          message: "tooManyDecimals",
-        });
+/** Only the name and the two prices are required; everything else is optional. */
+const makeFormSchema = (showsCost: boolean) =>
+  z
+    .object({
+      name: z.string().trim().min(1, { error: "required" }).max(120),
+      nameBn: z.string().trim().max(120),
+      sku: z.string().trim().max(60),
+      barcode: z.string().trim().max(60),
+      categoryId: z.string(),
+      unit: z.enum(UNIT_CODES),
+      // People who cannot see the cost never fill it in, so it is not required of them.
+      purchasePrice: showsCost ? priceText : z.string(),
+      sellingPrice: priceText,
+      lowStockThreshold: qtyText,
+      openingStock: qtyText,
+      description: z.string().trim().max(500),
+      isActive: z.boolean(),
+    })
+    .superRefine((v, ctx) => {
+      const decimals = unitDecimals(v.unit);
+      for (const field of ["lowStockThreshold", "openingStock"] as const) {
+        const milli = v[field].trim() === "" ? 0 : parseQty(v[field]);
+        if (milli !== null && roundToUnit(milli, decimals) !== milli) {
+          ctx.addIssue({
+            code: "custom",
+            path: [field],
+            message: "tooManyDecimals",
+          });
+        }
       }
-    }
-  });
-type FormValues = z.infer<typeof formSchema>;
+    });
+type FormValues = z.infer<ReturnType<typeof makeFormSchema>>;
 
 const takaText = (poisha: number) =>
   poisha % 100 === 0 ? String(poisha / 100) : (poisha / 100).toFixed(2);
@@ -139,7 +148,7 @@ function ProductForm({ product }: { product?: Product }) {
     watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(makeFormSchema(canSeeCost)),
     defaultValues: {
       name: product?.name ?? "",
       nameBn: product?.nameBn ?? "",
@@ -156,6 +165,25 @@ function ProductForm({ product }: { product?: Product }) {
     },
   });
   const unit = watch("unit");
+  const cost = parseMoney(watch("purchasePrice")) ?? 0;
+  const price = parseMoney(watch("sellingPrice")) ?? 0;
+  const sellsAtLoss = canSeeCost && cost > 0 && price > 0 && price < cost;
+
+  // A blank SKU is filled in automatically when the product is saved; show which one it will be.
+  // (Not a live query: finding the device id may have to create it, which is a write.)
+  const [nextSku, setNextSku] = useState<string>();
+  useEffect(() => {
+    if (product) return;
+    let cancelled = false;
+    const db = getLocalDb();
+    void getDeviceId(db)
+      .then((deviceId) => peekSku(db, deviceId))
+      .then((sku) => !cancelled && setNextSku(sku))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [product]);
 
   const onSubmit = handleSubmit(async (v) => {
     const db = getLocalDb();
@@ -221,9 +249,20 @@ function ProductForm({ product }: { product?: Product }) {
     name: keyof FormValues,
     label: string,
     props: React.ComponentProps<typeof Input> = {},
+    required = false,
   ) => (
     <Field data-invalid={!!errors[name]}>
-      <FieldLabel htmlFor={`f-${name}`}>{label}</FieldLabel>
+      {/* The star is drawn by CSS, so the label's text (and its accessible name) is unchanged. */}
+      <FieldLabel
+        htmlFor={`f-${name}`}
+        className={
+          required
+            ? "after:ms-0.5 after:text-destructive after:content-['*']"
+            : undefined
+        }
+      >
+        {label}
+      </FieldLabel>
       <Input
         id={`f-${name}`}
         aria-invalid={!!errors[name]}
@@ -244,7 +283,7 @@ function ProductForm({ product }: { product?: Product }) {
         {product ? t("products.editTitle") : t("products.newTitle")}
       </h2>
       <FieldGroup>
-        {text("name", t("products.name"), { autoFocus: !product })}
+        {text("name", t("products.name"), { autoFocus: !product }, true)}
         {text("nameBn", t("products.nameBn"), { lang: "bn" })}
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -296,19 +335,50 @@ function ProductForm({ product }: { product?: Product }) {
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          {text("sku", t("products.sku"), { autoCapitalize: "characters" })}
-          {text("barcode", t("products.barcode"), { inputMode: "numeric" })}
+          {canSeeCost
+            ? text(
+                "purchasePrice",
+                `${t("products.purchasePrice")} (৳)`,
+                { inputMode: "decimal" },
+                true,
+              )
+            : null}
+          <div className="flex flex-col gap-1">
+            {text(
+              "sellingPrice",
+              `${t("products.sellingPrice")} (৳)`,
+              { inputMode: "decimal" },
+              true,
+            )}
+            {sellsAtLoss ? (
+              <p
+                className="text-xs text-amber-600 dark:text-amber-400"
+                data-testid="below-cost"
+              >
+                {t("products.belowCost")}
+              </p>
+            ) : null}
+          </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          {canSeeCost
-            ? text("purchasePrice", `${t("products.purchasePrice")} (৳)`, {
-                inputMode: "decimal",
-              })
-            : null}
-          {text("sellingPrice", `${t("products.sellingPrice")} (৳)`, {
-            inputMode: "decimal",
-          })}
+          <Field data-invalid={!!errors.sku}>
+            <FieldLabel htmlFor="f-sku">{t("products.sku")}</FieldLabel>
+            <Input
+              id="f-sku"
+              autoCapitalize="characters"
+              placeholder={
+                nextSku ? t("products.skuAuto", { sku: nextSku }) : undefined
+              }
+              aria-invalid={!!errors.sku}
+              {...register("sku")}
+            />
+            <ValidationError error={errors.sku} />
+            {!product ? (
+              <FieldDescription>{t("products.skuHint")}</FieldDescription>
+            ) : null}
+          </Field>
+          {text("barcode", t("products.barcode"), { inputMode: "numeric" })}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">

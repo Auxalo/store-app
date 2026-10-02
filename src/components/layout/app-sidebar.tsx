@@ -19,6 +19,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { navGroups, navItemsFor } from "@/config/nav";
+import { AppSidebarFooter } from "./app-sidebar-footer";
 
 /** Desktop sidebar; on phones it opens as a sheet from the bottom bar's "More" button. */
 export function AppSidebar() {
@@ -88,6 +89,7 @@ export function AppSidebar() {
           </SidebarGroup>
         ))}
       </SidebarContent>
+      <AppSidebarFooter />
       <SidebarRail />
     </Sidebar>
   );

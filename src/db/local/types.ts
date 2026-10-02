@@ -344,4 +344,6 @@ export interface MetaValues {
   invoiceSeq: Record<string, number>;
   /** When old, already-sent operations were last cleared out. */
   lastPruneAt: number;
+  /** The last automatic SKU number this device issued (A0042 → 42). */
+  skuSeq: number;
 }

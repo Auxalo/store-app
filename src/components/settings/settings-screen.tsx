@@ -34,6 +34,7 @@ import { getLocalDb } from "@/db/local/db";
 import { useSetting } from "@/hooks/use-setting";
 import { download, toCsv } from "@/lib/export";
 import { type ReceiptPaper, usePreferences } from "@/stores/preferences";
+import { AuditToggleCard } from "./audit-toggle";
 
 export type StoreProfile = {
   name: string;
@@ -276,6 +277,8 @@ export function SettingsScreen() {
           </form>
         </CardContent>
       </Card>
+
+      <AuditToggleCard />
 
       <div className="grid gap-2">
         {[

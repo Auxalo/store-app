@@ -15,6 +15,7 @@ const deviceB = randomUUID();
 beforeAll(async () => {
   mongo = await startMongo();
   storeId = await mongo.seedStore();
+  await mongo.enableAudit(storeId);
   owner = await mongo.seedUser(storeId, "owner");
   cashier = await mongo.seedUser(storeId, "cashier");
 }, 120_000);

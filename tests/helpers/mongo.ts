@@ -15,6 +15,8 @@ export interface TestMongo extends SyncDeps {
     role: Role,
     extra?: Record<string, unknown>,
   ) => Promise<string>;
+  /** Switches the store's audit log on (it is off by default). */
+  enableAudit: (storeId: string) => Promise<void>;
 }
 
 /** A throwaway single-node replica set (transactions need one) with a fresh database. */
@@ -52,6 +54,19 @@ export async function startMongo(): Promise<TestMongo> {
         ...extra,
       });
       return _id.toHexString();
+    },
+    enableAudit: async (storeId) => {
+      await db.collection<{ _id: string }>("settings").replaceOne(
+        { _id: `${storeId}:audit.enabled` },
+        {
+          storeId,
+          key: "audit.enabled",
+          value: true,
+          version: 1,
+          syncSeq: 0,
+        } as never,
+        { upsert: true },
+      );
     },
   };
 }

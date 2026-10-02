@@ -14,6 +14,7 @@ import { getLocalDb } from "@/db/local/db";
 import { type PartyKind, searchParties } from "@/db/local/queries/customers";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
+import { isValidPhone, normalizePhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 import { useCommands } from "@/sync/use-commands";
 
@@ -45,6 +46,7 @@ export function PartyPicker({
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const phoneOk = isValidPhone(phone);
   const [saving, setSaving] = useState(false);
 
   const parties =
@@ -59,13 +61,13 @@ export function PartyPicker({
   };
 
   async function add() {
-    if (!name.trim()) return;
+    if (!name.trim() || !phoneOk) return;
     setSaving(true);
     try {
       const id = newId();
       await run(
         `${kind}.create` as never,
-        { id, name: name.trim(), phone: phone.trim() } as never,
+        { id, name: name.trim(), phone: normalizePhone(phone) } as never,
       );
       const label = name.trim();
       setName("");
@@ -116,8 +118,14 @@ export function PartyPicker({
                 id="pp-phone"
                 inputMode="tel"
                 value={phone}
+                aria-invalid={!phoneOk}
                 onChange={(e) => setPhone(e.target.value)}
               />
+              {!phoneOk ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {t("validation.invalidPhone")}
+                </p>
+              ) : null}
             </Field>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button
@@ -127,7 +135,10 @@ export function PartyPicker({
               >
                 {t("common.cancel")}
               </Button>
-              <Button type="submit" disabled={saving || !name.trim()}>
+              <Button
+                type="submit"
+                disabled={saving || !name.trim() || !phoneOk}
+              >
                 {t("common.save")}
               </Button>
             </div>

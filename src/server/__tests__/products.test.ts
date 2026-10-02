@@ -17,6 +17,7 @@ const deviceB = randomUUID();
 beforeAll(async () => {
   mongo = await startMongo();
   storeId = await mongo.seedStore();
+  await mongo.enableAudit(storeId);
   owner = await mongo.seedUser(storeId, "owner");
   manager = await mongo.seedUser(storeId, "manager");
   cashier = await mongo.seedUser(storeId, "cashier");
@@ -390,5 +391,44 @@ describe("audit trail", () => {
       oldValue: { stock: 2_000 },
       newValue: { stock: 1_500, type: "correction" },
     });
+  });
+
+  it("writes nothing when the store has the audit log switched off (the default)", async () => {
+    const quietStore = await mongo.seedStore("Quiet Store");
+    const quietOwner = await mongo.seedUser(quietStore, "owner");
+    const device = randomUUID();
+    const id = randomUUID();
+    const run = (o: OpEnvelope) =>
+      handlePush(
+        mongo,
+        { storeId: quietStore, deviceId: device },
+        { deviceId: device, appVersion: "1.0.0", ops: [o] },
+      );
+    const as = { actorUserId: quietOwner, deviceId: device };
+    await run(op("product.create", product(id, { openingStock: 2_000 }), as));
+    await run(
+      op(
+        "product.update",
+        { id, baseVersion: 1, changes: { sellingPrice: 5100 } },
+        as,
+      ),
+    );
+    await run(adjust(id, -500, as));
+
+    expect(
+      (await mongo.db.collection("products").findOne({ _id: id as never }))
+        ?.stock,
+    ).toBe(1_500);
+    expect(
+      await mongo.db
+        .collection("auditLogs")
+        .countDocuments({ storeId: quietStore }),
+    ).toBe(0);
+  });
+
+  it("deletes audit rows automatically after 7 days", async () => {
+    const indexes = await mongo.db.collection("auditLogs").indexes();
+    const ttl = indexes.find((i) => i.key.recordedAt === 1);
+    expect(ttl?.expireAfterSeconds).toBe(7 * 24 * 60 * 60);
   });
 });

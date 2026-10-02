@@ -60,21 +60,57 @@ export const productChangesSchema = z
   .refine((changes) => Object.keys(changes).length > 0, { error: "required" });
 export type ProductChanges = z.infer<typeof productChangesSchema>;
 
-export const productCreateInput = productFieldsSchema.extend({
+/**
+ * What the server accepts. It stays lenient (zero prices allowed) so that operations queued by older
+ * app versions, and products created before prices became required, still sync.
+ */
+export const productCreatePayload = productFieldsSchema.extend({
   id: idSchema,
   /** Stock on hand when the product is created (becomes an "opening" movement). */
   openingStock: qty.default(0),
   openingMovementId: idSchema,
 });
-export const productCreatePayload = productCreateInput;
 
-export const productUpdateInput = z.object({
+/** Both prices are required on a new product, and neither may be zero. */
+const PRICE_FIELDS = ["purchasePrice", "sellingPrice"] as const;
+const pricesPositive = (
+  values: Partial<Record<(typeof PRICE_FIELDS)[number], number>>,
+  ctx: z.RefinementCtx,
+  path: (field: string) => PropertyKey[] = (field) => [field],
+) => {
+  for (const field of PRICE_FIELDS) {
+    const value = values[field];
+    if (value !== undefined && value <= 0)
+      ctx.addIssue({ code: "custom", path: path(field), message: "positive" });
+  }
+};
+
+/** What a person may create: name, purchase price and selling price are required and non-zero. */
+export const productCreateInput = productCreatePayload.superRefine((p, ctx) =>
+  pricesPositive(
+    {
+      purchasePrice: p.purchasePrice,
+      sellingPrice: p.sellingPrice,
+    },
+    ctx,
+  ),
+);
+
+export const productUpdatePayload = z.object({
   id: idSchema,
   changes: productChangesSchema,
-});
-export const productUpdatePayload = productUpdateInput.extend({
   baseVersion: z.number().int().min(0),
 });
+
+/** An edit cannot set a price to zero (it may leave an old zero price untouched). */
+export const productUpdateInput = z
+  .object({
+    id: idSchema,
+    changes: productChangesSchema,
+  })
+  .superRefine((p, ctx) =>
+    pricesPositive(p.changes, ctx, (field) => ["changes", field]),
+  );
 
 export const productDeleteInput = z.object({ id: idSchema });
 export const productDeletePayload = productDeleteInput.extend({

@@ -4,6 +4,7 @@ import { categoryChangesSchema } from "../category";
 import {
   productChangesSchema,
   productCreateInput,
+  productCreatePayload,
   productUpdateInput,
   stockAdjustInput,
 } from "../product";
@@ -44,21 +45,48 @@ describe("edit payloads carry only what changed", () => {
 });
 
 describe("product create input", () => {
-  it("fills sensible defaults for a minimal product", () => {
+  it("needs only a name and the two prices; everything else has a sensible default", () => {
     const parsed = productCreateInput.parse({
       id: "p1",
       name: "Rice",
+      purchasePrice: 6800,
+      sellingPrice: 7500,
       openingMovementId: "m1",
     });
     expect(parsed).toMatchObject({
       nameBn: "",
+      sku: "",
       unit: "pcs",
-      purchasePrice: 0,
-      sellingPrice: 0,
       openingStock: 0,
       isActive: true,
       categoryId: null,
     });
+  });
+
+  it("refuses a new product with a missing or zero price", () => {
+    const base = { id: "p1", name: "Rice", openingMovementId: "m1" };
+    const issues = productCreateInput.safeParse(base).error?.issues ?? [];
+    expect(issues.map((i) => [i.path.join("."), i.message]).sort()).toEqual([
+      ["purchasePrice", "positive"],
+      ["sellingPrice", "positive"],
+    ]);
+    expect(
+      productCreateInput.safeParse({
+        ...base,
+        purchasePrice: 1,
+        sellingPrice: 0,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("the server still accepts zero prices, so changes queued by older app versions sync", () => {
+    expect(
+      productCreatePayload.safeParse({
+        id: "p1",
+        name: "Rice",
+        openingMovementId: "m1",
+      }).success,
+    ).toBe(true);
   });
 
   it("rejects fractional poisha, negative prices and unknown units", () => {
