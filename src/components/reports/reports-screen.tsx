@@ -16,6 +16,7 @@ import { stockStatus } from "@/db/local/queries/products";
 import { useFormat } from "@/i18n/use-format";
 import { download, toCsv } from "@/lib/export";
 import { lineTotal } from "@/lib/qty";
+import { previousRange } from "@/reports/compare";
 import type { Summary } from "@/reports/compute";
 import {
   useDues,
@@ -29,6 +30,7 @@ import {
 } from "@/reports/use-summary";
 import { usePreferences } from "@/stores/preferences";
 import { BarChart } from "./bar-chart";
+import { ReportOverview } from "./overview";
 import { RangePicker, type RangeState, rangeOf } from "./range-picker";
 
 type Tab = "sales" | "products" | "profit" | "stock" | "dues" | "movements";
@@ -106,6 +108,12 @@ export function ReportsScreen() {
   const [source, setSource] = useState<ReportSource>("device");
   const range = rangeOf(rangeState, timeZone);
   const { summary, serverFailed } = useSummary(range, source);
+  // The days just before, for the "vs before" change on each headline number.
+  const { summary: previous } = useSummary(
+    previousRange(range),
+    source,
+    tab === "sales" || tab === "products" || tab === "profit",
+  );
 
   const showProfit = can(role, "profit.view");
   const categories = useCategories();
@@ -416,6 +424,15 @@ export function ReportsScreen() {
         >
           {t("serverFailed")}
         </p>
+      ) : null}
+
+      {needsSummary && summary ? (
+        <ReportOverview
+          summary={summary}
+          previous={previous}
+          showProfit={showProfit}
+          productName={productName}
+        />
       ) : null}
 
       {needsSummary

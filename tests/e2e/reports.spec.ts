@@ -53,12 +53,28 @@ test("dashboard and reports show the day's sales, profit and stock, offline and 
   await expect(page.getByTestId("low-stock")).toContainText("স্টক শেষ");
   await expect(page.getByTestId("bar-chart")).toBeVisible();
   await expect(page.getByTestId("open-pos")).toBeVisible();
+  // Today against yesterday (nothing was sold yesterday).
+  await expect(
+    page.getByTestId("stats").getByTestId("kpi-change").first(),
+  ).toContainText("নতুন");
 
   // Reports, from this device.
   await page.goto("/reports");
   await expect(page.getByTestId("r-total")).toHaveText("৳১০০");
   await expect(page.getByTestId("r-count")).toHaveText("১");
   await expect(page.getByTestId("r-net")).toHaveText("৳১০০");
+
+  // The headline cards at the top: net sales, profit with its margin, the average bill, how
+  // people paid and what sold best. Nothing sold in the days before, so the change reads "New".
+  await expect(page.getByTestId("kpi-net")).toContainText("৳১০০");
+  await expect(
+    page.getByTestId("kpi-net").getByTestId("kpi-change"),
+  ).toContainText("নতুন");
+  await expect(page.getByTestId("kpi-profit")).toContainText("৳২০");
+  await expect(page.getByTestId("kpi-profit")).toContainText("২০%");
+  await expect(page.getByTestId("kpi-count")).toContainText("গড় বিল ৳১০০");
+  await expect(page.getByTestId("payment-split")).toContainText("৳১০০");
+  await expect(page.getByTestId("top-products")).toContainText("ফ্রেশ দুধ");
 
   // Same numbers from the server.
   // (Online, the numbers always come from the server, so there is no picker.)

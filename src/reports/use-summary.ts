@@ -48,21 +48,25 @@ export function presetRange(
  * no network. Online mode (and "server" in the picker) asks the server; a failed ask falls back to
  * this device only in offline mode, where the device has all the data.
  */
-export function useSummary(range: DayRange, source: ReportSource = "device") {
+export function useSummary(
+  range: DayRange,
+  source: ReportSource = "device",
+  enabled = true,
+) {
   const timeZone = usePreferences((s) => s.timeZone);
   const mode = useDataMode();
   const wantServer = mode === "online" || source === "server";
 
   const local = useLiveQuery(
     () =>
-      mode === "offline"
+      mode === "offline" && enabled
         ? loadSummary(getLocalDb(), range, timeZone)
         : undefined,
-    [mode, range.from, range.to, timeZone],
+    [mode, enabled, range.from, range.to, timeZone],
   );
   const server = useQuery({
     queryKey: ["data", "summary", range.from, range.to],
-    enabled: wantServer,
+    enabled: wantServer && enabled,
     retry: false,
     queryFn: async () => {
       const response = await fetch(

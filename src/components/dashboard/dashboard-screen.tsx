@@ -15,6 +15,7 @@ import { useState } from "react";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
 import { BarChart } from "@/components/reports/bar-chart";
+import { KpiCard } from "@/components/reports/kpi-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,12 +24,14 @@ import { useList, useTotals } from "@/data/hooks";
 import { useSetting } from "@/hooks/use-setting";
 import { useFormat } from "@/i18n/use-format";
 import { SETUP_SETTING } from "@/lib/constants";
+import { changeBetween } from "@/reports/compare";
 import { presetRange, useSummary } from "@/reports/use-summary";
 import { usePreferences } from "@/stores/preferences";
 
 /** The owner's morning view: today in numbers, what is running low, and the last few sales. */
 export function DashboardScreen() {
   const t = useTranslations("dashboard");
+  const tk = useTranslations("reports.kpi");
   const tu = useTranslations("units");
   const f = useFormat();
   const { role } = useProfile();
@@ -42,6 +45,7 @@ export function DashboardScreen() {
   const setupDone = useSetting<string>(SETUP_SETTING, "").value;
   const showSetup = can(role, "settings.manage") && !setupDone;
   const today = useSummary(presetRange("today", timeZone)).summary;
+  const yesterday = useSummary(presetRange("yesterday", timeZone)).summary;
   const trend = useSummary(presetRange(days, timeZone)).summary;
   const customerDues = useTotals("customers", { balance: "owes" });
   const supplierDues = useTotals("suppliers", { balance: "owes" });
@@ -57,11 +61,26 @@ export function DashboardScreen() {
   );
   const low = lowList.items;
 
-  const stats = [
+  const vs = (pick: (x: NonNullable<typeof today>) => number) =>
+    today && yesterday
+      ? changeBetween(pick(today), pick(yesterday))
+      : undefined;
+
+  const stats: Array<{
+    key: string;
+    icon: typeof Users;
+    value: number | undefined;
+    sub: string;
+    change?: ReturnType<typeof changeBetween>;
+    goodWhen?: "up" | "down";
+    spark?: number[];
+  }> = [
     {
       key: "todaySales",
       icon: ReceiptText,
       value: today?.netSales,
+      change: vs((x) => x.netSales),
+      spark: trend?.byDay.map((d) => d.sales),
       sub: today
         ? t("salesCount", {
             count: today.salesCount,
@@ -75,20 +94,30 @@ export function DashboardScreen() {
             key: "todayProfit",
             icon: TrendingUp,
             value: today?.netProfit,
+            change: vs((x) => x.netProfit),
+            spark: trend?.byDay.map((d) => d.profit),
             sub: "",
           },
         ]
       : []),
-    { key: "todayExpenses", icon: Banknote, value: today?.expenses, sub: "" },
+    {
+      key: "todayExpenses",
+      icon: Banknote,
+      value: today?.expenses,
+      change: vs((x) => x.expenses),
+      goodWhen: "down",
+      sub: "",
+    },
     {
       key: "todayPurchases",
       icon: ShoppingBasket,
       value: today?.purchasesTotal,
+      change: vs((x) => x.purchasesTotal),
       sub: "",
     },
     { key: "customerDue", icon: Users, value: customerDues?.owed, sub: "" },
     { key: "supplierDue", icon: Truck, value: supplierDues?.owed, sub: "" },
-  ] as const;
+  ];
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
@@ -110,7 +139,7 @@ export function DashboardScreen() {
           </CardContent>
         </Card>
       ) : null}
-      <Button asChild size="lg" className="h-12 text-base">
+      <Button asChild size="lg" className="h-14 text-lg">
         <Link href="/pos" data-testid="open-pos">
           {t("openPos")}
         </Link>
@@ -120,28 +149,19 @@ export function DashboardScreen() {
         className="grid grid-cols-2 gap-2 md:grid-cols-3"
         data-testid="stats"
       >
-        {stats.map((s) => (
-          <Card key={s.key} size="sm">
-            <CardContent className="flex flex-col gap-1">
-              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <s.icon className="size-3.5" aria-hidden />
-                {t(s.key as never)}
-              </span>
-              {s.value === undefined ? (
-                <Skeleton className="h-6 w-20" />
-              ) : (
-                <span
-                  className="text-lg font-semibold tabular-nums md:text-xl"
-                  data-testid={`stat-${s.key}`}
-                >
-                  {f.money(s.value)}
-                </span>
-              )}
-              {s.sub ? (
-                <span className="text-xs text-muted-foreground">{s.sub}</span>
-              ) : null}
-            </CardContent>
-          </Card>
+        {stats.map((st) => (
+          <KpiCard
+            key={st.key}
+            label={t(st.key as never)}
+            icon={<st.icon className="size-3.5" aria-hidden />}
+            value={st.value === undefined ? undefined : f.money(st.value)}
+            valueTestId={`stat-${st.key}`}
+            sub={st.sub || undefined}
+            change={st.change}
+            goodWhen={st.goodWhen}
+            changeLabel={tk("vsYesterday")}
+            spark={st.spark}
+          />
         ))}
       </div>
 
