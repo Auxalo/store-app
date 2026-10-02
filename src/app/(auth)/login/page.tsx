@@ -45,9 +45,11 @@ export default function LoginPage() {
     });
     if (error) {
       setFormError(
-        error.status === 0 || error.status >= 500
+        error.status === 0
           ? t("needInternetToSignIn")
-          : t("invalidCredentials"),
+          : error.status >= 500
+            ? t("serverProblem")
+            : t("invalidCredentials"),
       );
       return;
     }

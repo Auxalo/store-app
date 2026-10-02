@@ -96,7 +96,8 @@
     "welcome": "Welcome, {name}",
     "signupClosedTitle": "Shop creation is not open yet",
     "signupClosedBody": "For now, new shops are set up by the developer. Please contact {name} to create your shop.",
-    "signupClosedClose": "Close"
+    "signupClosedClose": "Close",
+    "serverProblem": "The server could not be reached properly. Please try again in a moment; if it keeps happening, contact the person who set up the app."
   },
   "validation": {
     "required": "This field is required",
