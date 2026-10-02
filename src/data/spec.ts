@@ -318,8 +318,9 @@ const cmp = (a: string | number, b: string | number) =>
   a < b ? -1 : a > b ? 1 : 0;
 
 /**
- * Orders two records for a list. Ties are broken by id (plain byte order, ascending) so the order
- * is the same on every device and the server, and a page boundary never splits ties randomly.
+ * Orders two records for a list. Ties are broken by id (plain byte order, in the same direction as
+ * the sort) so the order is the same on every device and the server, and a page boundary never
+ * splits ties randomly. (Same direction, so one index on the server serves a sort both ways.)
  */
 export function compare<R extends Resource>(
   resource: R,
@@ -338,7 +339,9 @@ export function compare<R extends Resource>(
     sortValue(resource, p.sort, a),
     sortValue(resource, p.sort, b),
   );
-  return byValue !== 0 ? byValue * direction : cmp(str(a.id), str(b.id));
+  return byValue !== 0
+    ? byValue * direction
+    : cmp(str(a.id), str(b.id)) * direction;
 }
 
 /** The reference answer: filter, sort, and return the records of one list. */

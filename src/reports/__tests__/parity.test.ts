@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { runCommand } from "@/commands/local/run";
 import { newId } from "@/lib/ids";
-import { serverSummary } from "@/server/reports";
+import { serverSummary, serverSummaryCached } from "@/server/reports";
 import { createDevice, type Device } from "../../../tests/helpers/devices";
 import { startMongo, type TestMongo } from "../../../tests/helpers/mongo";
 import { dayKey, daysIn, rangeBounds } from "../compute";
@@ -240,5 +240,24 @@ describe("days", () => {
   it("uses the store's day, not UTC", () => {
     // 20:00 UTC on the 1st is 02:00 on the 2nd in Dhaka.
     expect(dayKey("2026-10-01T20:00:00.000Z")).toBe("2026-10-02");
+  });
+});
+
+describe("the server's report cache", () => {
+  it("keeps a report until something changes in the shop", async () => {
+    const range = { from: dayKey(Date.now()), to: dayKey(Date.now()) };
+    const first = await serverSummaryCached(mongo.db, storeId, range);
+    expect(first).toEqual(await serverSummary(mongo.db, storeId, range));
+
+    // Nothing changed: the same answer, without going through the sales again.
+    expect(await serverSummaryCached(mongo.db, storeId, range)).toBe(first);
+
+    // Anything saved moves the shop's change counter, and the report is worked out afresh.
+    await mongo.db
+      .collection("stores")
+      .updateOne({ _id: storeId as never }, { $inc: { syncSeq: 1 } });
+    const after = await serverSummaryCached(mongo.db, storeId, range);
+    expect(after).not.toBe(first);
+    expect(after).toEqual(first);
   });
 });

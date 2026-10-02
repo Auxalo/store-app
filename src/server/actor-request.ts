@@ -5,6 +5,7 @@ import { type ActorUser, chooseActor } from "./actor";
 import { getSyncDeps } from "./deps";
 import { checkDevice } from "./devices";
 import { HttpError } from "./http";
+import { checkRateLimit } from "./rate-limit";
 import { requireUser } from "./session";
 
 export interface RequestActor extends ActorUser {
@@ -27,6 +28,10 @@ export async function requireActor(
   const cookieHeader = request.headers.get("cookie");
   const device = await checkDevice(db, cookieHeader);
   if (!device.ok) throw new HttpError(401, "DEVICE_UNKNOWN");
+  checkRateLimit(
+    device.device.deviceId,
+    request.method === "GET" ? "read" : "write",
+  );
 
   const choice = await chooseActor(db, {
     storeId: device.device.storeId,

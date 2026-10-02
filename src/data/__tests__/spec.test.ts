@@ -229,21 +229,17 @@ describe("sales", () => {
     expect(list({ sort: "due" })[0]).toBe("s1");
   });
 
-  it("breaks ties by id, so every page and every device agrees", () => {
+  it("breaks ties by id, in the direction of the sort, so every page and every device agrees", () => {
     const same = [
       sale("b", { total: 100 }),
       sale("a", { total: 100 }),
       sale("c", { total: 100 }),
     ];
-    expect(
-      ids(
-        referenceList(
-          "sales",
-          same,
-          parseListParams("sales", { sort: "total" }),
-        ),
-      ),
-    ).toEqual(["a", "b", "c"]);
+    const order = (input: { sort: "total"; dir?: "asc" | "desc" }) =>
+      ids(referenceList("sales", same, parseListParams("sales", input)));
+    // Biggest first is the default for a total: ties follow it. Smallest first reverses them all.
+    expect(order({ sort: "total" })).toEqual(["c", "b", "a"]);
+    expect(order({ sort: "total", dir: "asc" })).toEqual(["a", "b", "c"]);
   });
 });
 

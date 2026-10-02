@@ -71,7 +71,8 @@
         "src/components/settings/**",
         "src/components/layout/user-menu.tsx",
         "src/components/setup/setup-table.tsx",
-        "src/components/products/product-form-screen.tsx"
+        "src/components/products/product-form-screen.tsx",
+        "src/components/layout/offline-gate.tsx"
       ],
       "linter": {
         "rules": {

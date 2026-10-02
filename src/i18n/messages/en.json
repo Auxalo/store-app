@@ -841,7 +841,7 @@
       "retailValue": "Value at selling price"
     },
     "kpi": {
-      "vsPrevious": "vs the days before",
+      "vsPrevious": "vs before",
       "vsYesterday": "vs yesterday",
       "new": "New",
       "flat": "No change",

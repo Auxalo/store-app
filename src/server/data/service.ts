@@ -1,8 +1,7 @@
 import type { Db, Document } from "mongodb";
 import type { ListParams, Resource } from "@/data/spec";
 import { DEFAULT_TIME_ZONE } from "@/lib/constants";
-import { lineTotal } from "@/lib/qty";
-import { stockStatus } from "@/lib/stock-status";
+import { queryTokens } from "@/lib/search-fields";
 import type { WireDoc } from "@/schemas/sync";
 import { type StoredDoc, toWire } from "../commands/master-data";
 import {
@@ -82,6 +81,47 @@ export class BadCursorError extends Error {
 }
 
 /** One page of a list, in the order of `src/data/spec.ts`. */
+/** The biggest low-stock threshold in the shop (one index lookup). Nothing above it can be low. */
+async function lowStockBound(db: Db, storeId: string): Promise<number> {
+  const top = await db
+    .collection("products")
+    .find({ storeId }, { projection: { lowStockThreshold: 1 } })
+    .sort({ lowStockThreshold: -1 })
+    .limit(1)
+    .maxTimeMS(MAX_TIME_MS)
+    .toArray();
+  return Math.max(0, Number(top[0]?.lowStockThreshold ?? 0));
+}
+
+const SEARCH_INDEX = { storeId: 1, searchWords: 1 } as const;
+
+/**
+ * A sales or purchases search with a number in it (an invoice number, a phone) matches very few
+ * records, so it should start from the search-word index. Left to itself MongoDB also tries
+ * walking the records by date and filtering, and that trial alone costs hundreds of milliseconds
+ * on a big shop. (Products, customers and suppliers are better off letting it choose: their
+ * names and codes have their own indexes, and a hint made barcode and "rice 4321" searches 10
+ * times slower.)
+ */
+const searchHint = (resource: Resource, params: unknown) => {
+  const q = String((params as { q?: string }).q ?? "");
+  return (resource === "sales" || resource === "purchases") &&
+    queryTokens(q).some((t) => /[0-9]/.test(t))
+    ? SEARCH_INDEX
+    : undefined;
+};
+
+/** Only a "low stock" question needs the bound. */
+const boundFor = (
+  db: Db,
+  resource: Resource,
+  params: unknown,
+  storeId: string,
+): Promise<number | undefined> =>
+  resource === "products" && (params as { stock?: string }).stock === "low"
+    ? lowStockBound(db, storeId)
+    : Promise.resolve(undefined);
+
 export async function listResource<R extends Resource>(
   db: Db,
   resource: R,
@@ -98,6 +138,7 @@ export async function listResource<R extends Resource>(
   let filter = buildFilter(resource, params as ListParams<Resource>, {
     storeId: viewer.storeId,
     timeZone,
+    lowStockBound: await boundFor(db, resource, params, viewer.storeId),
   });
 
   // A scanned barcode or SKU goes to the top, once, on the first page.
@@ -136,8 +177,9 @@ export async function listResource<R extends Resource>(
     filter = { $and: [filter, keysetFilter(keys, values)] };
   }
 
+  const hint = searchHint(resource, params);
   const found = await collection
-    .find(filter)
+    .find(filter, hint ? { hint } : {})
     .sort(Object.fromEntries(keys.map((k) => [k.field, k.dir])))
     .limit(limit + 1)
     .maxTimeMS(MAX_TIME_MS)
@@ -195,6 +237,7 @@ export async function totalsOf<R extends Resource>(
   const filter = buildFilter(resource, params as ListParams<Resource>, {
     storeId: viewer.storeId,
     timeZone,
+    lowStockBound: await boundFor(db, resource, params, viewer.storeId),
   });
   const active = (field: string) => ({
     $sum: { $cond: [{ $eq: ["$status", "active"] }, `$${field}`, 0] },
@@ -235,7 +278,12 @@ export async function totalsOf<R extends Resource>(
           },
         },
       ],
-      { maxTimeMS: MAX_TIME_MS },
+      (() => {
+        const hint = searchHint(resource, params);
+        return hint
+          ? { maxTimeMS: MAX_TIME_MS, hint }
+          : { maxTimeMS: MAX_TIME_MS };
+      })(),
     )
     .toArray();
   const { _id: _ignored, ...totals } = row ?? { count: 0 };
@@ -333,38 +381,84 @@ export async function stockSummary(
   lowCount: number;
   outCount: number;
 }> {
-  const summary = { costValue: 0, retailValue: 0, lowCount: 0, outCount: 0 };
-  const cursor = db
-    .collection("products")
-    .find(
-      { storeId: viewer.storeId, deletedAt: null, isActive: { $ne: false } },
+  // Added up inside the database (one pass, nothing sent to the server process). The rounding
+  // matches lineTotal(): half a poisha rounds up, and a negative stock is worth nothing.
+  const worth = (price: string) => ({
+    $max: [
+      0,
       {
-        projection: {
-          stock: 1,
-          purchasePrice: 1,
-          sellingPrice: 1,
-          lowStockThreshold: 1,
+        $floor: {
+          $add: [
+            {
+              $divide: [
+                {
+                  $multiply: [
+                    { $ifNull: [price, 0] },
+                    { $ifNull: ["$stock", 0] },
+                  ],
+                },
+                1000,
+              ],
+            },
+            0.5,
+          ],
         },
       },
+    ],
+  });
+  const [row] = await db
+    .collection("products")
+    .aggregate(
+      [
+        {
+          $match: {
+            storeId: viewer.storeId,
+            deletedAt: null,
+            isActive: { $ne: false },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            costValue: {
+              $sum: viewer.canSeeCost ? worth("$purchasePrice") : 0,
+            },
+            retailValue: { $sum: worth("$sellingPrice") },
+            outCount: {
+              $sum: {
+                $cond: [{ $lte: [{ $ifNull: ["$stock", 0] }, 0] }, 1, 0],
+              },
+            },
+            lowCount: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $gt: [{ $ifNull: ["$stock", 0] }, 0] },
+                      { $gt: [{ $ifNull: ["$lowStockThreshold", 0] }, 0] },
+                      {
+                        $lte: [
+                          { $ifNull: ["$stock", 0] },
+                          { $ifNull: ["$lowStockThreshold", 0] },
+                        ],
+                      },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+          },
+        },
+      ],
+      { maxTimeMS: MAX_TIME_MS * 2 },
     )
-    .maxTimeMS(MAX_TIME_MS * 2);
-  for await (const p of cursor) {
-    const stock = Number(p.stock ?? 0);
-    if (viewer.canSeeCost)
-      summary.costValue += Math.max(
-        0,
-        lineTotal(Number(p.purchasePrice ?? 0), stock),
-      );
-    summary.retailValue += Math.max(
-      0,
-      lineTotal(Number(p.sellingPrice ?? 0), stock),
-    );
-    const status = stockStatus({
-      stock,
-      lowStockThreshold: Number(p.lowStockThreshold ?? 0),
-    });
-    if (status === "low") summary.lowCount++;
-    if (status === "out") summary.outCount++;
-  }
-  return summary;
+    .toArray();
+  return {
+    costValue: Number(row?.costValue ?? 0),
+    retailValue: Number(row?.retailValue ?? 0),
+    lowCount: Number(row?.lowCount ?? 0),
+    outCount: Number(row?.outCount ?? 0),
+  };
 }

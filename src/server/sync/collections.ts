@@ -32,6 +32,42 @@ export async function ensureSyncIndexes(db: Db): Promise<void> {
     db
       .collection("sales")
       .createIndex({ storeId: 1, status: 1, createdAt: -1 }),
+    // One index per way a list can be sorted, ending in _id (the tie-break goes the same way as the
+    // sort), so any list opens straight from an index in either direction, even with 200,000 rows.
+    ...(
+      [
+        ["products", { stock: 1 }],
+        ["products", { sellingPrice: 1 }],
+        ["products", { createdAt: -1 }],
+        ["products", { lowStockThreshold: -1 }],
+        ["customers", { balance: -1 }],
+        ["customers", { createdAt: -1 }],
+        ["suppliers", { balance: -1 }],
+        ["suppliers", { createdAt: -1 }],
+        ["sales", { createdAt: -1 }],
+        ["sales", { total: -1 }],
+        ["sales", { due: -1 }],
+        ["purchases", { date: -1, createdAt: -1 }],
+        ["purchases", { total: -1 }],
+        ["purchases", { due: -1 }],
+        ["expenses", { date: -1, createdAt: -1 }],
+        ["expenses", { amount: -1 }],
+        ["payments", { createdAt: -1 }],
+        ["payments", { amount: -1 }],
+        ["returns", { createdAt: -1 }],
+        ["returns", { total: -1 }],
+        ["stockMovements", { createdAt: -1 }],
+      ] as const
+    ).map(([name, keys]) =>
+      db.collection(name).createIndex({
+        storeId: 1,
+        ...keys,
+        // The id goes the way the first key goes (that is how the tie-break is defined).
+        ...("lowStockThreshold" in keys
+          ? {}
+          : { _id: Object.values(keys)[0] as 1 | -1 }),
+      }),
+    ),
     ...["products", "customers", "suppliers"].flatMap((name) => [
       db.collection(name).createIndex({ storeId: 1, searchWords: 1 }),
       db.collection(name).createIndex({ storeId: 1, nameKey: 1, _id: 1 }),

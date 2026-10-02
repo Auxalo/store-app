@@ -10,13 +10,14 @@ test.afterEach(async ({ page }) => {
  * first time (compressed, as sent over the network). If a change pushes a page past its budget, this
  * fails, so the app does not quietly get heavier on cheap phones and slow connections.
  */
-// Measured 2026-10-02: login 340, app pages 461-478 on a phone and up to 515 on a desktop (the sidebar
-// loads too). About 5-8% headroom.
+// Measured at the end of Sprint 2 (data layer, mode switch and KPI cards included): login 349, app
+// pages 494-504 on a phone and up to 531 on a desktop (the sidebar loads too). Each budget is the
+// largest measurement plus about 20 KB.
 const BUDGET_KB: Record<string, number> = {
   "/login": 370,
   "/pos": 545,
-  "/dashboard": 545,
-  "/reports": 545,
+  "/dashboard": 550,
+  "/reports": 550,
   "/products": 555,
 };
 

@@ -1,10 +1,13 @@
 "use client";
 
+import { useLiveQuery } from "dexie-react-hooks";
 import { Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { type ReactNode, useEffect, useState } from "react";
 import { useDataMode } from "@/data/mode-store";
 import { fetchHead } from "@/data/online";
+import { getLocalDb } from "@/db/local/db";
+import { getMeta } from "@/db/local/meta";
 import { useFormat } from "@/i18n/use-format";
 import { useSyncStore } from "@/sync/store";
 
@@ -19,7 +22,13 @@ export function OfflineGate({ children }: { children: ReactNode }) {
   const mode = useDataMode();
   const ready = useSyncStore((s) => s.initialSyncDone);
   const pulledTo = useSyncStore((s) => s.pulledTo);
-  const waiting = mode === "offline" && !ready;
+  // Only when the device is KNOWN to have no download yet. While that is still being read from
+  // the device (a moment after every start), the app is shown, not a "preparing" screen.
+  const downloaded = useLiveQuery(
+    async () => ((await getMeta(getLocalDb(), "cursor")) ?? null) !== null,
+    [],
+  );
+  const waiting = mode === "offline" && downloaded === false && !ready;
 
   const [head, setHead] = useState<number>();
   useEffect(() => {
