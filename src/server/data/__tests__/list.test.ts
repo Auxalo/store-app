@@ -134,8 +134,10 @@ beforeAll(async () => {
     if (collection)
       Object.assign(stored, derivedSearchFields(collection, stored));
     await mongo.db.collection(COLLECTION[resource]).insertOne(stored as never);
-    if (store === storeId)
-      (docs[resource] ??= []).push(toWire(stored as never) as unknown as Doc);
+    if (store === storeId) {
+      docs[resource] ??= [];
+      docs[resource].push(toWire(stored as never) as unknown as Doc);
+    }
   };
 
   for (let i = 0; i < 60; i++) {
@@ -429,13 +431,16 @@ describe("what a person may see", () => {
     );
     for (const p of owner.items) expect(p).toHaveProperty("purchasePrice");
 
-    const sale = await getRecord(mongo.db, "sales", "s0001", viewer(false));
-    for (const item of (sale?.record as unknown as { items: Doc[] }).items)
-      expect(item).not.toHaveProperty("unitCost");
-    const seen = await getRecord(mongo.db, "sales", "s0001", viewer(true));
-    expect(
-      (seen?.record as unknown as { items: Doc[] }).items[0],
-    ).toHaveProperty("unitCost");
+    const linesOf = async (canSeeCost: boolean) =>
+      (
+        (await getRecord(mongo.db, "sales", "s0001", viewer(canSeeCost)))
+          ?.record as unknown as { items?: Doc[] } | undefined
+      )?.items ?? [];
+    const hidden = await linesOf(false);
+    expect(hidden.length).toBeGreaterThan(0);
+    for (const item of hidden) expect(item).not.toHaveProperty("unitCost");
+    const shown = await linesOf(true);
+    expect(shown[0]).toHaveProperty("unitCost");
     expect((await stockSummary(mongo.db, viewer(false))).costValue).toBe(0);
     expect(
       (await stockSummary(mongo.db, viewer(true))).costValue,
