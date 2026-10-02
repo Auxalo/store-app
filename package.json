@@ -16,6 +16,7 @@
     "db:dev": "node scripts/dev-db.mjs",
     "db:seed": "node scripts/seed.mjs",
     "db:loadtest": "node scripts/loadtest.mjs",
+    "shop:create": "node scripts/create-shop.mjs",
     "db:backfill-search": "node scripts/backfill-search.mjs",
     "test:perf": "vitest run --config vitest.perf.config.mts"
   },
