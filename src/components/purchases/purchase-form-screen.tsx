@@ -1,11 +1,11 @@
 "use client";
 
-import { useLiveQuery } from "dexie-react-hooks";
 import { Search, Trash2, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useDeferredValue, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useDebounceValue } from "usehooks-ts";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
 import { PartyPicker } from "@/components/parties/party-picker";
@@ -21,8 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getLocalDb } from "@/db/local/db";
-import { findProductByCode, searchProducts } from "@/db/local/queries/products";
+import { useCommand, useList, useProductLookup } from "@/data/hooks";
 import type { Product } from "@/db/local/types";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
@@ -31,7 +30,6 @@ import { cn } from "@/lib/utils";
 import { purchaseTotals } from "@/schemas/purchase";
 import { PAYMENT_METHODS, type PaymentMethod } from "@/schemas/sale";
 import { usePreferences } from "@/stores/preferences";
-import { useCommands } from "@/sync/use-commands";
 
 interface Line {
   key: string;
@@ -54,7 +52,8 @@ export function PurchaseFormScreen() {
   const t = useTranslations();
   const f = useFormat();
   const router = useRouter();
-  const run = useCommands();
+  const run = useCommand();
+  const lookup = useProductLookup();
   const { role } = useProfile();
   const locale = usePreferences((s) => s.locale);
   const timeZone = usePreferences((s) => s.timeZone);
@@ -72,16 +71,15 @@ export function PurchaseFormScreen() {
   const [notes, setNotes] = useState("");
   const [updateCosts, setUpdateCosts] = useState(true);
   const [query, setQuery] = useState("");
-  const deferred = useDeferredValue(query);
+  const [deferred] = useDebounceValue(query.trim(), 200);
   const [saving, setSaving] = useState(false);
 
-  const results = useLiveQuery(
-    () =>
-      deferred.trim()
-        ? searchProducts(getLocalDb(), { query: deferred, limit: 6 })
-        : Promise.resolve([] as Product[]),
-    [deferred],
+  const found = useList(
+    "products",
+    { q: deferred, active: "active" },
+    { pageSize: 6, enabled: deferred !== "" },
   );
+  const results: Product[] = deferred !== "" ? found.items : [];
 
   const totals = useMemo(
     () =>
@@ -116,8 +114,8 @@ export function PurchaseFormScreen() {
   };
 
   async function onEnter() {
-    const exact = await findProductByCode(getLocalDb(), query);
-    const pick = exact ?? (results?.length === 1 ? results[0] : undefined);
+    const exact = await lookup(query).catch(() => null);
+    const pick = exact ?? (results.length === 1 ? results[0] : undefined);
     if (pick) addProduct(pick);
   }
 

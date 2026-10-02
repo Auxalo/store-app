@@ -54,6 +54,8 @@
     "logout": "Sign out",
     "account": "Account",
     "somethingWrong": "Something went wrong. Please try again.",
+    "noInternetSaving": "No internet, so nothing was saved. Your work is kept. Try again when you are back online, or switch on Work offline.",
+    "changedByOther": "Someone else changed this first. Reload and try again.",
     "tryAgainOnline": "Try again when you are online."
   },
   "status": {
@@ -283,7 +285,15 @@
     "saved": "Saved",
     "belowCost": "The selling price is below the purchase price.",
     "skuAuto": "Auto: {sku}",
-    "skuHint": "Leave empty and one is created for you."
+    "skuHint": "Leave empty and one is created for you.",
+    "filterActive": "Status",
+    "activeAll": "All",
+    "sort": {
+      "name": "A to Z",
+      "stock": "Lowest stock first",
+      "price": "Highest price first",
+      "newest": "Newest first"
+    }
   },
   "inventory": {
     "tabAll": "All stock",
@@ -373,7 +383,7 @@
     "dueAmount": "On credit: {value}"
   },
   "sales": {
-    "searchPlaceholder": "Search invoice number",
+    "searchPlaceholder": "Invoice number, customer name or mobile",
     "today": "Today",
     "week": "7 days",
     "all": "All",
@@ -392,7 +402,21 @@
     "cashier": "Cashier",
     "invoice": "Invoice",
     "count": "{count, plural, one {{n} sale} other {{n} sales}}",
-    "totalSold": "Total: {value}"
+    "totalSold": "Total: {value}",
+    "filterDates": "Dates",
+    "filterStatus": "Status",
+    "statusAll": "All",
+    "statusActive": "Completed",
+    "statusVoided": "Cancelled",
+    "filterMethod": "Paid by",
+    "anyMethod": "Any method",
+    "filterDue": "Only sales with a due",
+    "sort": {
+      "newest": "Newest first",
+      "oldest": "Oldest first",
+      "total": "Biggest first",
+      "due": "Most due first"
+    }
   },
   "receipt": {
     "invoice": "Invoice",
@@ -474,11 +498,18 @@
       "purchase_return": "Purchase return",
       "opening": "Previous balance"
     },
-    "balanceAfter": "Balance: {value}"
+    "balanceAfter": "Balance: {value}",
+    "filterBalance": "Balance",
+    "balanceAll": "Everyone",
+    "sort": {
+      "name": "A to Z",
+      "balance": "Biggest balance first",
+      "newest": "Newest first"
+    }
   },
   "purchases": {
     "add": "New purchase",
-    "searchPlaceholder": "Search purchase number or invoice",
+    "searchPlaceholder": "Purchase number, supplier's invoice or supplier",
     "empty": "No purchases yet.",
     "emptyFilter": "No purchases match.",
     "supplier": "Supplier",
@@ -506,7 +537,8 @@
     "count": "{count, plural, one {{n} purchase} other {{n} purchases}}",
     "totalBought": "Total: {value}",
     "notes": "Notes",
-    "method": "Payment method"
+    "method": "Payment method",
+    "filterDue": "Only purchases with an unpaid balance"
   },
   "expenses": {
     "add": "Add expense",
@@ -548,7 +580,8 @@
     "filterOut": "Paid",
     "hint": "Collect a due from a customer, or pay a supplier, from their page.",
     "goCustomers": "Customers",
-    "goSuppliers": "Suppliers"
+    "goSuppliers": "Suppliers",
+    "count": "{count, plural, one {{n} payment} other {{n} payments}}"
   },
   "returns": {
     "title": "Return items",
@@ -569,7 +602,9 @@
     "filterAll": "All",
     "count": "{count, plural, one {{n} return} other {{n} returns}}",
     "creditNeedsCustomer": "Credit needs a customer on the sale.",
-    "creditNeedsSupplier": "Credit needs a supplier on the purchase."
+    "creditNeedsSupplier": "Credit needs a supplier on the purchase.",
+    "filterKind": "Kind",
+    "kindAll": "All"
   },
   "lock": {
     "title": "Who is working?",
@@ -875,5 +910,27 @@
     "bannerAction": "Continue setup",
     "settingsLink": "Import existing data",
     "settingsLinkHint": "Add products, customers with dues and suppliers you already have."
+  },
+  "list": {
+    "filters": "Filters",
+    "sort": "Sort",
+    "clear": "Clear",
+    "clearSearch": "Clear search",
+    "done": "Done",
+    "from": "From",
+    "to": "To",
+    "showMore": "Show more",
+    "retry": "Try again",
+    "error": "Could not load this. Check your connection and try again.",
+    "noMatch": "Nothing matches. Try different words, or clear the filters.",
+    "refreshing": "Updating…",
+    "dates": "Dates",
+    "sorts": {
+      "newest": "Newest first",
+      "oldest": "Oldest first",
+      "total": "Biggest first",
+      "due": "Most due first",
+      "amount": "Biggest first"
+    }
   }
 }

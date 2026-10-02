@@ -1,7 +1,8 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useEffect, useState } from "react";
+import { useDataMode } from "@/data/mode-store";
 import { getLocalDb } from "@/db/local/db";
 import { usePreferences } from "@/stores/preferences";
 import { type DayRange, dayKey, type Summary } from "./compute";
@@ -43,48 +44,41 @@ export function presetRange(
 }
 
 /**
- * The report for a range. From this device it updates live as sales happen, with no network. From
- * the server it fetches once per range; if that fails it falls back to this device and says so.
+ * The report for a range. Offline mode reads this device and updates live as sales happen, with
+ * no network. Online mode (and "server" in the picker) asks the server; a failed ask falls back to
+ * this device only in offline mode, where the device has all the data.
  */
 export function useSummary(range: DayRange, source: ReportSource = "device") {
   const timeZone = usePreferences((s) => s.timeZone);
+  const mode = useDataMode();
+  const wantServer = mode === "online" || source === "server";
+
   const local = useLiveQuery(
-    () => loadSummary(getLocalDb(), range, timeZone),
-    [range.from, range.to, timeZone],
+    () =>
+      mode === "offline"
+        ? loadSummary(getLocalDb(), range, timeZone)
+        : undefined,
+    [mode, range.from, range.to, timeZone],
   );
-  const [server, setServer] = useState<{
-    key: string;
-    summary: Summary;
-  } | null>(null);
-  const [failedKey, setFailedKey] = useState<string | null>(null);
-  const key = `${range.from}|${range.to}`;
+  const server = useQuery({
+    queryKey: ["data", "summary", range.from, range.to],
+    enabled: wantServer,
+    retry: false,
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/reports/summary?from=${range.from}&to=${range.to}`,
+      );
+      if (!response.ok) throw new Error(String(response.status));
+      return ((await response.json()) as { summary: Summary }).summary;
+    },
+  });
 
-  useEffect(() => {
-    if (source !== "server") return;
-    let cancelled = false;
-    fetch(`/api/reports/summary?from=${range.from}&to=${range.to}`)
-      .then((response) =>
-        response.ok
-          ? response.json()
-          : Promise.reject(new Error(String(response.status))),
-      )
-      .then((json: { summary: Summary }) => {
-        if (cancelled) return;
-        setServer({ key, summary: json.summary });
-        setFailedKey(null);
-      })
-      .catch(() => !cancelled && setFailedKey(key));
-    return () => {
-      cancelled = true;
-    };
-  }, [source, key, range.from, range.to]);
-
-  const fromServer =
-    source === "server" && server?.key === key ? server.summary : undefined;
+  const serverFailed = wantServer && server.isError;
   return {
-    summary:
-      fromServer ??
-      (source === "server" && failedKey !== key ? undefined : local),
-    serverFailed: source === "server" && failedKey === key,
+    summary: wantServer
+      ? (server.data ??
+        (serverFailed && mode === "offline" ? local : undefined))
+      : local,
+    serverFailed,
   };
 }

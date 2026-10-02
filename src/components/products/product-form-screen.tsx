@@ -1,7 +1,6 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useLiveQuery } from "dexie-react-hooks";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
@@ -29,16 +28,21 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import {
+  useCategories,
+  useCommand,
+  useDuplicateCodeCheck,
+  useRecord,
+} from "@/data/hooks";
+import { useDataMode } from "@/data/mode-store";
 import { getLocalDb } from "@/db/local/db";
 import { getDeviceId } from "@/db/local/meta";
-import { findDuplicateCode } from "@/db/local/queries/products";
 import type { Product } from "@/db/local/types";
 import { newId } from "@/lib/ids";
 import { parseMoney } from "@/lib/money";
 import { parseQty, roundToUnit } from "@/lib/qty";
 import { UNIT_CODES, unitDecimals } from "@/lib/units";
 import { usePreferences } from "@/stores/preferences";
-import { useCommands } from "@/sync/use-commands";
 
 const NONE = "none";
 
@@ -99,11 +103,8 @@ export function ProductFormScreen() {
   const id = useSearchParams().get("id");
   const editing = id !== null;
 
-  const product = useLiveQuery(
-    async () =>
-      id ? ((await getLocalDb().products.get(id)) ?? null) : undefined,
-    [id],
-  );
+  const loaded = useRecord("products", id);
+  const product = loaded.record as Product | undefined;
 
   if (!can(role, editing ? "product.edit" : "product.create")) {
     return (
@@ -112,33 +113,29 @@ export function ProductFormScreen() {
       </p>
     );
   }
-  if (editing && product === undefined)
+  if (editing && loaded.status === "loading")
     return <Skeleton className="mx-auto h-64 w-full max-w-2xl" />;
-  if (editing && (product === null || product?.deletedAt)) {
+  if (editing && (!product || loaded.status !== "ready" || product.deletedAt)) {
     return (
       <p className="py-10 text-center text-sm text-muted-foreground">
         {t("products.notFound")}
       </p>
     );
   }
-  return <ProductForm key={id ?? "new"} product={product ?? undefined} />;
+  return <ProductForm key={id ?? "new"} product={product} />;
 }
 
 function ProductForm({ product }: { product?: Product }) {
   const t = useTranslations();
   const router = useRouter();
-  const run = useCommands();
+  const run = useCommand();
+  const dataMode = useDataMode();
+  const checkDuplicate = useDuplicateCodeCheck();
   const { role } = useProfile();
   const locale = usePreferences((s) => s.locale);
   const canSeeCost = can(role, "purchasePrice.view");
 
-  const categories = useLiveQuery(
-    () =>
-      getLocalDb()
-        .categories.filter((c) => !c.deletedAt && c.isActive)
-        .sortBy("name"),
-    [],
-  );
+  const categories = useCategories()?.filter((c) => c.isActive);
 
   const {
     register,
@@ -173,7 +170,8 @@ function ProductForm({ product }: { product?: Product }) {
   // (Not a live query: finding the device id may have to create it, which is a write.)
   const [nextSku, setNextSku] = useState<string>();
   useEffect(() => {
-    if (product) return;
+    // Online, the server hands out the number when the product is saved, so there is nothing to show.
+    if (product || dataMode !== "offline") return;
     let cancelled = false;
     const db = getLocalDb();
     void getDeviceId(db)
@@ -183,12 +181,11 @@ function ProductForm({ product }: { product?: Product }) {
     return () => {
       cancelled = true;
     };
-  }, [product]);
+  }, [product, dataMode]);
 
   const onSubmit = handleSubmit(async (v) => {
-    const db = getLocalDb();
     for (const field of ["barcode", "sku"] as const) {
-      const clash = await findDuplicateCode(db, field, v[field], product?.id);
+      const clash = await checkDuplicate(field, v[field], product?.id);
       if (clash) {
         setError(field, {
           type: "duplicate",
@@ -236,7 +233,11 @@ function ProductForm({ product }: { product?: Product }) {
             .map((k) => [k, next[k]]),
         );
         if (Object.keys(changes).length > 0)
-          await run("product.update", { id: product.id, changes });
+          await run(
+            "product.update",
+            { id: product.id, changes },
+            { baseVersion: product.version },
+          );
         router.push(`/products/view?id=${product.id}`);
       }
     } catch {

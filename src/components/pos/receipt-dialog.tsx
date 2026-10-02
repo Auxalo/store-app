@@ -1,12 +1,12 @@
 "use client";
 
-import { useLiveQuery } from "dexie-react-hooks";
 import { Plus, Printer } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useProfile } from "@/auth/use-auth";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Button } from "@/components/ui/button";
-import { getLocalDb } from "@/db/local/db";
+import { useRecord } from "@/data/hooks";
+import type { Sale, SaleItem } from "@/db/local/types";
 import { Receipt } from "./receipt";
 
 /** Shown right after a sale: the receipt, ready to print, and a button for the next customer. */
@@ -20,17 +20,14 @@ export function ReceiptDialog({
   const t = useTranslations("pos");
   const { storeName } = useProfile();
 
-  const data = useLiveQuery(async () => {
-    if (!saleId) return null;
-    const db = getLocalDb();
-    const sale = await db.sales.get(saleId);
-    if (!sale) return null;
-    const items = await db.saleItems.where("saleId").equals(saleId).toArray();
-    items.sort(
-      (a, b) => Number(a.id.split(":i")[1]) - Number(b.id.split(":i")[1]),
-    );
-    return { sale, items };
-  }, [saleId]);
+  const loaded = useRecord("sales", saleId);
+  const data = loaded.record
+    ? {
+        sale: loaded.record as Sale,
+        items: ((loaded.record as unknown as { items?: SaleItem[] }).items ??
+          []) as SaleItem[],
+      }
+    : null;
 
   return (
     <ResponsiveDialog

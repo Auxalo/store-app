@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { modeStorageState } from "./tests/e2e/mode";
 
 // Uses the system Chrome/Edge so no browser download is needed. Override with PW_CHANNEL.
 const channel = process.env.PW_CHANNEL ?? "chrome";
@@ -19,6 +20,8 @@ export default defineConfig({
   use: {
     baseURL,
     channel,
+    // E2E_MODE=online (or offline) starts every browser in that data mode.
+    storageState: modeStorageState(baseURL),
     trace: "retain-on-failure",
     // Bangla is the default UI language; tests assert both languages explicitly.
     locale: "bn-BD",

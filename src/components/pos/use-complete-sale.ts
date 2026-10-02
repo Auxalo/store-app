@@ -3,18 +3,21 @@
 import { useTranslations } from "next-intl";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
+import { isOffline } from "@/data/errors";
+import { useCommand } from "@/data/hooks";
 import { newId } from "@/lib/ids";
 import { computeTotals } from "@/lib/sale-math";
 import { cartTotals, useCart } from "@/stores/cart";
-import { useCommands } from "@/sync/use-commands";
 
 /**
- * Turns the cart into a sale. It saves on the device and returns at once; the network is never
- * involved in whether a sale succeeds. Shared by the "Complete sale" button and its shortcut.
+ * Turns the cart into a sale. Offline mode saves on the device and returns at once. Online mode
+ * asks the server; if that fails (no internet, a timeout) the cart is kept untouched and the next
+ * try reuses the same sale and operation ids, so a sale is never rung up twice. Shared by the
+ * "Complete sale" button and its shortcut.
  */
 export function useCompleteSale(onSold: (saleId: string) => void) {
   const t = useTranslations();
-  const run = useCommands();
+  const run = useCommand();
   const cart = useCart();
   const [saving, setSaving] = useState(false);
 
@@ -32,23 +35,38 @@ export function useCompleteSale(onSold: (saleId: string) => void) {
     );
     if (due > 0 && !state.customerId) return;
 
+    const input = {
+      customerId: state.customerId,
+      customerName: state.customerName,
+      lines: state.lines.map(({ key: _key, ...line }) => line),
+      discount: state.discount,
+      tendered: state.tendered ?? total,
+      paymentMethod: state.paymentMethod,
+      notes: state.notes,
+    };
+    // Same cart as the last try: same ids. A changed cart is a different sale: new ids.
+    const fingerprint = JSON.stringify(input);
+    const attempt =
+      state.attempt?.fingerprint === fingerprint
+        ? state.attempt
+        : { saleId: newId(), operationId: newId(), fingerprint };
+    state.setAttempt(attempt);
+
     setSaving(true);
     try {
-      const id = newId();
-      await run("sale.create", {
-        id,
-        customerId: state.customerId,
-        customerName: state.customerName,
-        lines: state.lines.map(({ key: _key, ...line }) => line),
-        discount: state.discount,
-        tendered: state.tendered ?? total,
-        paymentMethod: state.paymentMethod,
-        notes: state.notes,
-      });
+      await run(
+        "sale.create",
+        { id: attempt.saleId, ...input },
+        { operationId: attempt.operationId },
+      );
       state.clear();
-      onSold(id);
-    } catch {
-      toast.error(t("common.somethingWrong"));
+      onSold(attempt.saleId);
+    } catch (error) {
+      toast.error(
+        isOffline(error)
+          ? t("common.noInternetSaving")
+          : t("common.somethingWrong"),
+      );
     } finally {
       setSaving(false);
     }

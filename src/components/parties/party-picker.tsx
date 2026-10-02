@@ -1,22 +1,21 @@
 "use client";
 
-import { useLiveQuery } from "dexie-react-hooks";
 import { Check, Search, UserPlus } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useDeferredValue, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
+import { useDebounceValue } from "usehooks-ts";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { getLocalDb } from "@/db/local/db";
-import { type PartyKind, searchParties } from "@/db/local/queries/customers";
+import { useCommand, useList } from "@/data/hooks";
+import type { Party, PartyKind } from "@/db/local/queries/customers";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
 import { isValidPhone, normalizePhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
-import { useCommands } from "@/sync/use-commands";
 
 interface PartyPickerProps {
   kind: PartyKind;
@@ -39,21 +38,22 @@ export function PartyPicker({
 }: PartyPickerProps) {
   const t = useTranslations();
   const f = useFormat();
-  const run = useCommands();
+  const run = useCommand();
   const ns = kind === "customer" ? "customers" : "suppliers";
   const [query, setQuery] = useState("");
-  const deferred = useDeferredValue(query);
+  const [deferred] = useDebounceValue(query.trim(), 200);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const phoneOk = isValidPhone(phone);
   const [saving, setSaving] = useState(false);
 
-  const parties =
-    useLiveQuery(
-      () => searchParties(getLocalDb(), kind, deferred),
-      [kind, deferred],
-    ) ?? [];
+  const list = useList(
+    kind === "customer" ? "customers" : "suppliers",
+    { q: deferred },
+    { pageSize: 30, enabled: open },
+  );
+  const parties = list.items as Party[];
 
   const choose = (id: string | null, label: string) => {
     onSelect(id, label);

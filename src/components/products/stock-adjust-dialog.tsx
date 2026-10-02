@@ -20,13 +20,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useCommand } from "@/data/hooks";
 import type { Product } from "@/db/local/types";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
 import { parseQty, roundToUnit } from "@/lib/qty";
 import { unitDecimals } from "@/lib/units";
 import { MANUAL_MOVEMENT_TYPES } from "@/schemas/product";
-import { useCommands } from "@/sync/use-commands";
 
 type Mode = "set" | "add" | "remove";
 type Reason = (typeof MANUAL_MOVEMENT_TYPES)[number];
@@ -61,7 +61,7 @@ export function StockAdjustDialog({
 function Form({ product, onClose }: { product: Product; onClose: () => void }) {
   const t = useTranslations();
   const f = useFormat();
-  const run = useCommands();
+  const run = useCommand();
   const [mode, setMode] = useState<Mode>("set");
   const [text, setText] = useState("");
   const [reason, setReason] = useState<Reason>("adjustment");

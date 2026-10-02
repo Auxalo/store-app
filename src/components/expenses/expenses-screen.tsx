@@ -1,6 +1,5 @@
 "use client";
 
-import { useLiveQuery } from "dexie-react-hooks";
 import { Ban, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
@@ -8,6 +7,11 @@ import { toast } from "sonner";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
 import { MoneyField } from "@/components/pos/money-field";
+import {
+  type FilterValues,
+  ListToolbar,
+} from "@/components/shared/list-toolbar";
+import { ListError, LoadMore } from "@/components/shared/load-more";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import {
   AlertDialog,
@@ -32,7 +36,8 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getLocalDb } from "@/db/local/db";
+import { useCommand, useList, useTotals } from "@/data/hooks";
+import { useDataMode } from "@/data/mode-store";
 import type { Expense } from "@/db/local/types";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
@@ -41,9 +46,10 @@ import { EXPENSE_CATEGORIES, type ExpenseCategory } from "@/schemas/expense";
 import { PAYMENT_METHODS, type PaymentMethod } from "@/schemas/sale";
 import { usePreferences } from "@/stores/preferences";
 import { useSyncStore } from "@/sync/store";
-import { useCommands } from "@/sync/use-commands";
 
-type Period = "today" | "month" | "all";
+type Period = "today" | "month" | "all" | "custom";
+const NONE = "all";
+const SORTS = ["newest", "oldest", "amount"] as const;
 
 const todayIn = (timeZone: string) =>
   new Intl.DateTimeFormat("en-CA", {
@@ -56,8 +62,9 @@ const todayIn = (timeZone: string) =>
 export function ExpensesScreen() {
   const t = useTranslations();
   const f = useFormat();
-  const run = useCommands();
+  const run = useCommand();
   const { role } = useProfile();
+  const mode = useDataMode();
   const timeZone = usePreferences((s) => s.timeZone);
   const initialSyncDone = useSyncStore((s) => s.initialSyncDone);
   const [period, setPeriod] = useState<Period>("month");
@@ -65,23 +72,51 @@ export function ExpensesScreen() {
   const [voiding, setVoiding] = useState<Expense | null>(null);
   const [reason, setReason] = useState("");
 
-  const today = todayIn(timeZone);
-  const expenses = useLiveQuery(async () => {
-    const table = getLocalDb().expenses.orderBy("date").reverse();
-    if (period === "all") return table.toArray();
-    const from = period === "today" ? today : `${today.slice(0, 7)}-01`;
-    return table.filter((e) => e.date >= from).toArray();
-  }, [period, today]);
+  const allowed = can(role, "expense.manage");
+  const [sort, setSort] = useState<(typeof SORTS)[number]>("newest");
+  const [filters, setFilters] = useState<FilterValues>({
+    category: NONE,
+    method: NONE,
+    status: NONE,
+  });
 
-  if (!can(role, "expense.manage"))
+  const today = todayIn(timeZone);
+  const dates =
+    period === "custom"
+      ? {
+          from: filters.from as string | undefined,
+          to: filters.to as string | undefined,
+        }
+      : period === "all"
+        ? {}
+        : {
+            from: period === "today" ? today : `${today.slice(0, 7)}-01`,
+            to: today,
+          };
+  const params = {
+    ...dates,
+    category:
+      filters.category === NONE
+        ? undefined
+        : (filters.category as ExpenseCategory),
+    method:
+      filters.method === NONE ? undefined : (filters.method as PaymentMethod),
+    status: filters.status as "all" | "active" | "voided",
+    sort,
+  };
+  const list = useList("expenses", params, { enabled: allowed });
+  const totals = useTotals("expenses", params, { enabled: allowed });
+  const rows = list.items;
+  const waiting =
+    list.status === "loading" ||
+    (rows.length === 0 && mode === "offline" && !initialSyncDone);
+
+  if (!allowed)
     return (
       <p className="py-10 text-center text-sm text-muted-foreground">
         {t("products.noAccess")}
       </p>
     );
-  const rows = expenses ?? [];
-  const active = rows.filter((e) => e.status === "active");
-  const total = active.reduce((sum, e) => sum + e.amount, 0);
 
   async function cancel() {
     if (!voiding) return;
@@ -96,38 +131,110 @@ export function ExpensesScreen() {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
-      <div className="flex items-center justify-between gap-2">
-        <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
-          <TabsList>
-            <TabsTrigger value="today">{t("expenses.today")}</TabsTrigger>
-            <TabsTrigger value="month">{t("expenses.month")}</TabsTrigger>
-            <TabsTrigger value="all">{t("expenses.all")}</TabsTrigger>
-          </TabsList>
-        </Tabs>
-        <Button onClick={() => setAdding(true)} data-testid="add-expense">
-          <Plus aria-hidden />
-          <span className="max-sm:sr-only">{t("expenses.add")}</span>
-        </Button>
-      </div>
+      <ListToolbar
+        fields={[
+          {
+            kind: "dates",
+            fromKey: "from",
+            toKey: "to",
+            label: t("list.dates"),
+          },
+          {
+            kind: "choice",
+            key: "category",
+            label: t("expenses.category"),
+            none: NONE,
+            options: [
+              { value: NONE, label: t("expenses.all") },
+              ...EXPENSE_CATEGORIES.map((c) => ({
+                value: c,
+                label: t(`expenses.categories.${c}`),
+              })),
+            ],
+          },
+          {
+            kind: "choice",
+            key: "method",
+            label: t("expenses.method"),
+            none: NONE,
+            options: [
+              { value: NONE, label: t("expenses.all") },
+              ...PAYMENT_METHODS.map((m) => ({
+                value: m,
+                label: t(`payment.${m}`),
+              })),
+            ],
+          },
+          {
+            kind: "choice",
+            key: "status",
+            label: t("sales.filterStatus"),
+            none: NONE,
+            options: [
+              { value: NONE, label: t("sales.statusAll") },
+              { value: "active", label: t("sales.statusActive") },
+              { value: "voided", label: t("sales.statusVoided") },
+            ],
+          },
+        ]}
+        values={
+          period === "custom"
+            ? filters
+            : { ...filters, from: undefined, to: undefined }
+        }
+        onValue={(key, value) => {
+          setFilters((c) => ({ ...c, [key]: value }));
+          if (key === "from" || key === "to") setPeriod("custom");
+        }}
+        sort={sort}
+        sortOptions={SORTS.map((o) => ({
+          value: o,
+          label: t(`list.sorts.${o}`),
+        }))}
+        onSort={(v) => setSort(v as (typeof SORTS)[number])}
+        onClear={() => {
+          setFilters({ category: NONE, method: NONE, status: NONE });
+          if (period === "custom") setPeriod("month");
+        }}
+        trailing={
+          <Button onClick={() => setAdding(true)} data-testid="add-expense">
+            <Plus aria-hidden />
+            <span className="max-sm:sr-only">{t("expenses.add")}</span>
+          </Button>
+        }
+      />
 
-      {expenses !== undefined && rows.length > 0 ? (
+      <Tabs
+        value={period === "custom" ? "" : period}
+        onValueChange={(v) => setPeriod(v as Period)}
+      >
+        <TabsList>
+          <TabsTrigger value="today">{t("expenses.today")}</TabsTrigger>
+          <TabsTrigger value="month">{t("expenses.month")}</TabsTrigger>
+          <TabsTrigger value="all">{t("expenses.all")}</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {totals && totals.count > 0 ? (
         <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>
+          <span data-testid="expense-count">
             {t("expenses.count", {
-              count: active.length,
-              n: f.integer(active.length),
+              count: totals.count,
+              n: f.integer(totals.count),
             })}
           </span>
           <span
             className="font-semibold text-foreground"
             data-testid="expense-total"
           >
-            {t("expenses.totalSpent", { value: f.money(total) })}
+            {t("expenses.totalSpent", { value: f.money(totals.amount) })}
           </span>
         </div>
       ) : null}
 
-      {expenses === undefined || (!initialSyncDone && rows.length === 0) ? (
+      {list.status === "error" ? (
+        <ListError onRetry={list.refetch} />
+      ) : waiting ? (
         <div className="flex flex-col gap-2" aria-busy="true">
           {[0, 1, 2].map((i) => (
             <Skeleton key={i} className="h-16 w-full" />
@@ -135,7 +242,12 @@ export function ExpensesScreen() {
         </div>
       ) : rows.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
-          {period === "all" ? t("expenses.empty") : t("expenses.emptyFilter")}
+          {period === "all" &&
+          filters.category === NONE &&
+          filters.method === NONE &&
+          filters.status === NONE
+            ? t("expenses.empty")
+            : t("expenses.emptyFilter")}
         </p>
       ) : (
         <ul className="flex flex-col gap-2">
@@ -184,6 +296,8 @@ export function ExpensesScreen() {
         </ul>
       )}
 
+      <LoadMore list={list} />
+
       <ResponsiveDialog
         open={adding}
         onOpenChange={setAdding}
@@ -226,7 +340,7 @@ export function ExpensesScreen() {
 
 function ExpenseForm({ today, onDone }: { today: string; onDone: () => void }) {
   const t = useTranslations();
-  const run = useCommands();
+  const run = useCommand();
   const [category, setCategory] = useState<ExpenseCategory>("rent");
   const [amount, setAmount] = useState<number | null>(null);
   const [description, setDescription] = useState("");

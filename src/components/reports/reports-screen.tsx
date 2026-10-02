@@ -1,21 +1,27 @@
 "use client";
 
-import { useLiveQuery } from "dexie-react-hooks";
 import { Download } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { type ReactNode, useState } from "react";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
+import { ListError, LoadMore } from "@/components/shared/load-more";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getLocalDb } from "@/db/local/db";
+import { useCategories, useList } from "@/data/hooks";
+import { useDataMode } from "@/data/mode-store";
 import { stockStatus } from "@/db/local/queries/products";
 import { useFormat } from "@/i18n/use-format";
 import { download, toCsv } from "@/lib/export";
-import { rangeBounds, type Summary } from "@/reports/compute";
-import { loadDues, loadStock } from "@/reports/local";
+import { lineTotal } from "@/lib/qty";
+import type { Summary } from "@/reports/compute";
+import {
+  useDues,
+  useStockHeader,
+  useStockProducts,
+} from "@/reports/use-reports";
 import {
   presetRange,
   type ReportSource,
@@ -34,7 +40,7 @@ const TABS: Tab[] = [
   "dues",
   "movements",
 ];
-const MOVEMENT_LIMIT = 300;
+const MOVEMENT_PAGE = 100;
 
 function Row({
   label,
@@ -96,12 +102,13 @@ export function ReportsScreen() {
     const today = presetRange("today", timeZone);
     return { preset: "days7", custom: today };
   });
+  const dataMode = useDataMode();
   const [source, setSource] = useState<ReportSource>("device");
   const range = rangeOf(rangeState, timeZone);
   const { summary, serverFailed } = useSummary(range, source);
 
   const showProfit = can(role, "profit.view");
-  const categories = useLiveQuery(() => getLocalDb().categories.toArray(), []);
+  const categories = useCategories();
   const categoryName = (id: string | null) => {
     const c = categories?.find((x) => x.id === id);
     return c
@@ -113,26 +120,23 @@ export function ReportsScreen() {
   const productName = (p: { name: string; nameBn: string }) =>
     locale === "bn" && p.nameBn ? p.nameBn : p.name;
 
-  const stock = useLiveQuery(() => loadStock(getLocalDb()), []);
-  const dues = useLiveQuery(() => loadDues(getLocalDb()), []);
-  const movements = useLiveQuery(async () => {
-    const { start, end } = rangeBounds(range, timeZone);
-    const db = getLocalDb();
-    const rows = await db.stockMovements
-      .where("createdAt")
-      .between(start, end, true, false)
-      .reverse()
-      .limit(MOVEMENT_LIMIT)
-      .toArray();
-    const products = await db.products.bulkGet([
-      ...new Set(rows.map((r) => r.productId)),
-    ]);
-    const names = new Map(
-      products.filter((p) => !!p).map((p) => [p?.id, p ? productName(p) : ""]),
+  // The device and the server both add the product name to each movement.
+  const movementName = (movement: object) => {
+    const m = movement as { productName?: string; productNameBn?: string };
+    return (
+      (locale === "bn" && m.productNameBn ? m.productNameBn : m.productName) ??
+      ""
     );
-    return rows.map((r) => ({ ...r, name: names.get(r.productId) ?? "" }));
-  }, [range.from, range.to, timeZone, locale]);
+  };
   const [onlyLow, setOnlyLow] = useState(false);
+  const stock = useStockHeader();
+  const stockList = useStockProducts(onlyLow, tab === "stock");
+  const dues = useDues(tab === "dues");
+  const movements = useList(
+    "stockMovements",
+    { from: range.from, to: range.to },
+    { pageSize: MOVEMENT_PAGE, enabled: tab === "movements" },
+  );
 
   const exportCsv = (
     name: string,
@@ -353,9 +357,16 @@ export function ReportsScreen() {
     );
   }
 
-  const stockRows = (stock?.rows ?? []).filter(
-    (r) => !onlyLow || stockStatus(r) !== "ok",
-  );
+  const stockRows = stockList.items.map((p) => ({
+    productId: p.id,
+    name: p.name,
+    nameBn: p.nameBn,
+    unit: p.unit,
+    stock: p.stock,
+    lowStockThreshold: p.lowStockThreshold,
+    costValue: Math.max(0, lineTotal(p.purchasePrice ?? 0, p.stock)),
+    retailValue: Math.max(0, lineTotal(p.sellingPrice, p.stock)),
+  }));
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
@@ -380,7 +391,7 @@ export function ReportsScreen() {
         <RangePicker value={rangeState} onChange={setRangeState} />
       ) : null}
 
-      {needsSummary ? (
+      {needsSummary && dataMode === "offline" ? (
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span>{t("source")}</span>
           <Tabs
@@ -463,7 +474,11 @@ export function ReportsScreen() {
                 </span>
               }
             >
-              {stockRows.length === 0 ? (
+              {stockList.status === "error" ? (
+                <ListError onRetry={stockList.refetch} />
+              ) : stockList.status === "loading" ? (
+                loading
+              ) : stockRows.length === 0 ? (
                 empty
               ) : (
                 <ul className="divide-y" data-testid="stock-rows">
@@ -482,52 +497,57 @@ export function ReportsScreen() {
                   ))}
                 </ul>
               )}
+              <LoadMore list={stockList} />
             </Section>
           </>
         )
       ) : null}
 
       {tab === "dues" ? (
-        !dues ? (
+        !dues.ready ? (
           loading
         ) : (
           <>
             <Section
               title={`${t("customersOwe")} · ${f.money(dues.customerTotal)}`}
             >
-              {dues.customers.length === 0 ? (
+              {dues.customers.items.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t("nobody")}</p>
               ) : (
-                dues.customers.map((c) => (
-                  <Row key={c.id} label={c.name} value={f.money(c.amount)} />
+                dues.customers.items.map((c) => (
+                  <Row key={c.id} label={c.name} value={f.money(c.balance)} />
                 ))
               )}
+              <LoadMore list={dues.customers} />
             </Section>
             <Section title={`${t("weOwe")} · ${f.money(dues.supplierTotal)}`}>
-              {dues.suppliers.length === 0 ? (
+              {dues.suppliers.items.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t("nobody")}</p>
               ) : (
-                dues.suppliers.map((c) => (
-                  <Row key={c.id} label={c.name} value={f.money(c.amount)} />
+                dues.suppliers.items.map((c) => (
+                  <Row key={c.id} label={c.name} value={f.money(c.balance)} />
                 ))
               )}
+              <LoadMore list={dues.suppliers} />
             </Section>
           </>
         )
       ) : null}
 
       {tab === "movements" ? (
-        !movements ? (
+        movements.status === "loading" ? (
           loading
+        ) : movements.status === "error" ? (
+          <ListError onRetry={movements.refetch} />
         ) : (
           <Section
             title={t("tabs.movements")}
             action={csvButton(() =>
               exportCsv(
                 "stock-log",
-                movements.map((m) => ({
+                movements.items.map((m) => ({
                   date: m.createdAt,
-                  product: m.name,
+                  product: movementName(m),
                   type: m.type,
                   change: m.qtyDelta / 1000,
                   note: m.note,
@@ -536,20 +556,20 @@ export function ReportsScreen() {
               ),
             )}
           >
-            {movements.length === 0 ? (
+            {movements.items.length === 0 ? (
               <p className="py-4 text-center text-sm text-muted-foreground">
                 {t("movementEmpty")}
               </p>
             ) : (
               <ul className="divide-y" data-testid="movement-rows">
-                {movements.map((m) => (
+                {movements.items.map((m) => (
                   <li
                     key={m.id}
                     className="flex items-center justify-between gap-3 py-2 text-sm"
                   >
                     <span className="min-w-0">
                       <span className="block truncate font-medium">
-                        {m.name}
+                        {movementName(m)}
                       </span>
                       <span className="block text-xs text-muted-foreground">
                         {ti(`movementTypes.${m.type}`)} ·{" "}
@@ -566,11 +586,7 @@ export function ReportsScreen() {
                 ))}
               </ul>
             )}
-            {movements.length >= MOVEMENT_LIMIT ? (
-              <p className="pt-2 text-xs text-muted-foreground">
-                {t("movementLimit", { n: f.integer(MOVEMENT_LIMIT) })}
-              </p>
-            ) : null}
+            <LoadMore list={movements} />
           </Section>
         )
       ) : null}

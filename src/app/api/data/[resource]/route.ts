@@ -12,6 +12,7 @@ import {
 } from "@/server/data/http";
 import { BadCursorError, listResource } from "@/server/data/service";
 import { getSyncDeps } from "@/server/deps";
+import { checkDevice } from "@/server/devices";
 import { errorResponse, HttpError } from "@/server/http";
 
 export const dynamic = "force-dynamic";
@@ -29,15 +30,23 @@ export async function GET(
     const search = new URL(request.url).searchParams;
 
     if (resource === "categories" || resource === "settings") {
-      const actor = await requireActor(request);
+      // Small and not sensitive: the device alone is enough (the sync manager has no PIN).
       const { db } = await getSyncDeps();
+      const device = await checkDevice(db, request.headers.get("cookie"));
+      if (!device.ok) throw new HttpError(401, "DEVICE_UNKNOWN");
       const rows = await db
         .collection(resource)
-        .find({ storeId: actor.storeId, deletedAt: null })
+        .find({ storeId: device.device.storeId, deletedAt: null })
         .limit(2000)
         .toArray();
       return NextResponse.json({
-        items: rows.map((d) => toWire(d as never)),
+        items: rows.map((raw) => {
+          const doc = toWire(raw as never);
+          // Settings are stored under "<storeId>:<key>" but travel under their plain key.
+          if (resource === "settings")
+            doc.id = String((raw as unknown as { key: string }).key);
+          return doc;
+        }),
         nextCursor: null,
       });
     }

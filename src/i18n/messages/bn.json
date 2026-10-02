@@ -54,6 +54,8 @@
     "logout": "সাইন আউট",
     "account": "অ্যাকাউন্ট",
     "somethingWrong": "কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।",
+    "noInternetSaving": "ইন্টারনেট নেই, তাই কিছু সেভ হয়নি। আপনার কাজ রাখা আছে। ইন্টারনেট এলে আবার চেষ্টা করুন, অথবা \"অফলাইনে কাজ\" চালু করুন।",
+    "changedByOther": "অন্য কেউ আগে এটি বদলে দিয়েছেন। রিলোড করে আবার চেষ্টা করুন।",
     "tryAgainOnline": "ইন্টারনেট থাকলে আবার চেষ্টা করুন।"
   },
   "status": {
@@ -283,7 +285,15 @@
     "saved": "সংরক্ষিত",
     "belowCost": "বিক্রয়মূল্য ক্রয়মূল্যের চেয়ে কম।",
     "skuAuto": "স্বয়ংক্রিয়: {sku}",
-    "skuHint": "খালি রাখলে নিজে থেকেই তৈরি হবে।"
+    "skuHint": "খালি রাখলে নিজে থেকেই তৈরি হবে।",
+    "filterActive": "অবস্থা",
+    "activeAll": "সব",
+    "sort": {
+      "name": "ক থেকে হ",
+      "stock": "কম স্টক আগে",
+      "price": "বেশি দাম আগে",
+      "newest": "নতুন আগে"
+    }
   },
   "inventory": {
     "tabAll": "সব স্টক",
@@ -373,7 +383,7 @@
     "dueAmount": "বাকিতে: {value}"
   },
   "sales": {
-    "searchPlaceholder": "ইনভয়েস নম্বর খুঁজুন",
+    "searchPlaceholder": "ইনভয়েস নম্বর, ক্রেতার নাম বা মোবাইল",
     "today": "আজ",
     "week": "৭ দিন",
     "all": "সব",
@@ -392,7 +402,21 @@
     "cashier": "ক্যাশিয়ার",
     "invoice": "ইনভয়েস",
     "count": "{count, plural, other {{n}টি বিক্রি}}",
-    "totalSold": "মোট: {value}"
+    "totalSold": "মোট: {value}",
+    "filterDates": "তারিখ",
+    "filterStatus": "অবস্থা",
+    "statusAll": "সব",
+    "statusActive": "সম্পন্ন",
+    "statusVoided": "বাতিল",
+    "filterMethod": "পরিশোধের মাধ্যম",
+    "anyMethod": "যেকোনো মাধ্যম",
+    "filterDue": "শুধু বাকি আছে এমন বিক্রি",
+    "sort": {
+      "newest": "নতুন আগে",
+      "oldest": "পুরোনো আগে",
+      "total": "বেশি টাকা আগে",
+      "due": "বেশি বাকি আগে"
+    }
   },
   "receipt": {
     "invoice": "ইনভয়েস",
@@ -474,11 +498,18 @@
       "purchase_return": "ক্রয় ফেরত",
       "opening": "আগের হিসাব"
     },
-    "balanceAfter": "হিসাব: {value}"
+    "balanceAfter": "হিসাব: {value}",
+    "filterBalance": "হিসাব",
+    "balanceAll": "সবাই",
+    "sort": {
+      "name": "ক থেকে হ",
+      "balance": "বেশি বাকি আগে",
+      "newest": "নতুন আগে"
+    }
   },
   "purchases": {
     "add": "নতুন ক্রয়",
-    "searchPlaceholder": "ক্রয় নম্বর বা ইনভয়েস খুঁজুন",
+    "searchPlaceholder": "ক্রয় নম্বর, সরবরাহকারীর ইনভয়েস বা সরবরাহকারী",
     "empty": "এখনো কোনো ক্রয় নেই।",
     "emptyFilter": "কোনো ক্রয় মেলেনি।",
     "supplier": "সরবরাহকারী",
@@ -506,7 +537,8 @@
     "count": "{count, plural, other {{n}টি ক্রয়}}",
     "totalBought": "মোট: {value}",
     "notes": "নোট",
-    "method": "পেমেন্টের মাধ্যম"
+    "method": "পেমেন্টের মাধ্যম",
+    "filterDue": "শুধু যেগুলোর টাকা বাকি"
   },
   "expenses": {
     "add": "খরচ যোগ করুন",
@@ -548,7 +580,8 @@
     "filterOut": "পরিশোধিত",
     "hint": "ক্রেতার বাকি আদায় বা সরবরাহকারীকে পরিশোধ করতে তাদের পাতায় যান।",
     "goCustomers": "ক্রেতা",
-    "goSuppliers": "সরবরাহকারী"
+    "goSuppliers": "সরবরাহকারী",
+    "count": "{count, plural, other {{n}টি পেমেন্ট}}"
   },
   "returns": {
     "title": "পণ্য ফেরত",
@@ -569,7 +602,9 @@
     "filterAll": "সব",
     "count": "{count, plural, other {{n}টি ফেরত}}",
     "creditNeedsCustomer": "বাকি থেকে বাদ দিতে বিক্রিতে একজন ক্রেতা থাকতে হবে।",
-    "creditNeedsSupplier": "দেনা থেকে বাদ দিতে ক্রয়ে একজন সরবরাহকারী থাকতে হবে।"
+    "creditNeedsSupplier": "দেনা থেকে বাদ দিতে ক্রয়ে একজন সরবরাহকারী থাকতে হবে।",
+    "filterKind": "ধরন",
+    "kindAll": "সব"
   },
   "lock": {
     "title": "এখন কে কাজ করছেন?",
@@ -875,5 +910,27 @@
     "bannerAction": "সাজানো চালিয়ে যান",
     "settingsLink": "আগের ডেটা আনুন",
     "settingsLinkHint": "আগে থেকে থাকা পণ্য, বাকিসহ ক্রেতা ও সরবরাহকারী যোগ করুন।"
+  },
+  "list": {
+    "filters": "ফিল্টার",
+    "sort": "সাজান",
+    "clear": "মুছে দিন",
+    "clearSearch": "সার্চ মুছুন",
+    "done": "হয়েছে",
+    "from": "শুরু",
+    "to": "শেষ",
+    "showMore": "আরও দেখান",
+    "retry": "আবার চেষ্টা",
+    "error": "লোড করা যায়নি। ইন্টারনেট দেখে আবার চেষ্টা করুন।",
+    "noMatch": "কিছু মেলেনি। অন্য শব্দ লিখুন, অথবা ফিল্টার মুছে দিন।",
+    "refreshing": "হালনাগাদ হচ্ছে…",
+    "dates": "তারিখ",
+    "sorts": {
+      "newest": "নতুন আগে",
+      "oldest": "পুরোনো আগে",
+      "total": "বেশি টাকা আগে",
+      "due": "বেশি বাকি আগে",
+      "amount": "বেশি টাকা আগে"
+    }
   }
 }

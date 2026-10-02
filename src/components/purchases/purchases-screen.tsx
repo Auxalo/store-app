@@ -1,106 +1,134 @@
 "use client";
 
-import { useLiveQuery } from "dexie-react-hooks";
-import { Plus, Search } from "lucide-react";
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { useDeferredValue, useState } from "react";
+import { useState } from "react";
+import { useDebounceValue } from "usehooks-ts";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
+import {
+  type FilterValues,
+  ListToolbar,
+} from "@/components/shared/list-toolbar";
+import { ListError, LoadMore } from "@/components/shared/load-more";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getLocalDb } from "@/db/local/db";
+import { useList, useTotals } from "@/data/hooks";
+import { useDataMode } from "@/data/mode-store";
 import { useFormat } from "@/i18n/use-format";
+import { cn } from "@/lib/utils";
 import { useSyncStore } from "@/sync/store";
 
-const PAGE = 50;
+const SORTS = ["newest", "oldest", "total", "due"] as const;
 
 export function PurchasesScreen() {
   const t = useTranslations();
   const f = useFormat();
   const { role } = useProfile();
+  const mode = useDataMode();
   const initialSyncDone = useSyncStore((s) => s.initialSyncDone);
-  const [query, setQuery] = useState("");
-  const deferred = useDeferredValue(query.trim().toLowerCase());
-  const [limit, setLimit] = useState(PAGE);
+  const allowed = can(role, "purchase.manage");
 
-  const purchases = useLiveQuery(async () => {
-    const all = getLocalDb().purchases.orderBy("createdAt").reverse();
-    if (!deferred) return all.limit(limit).toArray();
-    return all
-      .filter(
-        (p) =>
-          p.purchaseNo.toLowerCase().includes(deferred) ||
-          p.invoiceRef.toLowerCase().includes(deferred) ||
-          p.supplierName.toLowerCase().includes(deferred),
-      )
-      .limit(limit)
-      .toArray();
-  }, [deferred, limit]);
+  const [search, setSearch] = useState("");
+  const [q] = useDebounceValue(search.trim(), 200);
+  const [sort, setSort] = useState<(typeof SORTS)[number]>("newest");
+  const [filters, setFilters] = useState<FilterValues>({ dueOnly: false });
 
-  if (!can(role, "purchase.manage"))
+  const params = {
+    q,
+    from: filters.from as string | undefined,
+    to: filters.to as string | undefined,
+    dueOnly: filters.dueOnly === true,
+    sort,
+  };
+  const list = useList("purchases", params, { enabled: allowed });
+  const totals = useTotals("purchases", params, { enabled: allowed });
+  const filtered =
+    q !== "" || !!filters.from || !!filters.to || filters.dueOnly === true;
+
+  if (!allowed)
     return (
       <p className="py-10 text-center text-sm text-muted-foreground">
         {t("products.noAccess")}
       </p>
     );
-  const rows = purchases ?? [];
-  const total = rows.reduce((sum, p) => sum + p.total, 0);
+  const waiting =
+    list.status === "loading" ||
+    (list.items.length === 0 && mode === "offline" && !initialSyncDone);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <Search
-            className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("purchases.searchPlaceholder")}
-            aria-label={t("purchases.searchPlaceholder")}
-            className="ps-9"
-            inputMode="search"
-          />
-        </div>
-        <Button asChild>
-          <Link href="/purchases/new" data-testid="new-purchase">
-            <Plus aria-hidden />
-            <span className="max-sm:sr-only">{t("purchases.add")}</span>
-          </Link>
-        </Button>
-      </div>
+      <ListToolbar
+        search={search}
+        onSearch={setSearch}
+        placeholder={t("purchases.searchPlaceholder")}
+        fields={[
+          {
+            kind: "dates",
+            fromKey: "from",
+            toKey: "to",
+            label: t("list.dates"),
+          },
+          { kind: "toggle", key: "dueOnly", label: t("purchases.filterDue") },
+        ]}
+        values={filters}
+        onValue={(key, value) => setFilters((c) => ({ ...c, [key]: value }))}
+        sort={sort}
+        sortOptions={SORTS.map((s) => ({
+          value: s,
+          label: t(`list.sorts.${s}`),
+        }))}
+        onSort={(v) => setSort(v as (typeof SORTS)[number])}
+        onClear={() => setFilters({ dueOnly: false })}
+        trailing={
+          <Button asChild>
+            <Link href="/purchases/new" data-testid="new-purchase">
+              <Plus aria-hidden />
+              <span className="max-sm:sr-only">{t("purchases.add")}</span>
+            </Link>
+          </Button>
+        }
+      />
 
-      {purchases !== undefined && rows.length > 0 ? (
+      {totals && totals.count > 0 ? (
         <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>
+          <span data-testid="purchase-count">
             {t("purchases.count", {
-              count: rows.length,
-              n: f.integer(rows.length),
+              count: totals.count,
+              n: f.integer(totals.count),
             })}
           </span>
-          <span className="font-semibold text-foreground">
-            {t("purchases.totalBought", { value: f.money(total) })}
+          <span
+            className="font-semibold text-foreground"
+            data-testid="purchases-total"
+          >
+            {t("purchases.totalBought", { value: f.money(totals.total) })}
           </span>
         </div>
       ) : null}
 
-      {purchases === undefined || (!initialSyncDone && rows.length === 0) ? (
+      {list.status === "error" ? (
+        <ListError onRetry={list.refetch} />
+      ) : waiting ? (
         <div className="flex flex-col gap-2" aria-busy="true">
           {[0, 1, 2].map((i) => (
             <Skeleton key={i} className="h-16 w-full" />
           ))}
         </div>
-      ) : rows.length === 0 ? (
+      ) : list.items.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
-          {deferred ? t("purchases.emptyFilter") : t("purchases.empty")}
+          {filtered ? t("purchases.emptyFilter") : t("purchases.empty")}
         </p>
       ) : (
-        <ul className="flex flex-col gap-2">
-          {rows.map((p) => (
+        <ul
+          className={cn(
+            "flex flex-col gap-2",
+            list.isRefreshing && "opacity-60",
+          )}
+        >
+          {list.items.map((p) => (
             <li key={p.id}>
               <Link
                 href={`/purchases/view?id=${p.id}`}
@@ -131,11 +159,7 @@ export function PurchasesScreen() {
         </ul>
       )}
 
-      {rows.length === limit ? (
-        <Button variant="outline" onClick={() => setLimit((l) => l + PAGE)}>
-          {t("sales.all")} +
-        </Button>
-      ) : null}
+      <LoadMore list={list} />
     </div>
   );
 }

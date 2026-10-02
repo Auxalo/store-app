@@ -146,8 +146,11 @@ export async function listResource<R extends Resource>(
   const rows = found.slice(0, limit);
   const last = rows[rows.length - 1];
 
+  const items = [...exact, ...rows].map((d) => shape(resource, d, viewer));
+  if (resource === "stockMovements") await addProductNames(db, viewer, items);
+
   return {
-    items: [...exact, ...rows].map((d) => shape(resource, d, viewer)),
+    items,
     nextCursor:
       hasMore && last
         ? encodeCursor(
@@ -156,6 +159,29 @@ export async function listResource<R extends Resource>(
           )
         : null,
   };
+}
+
+/** A stock movement list shows which product each row is about: add the names to a page. */
+async function addProductNames(db: Db, viewer: Viewer, items: WireDoc[]) {
+  const ids = [
+    ...new Set(
+      items.map((i) => String((i as { productId?: string }).productId)),
+    ),
+  ];
+  const products = await db
+    .collection<{ _id: string; name?: string; nameBn?: string }>("products")
+    .find(
+      { _id: { $in: ids }, storeId: viewer.storeId },
+      { projection: { name: 1, nameBn: 1 } },
+    )
+    .maxTimeMS(MAX_TIME_MS)
+    .toArray();
+  const byId = new Map(products.map((p) => [p._id, p]));
+  for (const item of items as Array<Record<string, unknown>>) {
+    const p = byId.get(String(item.productId));
+    item.productName = p?.name ?? "";
+    item.productNameBn = p?.nameBn ?? "";
+  }
 }
 
 /** Whole-list numbers for the header (counts and sums over everything that matches, not one page). */

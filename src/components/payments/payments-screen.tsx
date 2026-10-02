@@ -1,63 +1,120 @@
 "use client";
 
-import { useLiveQuery } from "dexie-react-hooks";
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { can } from "@/auth/permissions";
+import { useProfile } from "@/auth/use-auth";
+import {
+  type FilterValues,
+  ListToolbar,
+} from "@/components/shared/list-toolbar";
+import { ListError, LoadMore } from "@/components/shared/load-more";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getLocalDb } from "@/db/local/db";
+import { useList, useTotals } from "@/data/hooks";
 import { useFormat } from "@/i18n/use-format";
 import { cn } from "@/lib/utils";
 
 type Filter = "all" | "customer" | "supplier";
+const SORTS = ["newest", "oldest", "amount"] as const;
 
-/** Every payment received from a customer or made to a supplier, newest first. */
+/** Every payment received from a customer or made to a supplier. */
 export function PaymentsScreen() {
   const t = useTranslations();
   const f = useFormat();
+  const { role } = useProfile();
   const [filter, setFilter] = useState<Filter>("all");
+  const [sort, setSort] = useState<(typeof SORTS)[number]>("newest");
+  const [filters, setFilters] = useState<FilterValues>({});
 
-  const payments = useLiveQuery(async () => {
-    const rows = getLocalDb().payments.orderBy("createdAt").reverse();
-    return (
-      filter === "all" ? rows : rows.filter((p) => p.partyType === filter)
-    )
-      .limit(200)
-      .toArray();
-  }, [filter]);
-  const rows = payments ?? [];
+  // Paying a supplier is for people who manage purchases; others only see money from customers.
+  const type = can(role, "purchase.manage") ? filter : "customer";
+  const params = {
+    type,
+    from: filters.from as string | undefined,
+    to: filters.to as string | undefined,
+    sort,
+  };
+  const list = useList("payments", params);
+  const totals = useTotals("payments", params);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
-      <Tabs value={filter} onValueChange={(v) => setFilter(v as Filter)}>
-        <TabsList>
-          <TabsTrigger value="all">{t("payments.filterAll")}</TabsTrigger>
-          <TabsTrigger value="customer">{t("payments.filterIn")}</TabsTrigger>
-          <TabsTrigger value="supplier">{t("payments.filterOut")}</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <ListToolbar
+        fields={[
+          {
+            kind: "dates",
+            fromKey: "from",
+            toKey: "to",
+            label: t("list.dates"),
+          },
+        ]}
+        values={filters}
+        onValue={(key, value) => setFilters((c) => ({ ...c, [key]: value }))}
+        sort={sort}
+        sortOptions={SORTS.map((s) => ({
+          value: s,
+          label: t(`list.sorts.${s}`),
+        }))}
+        onSort={(v) => setSort(v as (typeof SORTS)[number])}
+        onClear={() => setFilters({})}
+      />
+      {can(role, "purchase.manage") ? (
+        <Tabs value={filter} onValueChange={(v) => setFilter(v as Filter)}>
+          <TabsList>
+            <TabsTrigger value="all">{t("payments.filterAll")}</TabsTrigger>
+            <TabsTrigger value="customer">{t("payments.filterIn")}</TabsTrigger>
+            <TabsTrigger value="supplier">
+              {t("payments.filterOut")}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      ) : null}
       <p className="text-sm text-muted-foreground">{t("payments.hint")}</p>
       <div className="flex gap-2">
         <Button asChild variant="outline" size="sm">
           <Link href="/customers">{t("payments.goCustomers")}</Link>
         </Button>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/suppliers">{t("payments.goSuppliers")}</Link>
-        </Button>
+        {can(role, "purchase.manage") ? (
+          <Button asChild variant="outline" size="sm">
+            <Link href="/suppliers">{t("payments.goSuppliers")}</Link>
+          </Button>
+        ) : null}
       </div>
 
-      {payments === undefined ? (
+      {totals && totals.count > 0 ? (
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span data-testid="payment-count">
+            {t("payments.count", {
+              count: totals.count,
+              n: f.integer(totals.count),
+            })}
+          </span>
+          <span className="font-semibold text-foreground">
+            {f.money(totals.amount)}
+          </span>
+        </div>
+      ) : null}
+
+      {list.status === "error" ? (
+        <ListError onRetry={list.refetch} />
+      ) : list.status === "loading" ? (
         <Skeleton className="h-16 w-full" />
-      ) : rows.length === 0 ? (
+      ) : list.items.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
           {t("payments.empty")}
         </p>
       ) : (
-        <ul className="flex flex-col gap-2">
-          {rows.map((p) => {
+        <ul
+          className={cn(
+            "flex flex-col gap-2",
+            list.isRefreshing && "opacity-60",
+          )}
+        >
+          {list.items.map((p) => {
             const incoming = p.partyType === "customer";
             return (
               <li key={p.id}>
@@ -102,6 +159,8 @@ export function PaymentsScreen() {
           })}
         </ul>
       )}
+
+      <LoadMore list={list} />
     </div>
   );
 }

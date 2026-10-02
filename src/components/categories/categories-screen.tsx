@@ -1,6 +1,5 @@
 "use client";
 
-import { useLiveQuery } from "dexie-react-hooks";
 import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
@@ -23,7 +22,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { getLocalDb } from "@/db/local/db";
+import { useCategories, useCommand } from "@/data/hooks";
+import { useDataMode } from "@/data/mode-store";
 import type { Category } from "@/db/local/types";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
@@ -31,13 +31,13 @@ import { normalizeSearch } from "@/lib/search";
 import type { CategoryFormValues } from "@/schemas/category";
 import { usePreferences } from "@/stores/preferences";
 import { useSyncStore } from "@/sync/store";
-import { useCommands } from "@/sync/use-commands";
 import { CategoryForm } from "./category-form";
 
 export function CategoriesScreen() {
   const t = useTranslations();
   const f = useFormat();
-  const run = useCommands();
+  const run = useCommand();
+  const mode = useDataMode();
   const { role } = useProfile();
   const locale = usePreferences((s) => s.locale);
   const initialSyncDone = useSyncStore((s) => s.initialSyncDone);
@@ -46,13 +46,7 @@ export function CategoriesScreen() {
   const [editing, setEditing] = useState<Category | "new" | null>(null);
   const [deleting, setDeleting] = useState<Category | null>(null);
 
-  const categories = useLiveQuery(
-    () =>
-      getLocalDb()
-        .categories.filter((c) => !c.deletedAt)
-        .toArray(),
-    [],
-  );
+  const categories = useCategories();
   const canCreate = can(role, "product.create");
   const canEdit = can(role, "product.edit");
 
@@ -87,7 +81,11 @@ export function CategoriesScreen() {
             .map((k) => [k, values[k]]),
         );
         if (Object.keys(changes).length > 0)
-          await run("category.update", { id: editing.id, changes });
+          await run(
+            "category.update",
+            { id: editing.id, changes },
+            { baseVersion: editing.version },
+          );
       }
       setEditing(null);
     } catch {
@@ -97,7 +95,11 @@ export function CategoriesScreen() {
 
   async function toggleActive(category: Category, isActive: boolean) {
     try {
-      await run("category.update", { id: category.id, changes: { isActive } });
+      await run(
+        "category.update",
+        { id: category.id, changes: { isActive } },
+        { baseVersion: category.version },
+      );
     } catch {
       fail();
     }
@@ -105,7 +107,11 @@ export function CategoriesScreen() {
 
   async function remove(category: Category) {
     try {
-      await run("category.delete", { id: category.id });
+      await run(
+        "category.delete",
+        { id: category.id },
+        { baseVersion: category.version },
+      );
     } catch {
       fail();
     }
@@ -142,7 +148,7 @@ export function CategoriesScreen() {
       </div>
 
       {categories === undefined ||
-      (!initialSyncDone && categories.length === 0) ? (
+      (mode === "offline" && !initialSyncDone && categories.length === 0) ? (
         <div className="flex flex-col gap-2" aria-busy="true">
           {[0, 1, 2].map((i) => (
             <Skeleton key={i} className="h-16 w-full" />

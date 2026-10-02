@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { addCategory, indicator, signIn, signUp } from "./helpers";
+import { deviceOptions, E2E_MODE } from "./mode";
 
 // Stop the page's background sync and service worker before the context closes; closing a
 // context that still has them running can stall for the full test timeout.
@@ -14,6 +15,10 @@ test("offline work syncs once connectivity returns and appears on a second devic
   context,
   browser,
 }, testInfo) => {
+  test.skip(
+    E2E_MODE === "online",
+    "this is about the offline queue, which online mode does not use",
+  );
   const username = `sync${Date.now()}${testInfo.project.name}`;
   await signUp(page, username);
 
@@ -49,10 +54,9 @@ test("offline work syncs once connectivity returns and appears on a second devic
   ).toHaveLength(1);
 
   // A second device signs in and downloads it.
-  const second = await browser.newContext({
-    locale: "bn-BD",
-    baseURL: testInfo.project.use.baseURL,
-  });
+  const second = await browser.newContext(
+    deviceOptions(testInfo.project.use.baseURL),
+  );
   const pageB = await second.newPage();
   await signIn(pageB, username);
   await pageB.goto("/categories");
@@ -97,6 +101,10 @@ test("signing out warns when changes have not reached the cloud", async ({
   page,
   context,
 }, testInfo) => {
+  test.skip(
+    E2E_MODE === "online",
+    "this is about the offline queue, which online mode does not use",
+  );
   await signUp(page, `warn${Date.now()}${testInfo.project.name}`);
   await page.goto("/categories");
   await expect(indicator(page, "synced")).toBeVisible({ timeout: 20_000 });

@@ -1,7 +1,5 @@
 "use client";
 
-import Dexie from "dexie";
-import { useLiveQuery } from "dexie-react-hooks";
 import { ArrowLeft, HandCoins, Phone } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -11,6 +9,7 @@ import { toast } from "sonner";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
 import { MoneyField } from "@/components/pos/money-field";
+import { ListError } from "@/components/shared/load-more";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,13 +23,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getLocalDb } from "@/db/local/db";
-import type { PartyKind } from "@/db/local/queries/customers";
+import { useCommand, useRecord } from "@/data/hooks";
+import type { Party, PartyKind } from "@/db/local/queries/customers";
+import type { LedgerEntry } from "@/db/local/types";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
 import { cn } from "@/lib/utils";
 import { PAYMENT_METHODS, type PaymentMethod } from "@/schemas/sale";
-import { useCommands } from "@/sync/use-commands";
 
 const LINKS: Record<string, string> = {
   sale: "/sales/view?id=",
@@ -46,28 +45,16 @@ export function PartyDetailScreen({ kind }: { kind: PartyKind }) {
   const id = useSearchParams().get("id") ?? "";
   const [paying, setPaying] = useState(false);
 
-  const party = useLiveQuery(async () => {
-    const db = getLocalDb();
-    return (
-      (await (kind === "customer" ? db.customers : db.suppliers).get(id)) ??
-      null
-    );
-  }, [kind, id]);
-  const entries = useLiveQuery(
-    () =>
-      getLocalDb()
-        .ledgerEntries.where("[partyId+createdAt]")
-        .between([id, Dexie.minKey], [id, Dexie.maxKey])
-        .reverse()
-        .limit(200)
-        .toArray(),
-    [id],
-    [],
-  );
+  const loaded = useRecord(kind === "customer" ? "customers" : "suppliers", id);
+  const party = loaded.record as Party | undefined;
+  const entries = (loaded.extra.ledgerEntries ??
+    []) as unknown as LedgerEntry[];
 
-  if (party === undefined)
+  if (loaded.status === "loading")
     return <Skeleton className="mx-auto h-64 w-full max-w-2xl" />;
-  if (party === null || party.deletedAt) {
+  if (loaded.status === "error")
+    return <ListError onRetry={() => window.location.reload()} />;
+  if (!party || loaded.status === "missing" || party.deletedAt) {
     return (
       <p className="py-10 text-center text-sm text-muted-foreground">
         {t("products.notFound")}
@@ -246,7 +233,7 @@ function PaymentDialog({
   onClose: () => void;
 }) {
   const t = useTranslations();
-  const run = useCommands();
+  const run = useCommand();
   const [amount, setAmount] = useState<number | null>(null);
   const [method, setMethod] = useState<PaymentMethod>("cash");
   const [note, setNote] = useState("");

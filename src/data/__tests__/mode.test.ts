@@ -4,6 +4,7 @@ import { StoreDB } from "@/db/local/db";
 import { getMeta, setMeta } from "@/db/local/meta";
 import { newId } from "@/lib/ids";
 import {
+  DEFAULT_FOR_NEW_DEVICES,
   MODE_STORAGE_KEY,
   readStoredMode,
   resolveDataMode,
@@ -22,8 +23,18 @@ beforeEach(() => {
 });
 
 describe("data mode", () => {
-  it("a brand-new device starts online", async () => {
+  it("a brand-new device starts with the default for new devices", async () => {
+    expect(await resolveDataMode(fresh())).toBe(DEFAULT_FOR_NEW_DEVICES);
+  });
+
+  it("a choice the browser remembers is adopted by a device that has none, but never overrides a saved one", async () => {
+    memory.set(MODE_STORAGE_KEY, "online");
     expect(await resolveDataMode(fresh())).toBe("online");
+    const saved = fresh();
+    await setMeta(saved, "dataMode", "offline");
+    memory.set(MODE_STORAGE_KEY, "online"); // disagrees with what the device saved
+    expect(await resolveDataMode(saved)).toBe("offline");
+    expect(readStoredMode()).toBe("offline"); // and the mirror is corrected
   });
 
   it("a device that has already downloaded the shop keeps working offline", async () => {
@@ -65,7 +76,7 @@ describe("data mode", () => {
   it("mirrors the mode to localStorage for the first paint, and ignores junk there", async () => {
     expect(readStoredMode()).toBeNull();
     await resolveDataMode(fresh());
-    expect(readStoredMode()).toBe("online");
+    expect(readStoredMode()).toBe(DEFAULT_FOR_NEW_DEVICES);
     memory.set(MODE_STORAGE_KEY, "sideways");
     expect(readStoredMode()).toBeNull();
   });
@@ -73,6 +84,6 @@ describe("data mode", () => {
   it("works when localStorage is not available at all", async () => {
     (globalThis as { localStorage?: unknown }).localStorage = undefined;
     expect(readStoredMode()).toBeNull();
-    expect(await resolveDataMode(fresh())).toBe("online");
+    expect(await resolveDataMode(fresh())).toBe(DEFAULT_FOR_NEW_DEVICES);
   });
 });

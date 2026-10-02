@@ -5,7 +5,9 @@ import { getLocalDb, type StoreDB } from "@/db/local/db";
 import { getDeviceId, getMeta, setMeta } from "@/db/local/meta";
 import { APP_VERSION } from "@/lib/app-version";
 import { recoverInterrupted, resetBackoff, syncOnce } from "./engine";
+import { syncOnlineOnce } from "./online-cycle";
 import { pruneIfDue } from "./prune";
+import { registerDevice } from "./register-device";
 import { type SyncProblem, useSyncStore } from "./store";
 import { createFetchTransport, TransportError } from "./transport";
 
@@ -14,16 +16,6 @@ const NUDGE_DEBOUNCE_MS = 1_000;
 
 export interface SyncSession {
   storeId: string;
-}
-
-function deviceName(): string {
-  const nav = navigator as Navigator & {
-    userAgentData?: { platform?: string };
-  };
-  return (nav.userAgentData?.platform || nav.platform || "Browser").slice(
-    0,
-    60,
-  );
 }
 
 /** Runs `job` in only one tab at a time (other tabs simply skip: they see the same data via IndexedDB). */
@@ -159,22 +151,7 @@ class SyncManager {
   }
 
   private async registerDevice(): Promise<void> {
-    const deviceId = await getDeviceId(this.db);
-    let response: Response;
-    try {
-      response = await fetch("/api/devices/register", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ deviceId, name: deviceName() }),
-      });
-    } catch {
-      throw new TransportError("network");
-    }
-    if (response.status === 401 || response.status === 403)
-      throw new TransportError("auth");
-    if (!response.ok) throw new TransportError("server");
-    const { code } = (await response.json()) as { code: string };
-    await setMeta(this.db, "deviceCode", code);
+    const code = await registerDevice(this.db);
     this.patch({ deviceCode: code });
   }
 
@@ -184,11 +161,16 @@ class SyncManager {
     try {
       if (!(await getMeta(db, "deviceCode"))) await this.registerDevice();
       const deviceId = await getDeviceId(db);
-      try {
-        await syncOnce(db, this.transport, {
+      // Offline mode keeps a full copy of the shop; online mode only sends what is queued.
+      const sync = () =>
+        (useDataModeStore.getState().mode === "online"
+          ? syncOnlineOnce
+          : syncOnce)(db, this.transport, {
           deviceId,
           appVersion: APP_VERSION,
         });
+      try {
+        await sync();
       } catch (error) {
         // The device cookie may have been cleared: register again once, then retry.
         if (
@@ -197,10 +179,7 @@ class SyncManager {
           error.status === 401
         ) {
           await this.registerDevice();
-          await syncOnce(db, this.transport, {
-            deviceId,
-            appVersion: APP_VERSION,
-          });
+          await sync();
         } else {
           throw error;
         }

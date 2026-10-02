@@ -1,17 +1,19 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useLiveQuery } from "dexie-react-hooks";
-import { ChevronRight, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { useDeferredValue, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { useDebounceValue } from "usehooks-ts";
 import { z } from "zod";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
 import { ValidationError } from "@/components/shared/field-text";
+import { ListToolbar } from "@/components/shared/list-toolbar";
+import { ListError, LoadMore } from "@/components/shared/load-more";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import {
   AlertDialog,
@@ -33,18 +35,14 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getLocalDb } from "@/db/local/db";
-import {
-  type Party,
-  type PartyKind,
-  searchParties,
-} from "@/db/local/queries/customers";
+import { useCommand, useList, useTotals } from "@/data/hooks";
+import { useDataMode } from "@/data/mode-store";
+import type { Party, PartyKind } from "@/db/local/queries/customers";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
 import { parseMoney } from "@/lib/money";
 import { isValidPhone, normalizePhone } from "@/lib/phone";
 import { useSyncStore } from "@/sync/store";
-import { useCommands } from "@/sync/use-commands";
 
 const text = (max: number) => z.string().trim().max(max);
 /** Optional, but a phone that is given must be a real number; stored as plain digits. */
@@ -87,29 +85,38 @@ type FormValues = Record<string, string>;
 export function PartiesScreen({ kind }: { kind: PartyKind }) {
   const t = useTranslations();
   const f = useFormat();
-  const run = useCommands();
+  const run = useCommand();
   const { role } = useProfile();
   const initialSyncDone = useSyncStore((s) => s.initialSyncDone);
+  const dataMode = useDataMode();
   const ns = kind === "customer" ? "customers" : "suppliers";
   const tk = (key: string, values?: Record<string, string | number>) =>
     t(`${ns}.${key}` as never, values as never);
 
-  const [query, setQuery] = useState("");
-  const deferred = useDeferredValue(query);
+  const [search, setSearch] = useState("");
+  const [q] = useDebounceValue(search.trim(), 200);
+  const [balance, setBalance] = useState("all");
+  const [sort, setSort] = useState<"name" | "balance" | "newest">("name");
   const [editing, setEditing] = useState<Party | "new" | null>(null);
   const [deleting, setDeleting] = useState<Party | null>(null);
 
-  const parties = useLiveQuery(
-    () => searchParties(getLocalDb(), kind, deferred, 200),
-    [kind, deferred],
-  );
+  const resource = kind === "customer" ? "customers" : "suppliers";
+  const params = {
+    q,
+    balance: balance as "all" | "owes" | "advance",
+    sort,
+  };
+  const list = useList(resource, params);
+  const totals = useTotals(resource, params);
+  const parties =
+    list.status === "loading" ? undefined : (list.items as Party[]);
   const allowed = kind === "customer" || can(role, "purchase.manage");
   const canDelete = can(
     role,
     kind === "customer" ? "product.edit" : "purchase.manage",
   );
   const rows = parties ?? [];
-  const totalOwing = rows.reduce((sum, p) => sum + Math.max(0, p.balance), 0);
+  const filtered = q !== "" || balance !== "all";
 
   if (!allowed)
     return (
@@ -144,6 +151,7 @@ export function PartiesScreen({ kind }: { kind: PartyKind }) {
           await run(
             `${kind}.update` as never,
             { id: editing.id, changes } as never,
+            { baseVersion: editing.version },
           );
       }
       setEditing(null);
@@ -154,43 +162,65 @@ export function PartiesScreen({ kind }: { kind: PartyKind }) {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <Search
-            className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={tk("searchPlaceholder")}
-            aria-label={tk("searchPlaceholder")}
-            className="ps-9"
-            inputMode="search"
-          />
-        </div>
-        <Button onClick={() => setEditing("new")}>
-          <Plus aria-hidden />
-          <span className="max-sm:sr-only">{tk("add")}</span>
-        </Button>
-      </div>
+      <ListToolbar
+        search={search}
+        onSearch={setSearch}
+        placeholder={tk("searchPlaceholder")}
+        fields={[
+          {
+            kind: "choice",
+            key: "balance",
+            label: t("party.filterBalance"),
+            none: "all",
+            options: [
+              { value: "all", label: t("party.balanceAll") },
+              {
+                value: "owes",
+                label: tk(kind === "customer" ? "due" : "owed"),
+              },
+              { value: "advance", label: tk("advance") },
+            ],
+          },
+        ]}
+        values={{ balance }}
+        onValue={(_key, value) => setBalance(String(value ?? "all"))}
+        sort={sort}
+        sortOptions={(["name", "balance", "newest"] as const).map((o) => ({
+          value: o,
+          label: t(`party.sort.${o}`),
+        }))}
+        onSort={(v) => setSort(v as typeof sort)}
+        onClear={() => setBalance("all")}
+        trailing={
+          <Button onClick={() => setEditing("new")}>
+            <Plus aria-hidden />
+            <span className="max-sm:sr-only">{tk("add")}</span>
+          </Button>
+        }
+      />
 
-      {parties !== undefined && rows.length > 0 ? (
+      {totals && totals.count > 0 ? (
         <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>
-            {tk("count", { count: rows.length, n: f.integer(rows.length) })}
+          <span data-testid="party-count">
+            {tk("count", { count: totals.count, n: f.integer(totals.count) })}
           </span>
-          {totalOwing > 0 ? (
-            <span className="font-semibold text-foreground">
+          {totals.owed > 0 ? (
+            <span
+              className="font-semibold text-foreground"
+              data-testid="party-total-owed"
+            >
               {tk(kind === "customer" ? "totalDue" : "totalOwed", {
-                value: f.money(totalOwing),
+                value: f.money(totals.owed),
               })}
             </span>
           ) : null}
         </div>
       ) : null}
 
-      {parties === undefined || (!initialSyncDone && rows.length === 0) ? (
+      {list.status === "error" ? (
+        <ListError onRetry={list.refetch} />
+      ) : parties === undefined ||
+        (dataMode === "offline" && !initialSyncDone && rows.length === 0) ? (
         <div className="flex flex-col gap-2" aria-busy="true">
           {[0, 1, 2].map((i) => (
             <Skeleton key={i} className="h-16 w-full" />
@@ -198,7 +228,7 @@ export function PartiesScreen({ kind }: { kind: PartyKind }) {
         </div>
       ) : rows.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
-          {deferred ? tk("noMatch") : tk("empty")}
+          {filtered ? tk("noMatch") : tk("empty")}
         </p>
       ) : (
         <ul className="flex flex-col gap-2">
@@ -256,6 +286,8 @@ export function PartiesScreen({ kind }: { kind: PartyKind }) {
           ))}
         </ul>
       )}
+
+      <LoadMore list={list} />
 
       <ResponsiveDialog
         open={editing !== null}

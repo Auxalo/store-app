@@ -10,6 +10,9 @@ import { signOut } from "@/auth/use-auth";
 import { PinPad } from "@/components/lock/pin-pad";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { DataError, isOffline } from "@/data/errors";
+import { useDataModeStore } from "@/data/mode-store";
+import { postUnlock } from "@/data/online";
 import { getLocalDb } from "@/db/local/db";
 import type { LocalUser } from "@/db/local/types";
 import { useFormat } from "@/i18n/use-format";
@@ -20,7 +23,11 @@ interface LockScreenProps {
   onUnlock: (userId: string) => void;
 }
 
-/** "Who is working?" then a PIN. Checked on this device, so it works with no internet. */
+/**
+ * "Who is working?" then a PIN. Offline mode checks it on this device, so it works with no
+ * internet. Online mode asks the server (which then knows who is working); if there is no
+ * connection right then, the device checks it and the server asks again when it is back.
+ */
 export function LockScreen({ users, storeName, onUnlock }: LockScreenProps) {
   const t = useTranslations();
   const f = useFormat();
@@ -55,10 +62,31 @@ export function LockScreen({ users, storeName, onUnlock }: LockScreenProps) {
     if (state.waitMs > 0 || state.needsOnlineLogin) return;
 
     setBusy(true);
-    const ok = await verifyPin(pin, {
-      salt: current.pinSalt,
-      hash: current.pinHash,
-    });
+    let ok: boolean;
+    if (useDataModeStore.getState().mode === "online") {
+      try {
+        await postUnlock(current.userId, pin);
+        ok = true;
+      } catch (error) {
+        ok = isOffline(error)
+          ? await verifyPin(pin, {
+              salt: current.pinSalt,
+              hash: current.pinHash,
+            })
+          : false;
+        if (!ok && error instanceof DataError && error.status >= 500) {
+          setMessage(t("common.somethingWrong"));
+          setPin("");
+          setBusy(false);
+          return;
+        }
+      }
+    } else {
+      ok = await verifyPin(pin, {
+        salt: current.pinSalt,
+        hash: current.pinHash,
+      });
+    }
     const db = getLocalDb();
     if (ok) {
       await db.localUsers.update(current.userId, {

@@ -44,5 +44,42 @@
         "organizeImports": "on"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["src/components/**", "src/app/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "dexie-react-hooks": "Screens read through the hooks in @/data/hooks, so they work in both data modes.",
+                  "@/db/local/db": "Screens read and write through @/data/hooks, so they work in both data modes."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "src/components/lock/**",
+        "src/components/sync/**",
+        "src/components/settings/**",
+        "src/components/layout/user-menu.tsx",
+        "src/components/setup/setup-table.tsx",
+        "src/components/products/product-form-screen.tsx"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": "off"
+          }
+        }
+      }
+    }
+  ]
 }

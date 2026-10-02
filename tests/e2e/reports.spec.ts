@@ -7,6 +7,7 @@ import {
   signUp,
   tapProduct,
 } from "./helpers";
+import { E2E_MODE } from "./mode";
 
 test.afterEach(async ({ page }) => {
   await page.goto("about:blank").catch(() => undefined);
@@ -60,10 +61,13 @@ test("dashboard and reports show the day's sales, profit and stock, offline and 
   await expect(page.getByTestId("r-net")).toHaveText("৳১০০");
 
   // Same numbers from the server.
-  await page.getByTestId("source-server").click();
-  await expect(page.getByTestId("r-total")).toHaveText("৳১০০");
-  await expect(page.getByTestId("r-net")).toHaveText("৳১০০");
-  await page.getByTestId("source-device").click();
+  // (Online, the numbers always come from the server, so there is no picker.)
+  if (E2E_MODE !== "online") {
+    await page.getByTestId("source-server").click();
+    await expect(page.getByTestId("r-total")).toHaveText("৳১০০");
+    await expect(page.getByTestId("r-net")).toHaveText("৳১০০");
+    await page.getByTestId("source-device").click();
+  }
 
   await page.getByTestId("tab-products").click();
   await expect(page.getByTestId("product-rows")).toContainText("ফ্রেশ দুধ");
@@ -77,7 +81,8 @@ test("dashboard and reports show the day's sales, profit and stock, offline and 
   await page.getByTestId("tab-movements").click();
   await expect(page.getByTestId("movement-rows")).toContainText("বিক্রয়");
 
-  // The shop loses internet: reports still work.
+  // The shop loses internet: reports still work (offline mode only; online reports need the server).
+  if (E2E_MODE === "online") return;
   await context.setOffline(true);
   await page.goto("/reports");
   await expect(page.getByTestId("r-total")).toHaveText("৳১০০");

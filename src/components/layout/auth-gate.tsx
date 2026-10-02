@@ -5,6 +5,7 @@ import { type ReactNode, useEffect } from "react";
 import { ProfileProvider, useAuth } from "@/auth/use-auth";
 import { ActiveUserGate } from "@/components/lock/active-user-gate";
 import { FullScreenLoader } from "@/components/shared/full-screen-loader";
+import { DataProvider } from "@/data/provider";
 import { SyncProvider } from "./sync-provider";
 
 /** Client-side route guard (pages are static so they work offline; the server guards the APIs). */
@@ -20,7 +21,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
   return (
     <ProfileProvider profile={auth.profile}>
       <SyncProvider>
-        <ActiveUserGate>{children}</ActiveUserGate>
+        <DataProvider>
+          <ActiveUserGate>{children}</ActiveUserGate>
+        </DataProvider>
       </SyncProvider>
     </ProfileProvider>
   );

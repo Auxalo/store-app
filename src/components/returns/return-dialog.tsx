@@ -1,8 +1,7 @@
 "use client";
 
-import { useLiveQuery } from "dexie-react-hooks";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { QtyField } from "@/components/shared/qty-field";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
@@ -10,13 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { getLocalDb } from "@/db/local/db";
+import { useCommand, useRecord } from "@/data/hooks";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
 import { cn } from "@/lib/utils";
 import { returnTotal } from "@/schemas/return";
 import { usePreferences } from "@/stores/preferences";
-import { useCommands } from "@/sync/use-commands";
 
 interface Candidate {
   itemIndex: number;
@@ -49,42 +47,44 @@ export function ReturnDialog({
 }) {
   const t = useTranslations();
   const f = useFormat();
-  const run = useCommands();
+  const run = useCommand();
   const locale = usePreferences((s) => s.locale);
 
-  const data = useLiveQuery(async () => {
-    const db = getLocalDb();
-    const parent =
-      kind === "sale"
-        ? await db.sales.get(refId)
-        : await db.purchases.get(refId);
+  // The invoice with its lines, and the returns already made against it (same shape in both modes).
+  const loaded = useRecord(
+    kind === "sale" ? "sales" : "purchases",
+    open ? refId : null,
+  );
+  const data = useMemo(() => {
+    const parent = loaded.record as unknown as
+      | (Record<string, unknown> & { items?: Array<Record<string, unknown>> })
+      | undefined;
     if (!parent) return null;
-    const items = (
-      kind === "sale"
-        ? await db.saleItems.where("saleId").equals(refId).toArray()
-        : await db.purchaseItems.where("purchaseId").equals(refId).toArray()
-    ).sort((a, b) => Number(a.id.split(":i")[1]) - Number(b.id.split(":i")[1]));
+    const items = parent.items ?? [];
     const returned = new Map<number, number>();
-    for (const r of await db.returns.where("refId").equals(refId).toArray()) {
+    for (const r of loaded.extra.returns ?? []) {
       if (r.kind !== kind) continue;
-      for (const l of r.lines)
+      for (const l of (r.lines ?? []) as Array<{
+        itemIndex: number;
+        qty: number;
+      }>)
         returned.set(l.itemIndex, (returned.get(l.itemIndex) ?? 0) + l.qty);
     }
     const partyId =
       kind === "sale"
-        ? (parent as { customerId: string | null }).customerId
-        : (parent as { supplierId: string | null }).supplierId;
+        ? (parent.customerId as string | null)
+        : (parent.supplierId as string | null);
     const candidates: Candidate[] = items.map((item, itemIndex) => ({
       itemIndex,
-      productId: item.productId,
-      productName: item.productName,
-      productNameBn: item.productNameBn,
-      unit: item.unit,
-      remaining: item.qty - (returned.get(itemIndex) ?? 0),
-      amount: "unitPrice" in item ? item.unitPrice : item.unitCost,
+      productId: String(item.productId),
+      productName: String(item.productName),
+      productNameBn: String(item.productNameBn ?? ""),
+      unit: item.unit as Candidate["unit"],
+      remaining: Number(item.qty) - (returned.get(itemIndex) ?? 0),
+      amount: Number("unitPrice" in item ? item.unitPrice : item.unitCost),
     }));
     return { partyId, candidates };
-  }, [kind, refId]);
+  }, [kind, loaded.record, loaded.extra]);
 
   const [qtys, setQtys] = useState<Record<number, number>>({});
   const [settlement, setSettlement] = useState<"cash" | "credit">(

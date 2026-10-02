@@ -8,6 +8,7 @@ import {
   signUp,
   tapProduct,
 } from "./helpers";
+import { deviceOptions, E2E_MODE } from "./mode";
 
 test.afterEach(async ({ page }) => {
   await page.goto("about:blank").catch(() => undefined);
@@ -18,6 +19,10 @@ test("a sale made offline: instant, receipt, stock down, then synced to a second
   context,
   browser,
 }, testInfo) => {
+  test.skip(
+    E2E_MODE === "online",
+    "this is about the offline queue, which online mode does not use",
+  );
   const username = `pos${Date.now()}${testInfo.project.name}`;
   await signUp(page, username);
   await createProduct(page, {
@@ -95,10 +100,9 @@ test("a sale made offline: instant, receipt, stock down, then synced to a second
   await expect(indicator(page, "synced")).toBeVisible({ timeout: 30_000 });
 
   // A second device sees the sale and the resulting stock.
-  const second = await browser.newContext({
-    locale: "bn-BD",
-    baseURL: testInfo.project.use.baseURL,
-  });
+  const second = await browser.newContext(
+    deviceOptions(testInfo.project.use.baseURL),
+  );
   const pageB = await second.newPage();
   await signIn(pageB, username);
   await pageB.goto("/sales");

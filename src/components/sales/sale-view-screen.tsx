@@ -1,6 +1,5 @@
 "use client";
 
-import { useLiveQuery } from "dexie-react-hooks";
 import { Ban, Printer, Undo2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -10,6 +9,7 @@ import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
 import { Receipt } from "@/components/pos/receipt";
 import { ReturnDialog } from "@/components/returns/return-dialog";
+import { ListError } from "@/components/shared/load-more";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,38 +23,32 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getLocalDb } from "@/db/local/db";
-import { useCommands } from "@/sync/use-commands";
+import { useCommand, useRecord } from "@/data/hooks";
+import type { Sale, SaleItem } from "@/db/local/types";
 
 export function SaleViewScreen() {
   const t = useTranslations();
-  const run = useCommands();
+  const run = useCommand();
   const { role, storeName } = useProfile();
   const id = useSearchParams().get("id") ?? "";
   const [voiding, setVoiding] = useState(false);
   const [returning, setReturning] = useState(false);
   const [reason, setReason] = useState("");
 
-  const data = useLiveQuery(async () => {
-    const db = getLocalDb();
-    const sale = await db.sales.get(id);
-    if (!sale) return null;
-    const items = await db.saleItems.where("saleId").equals(id).toArray();
-    items.sort(
-      (a, b) => Number(a.id.split(":i")[1]) - Number(b.id.split(":i")[1]),
-    );
-    return { sale, items };
-  }, [id]);
-
-  if (data === undefined)
+  const loaded = useRecord("sales", id);
+  if (loaded.status === "loading")
     return <Skeleton className="mx-auto h-72 w-full max-w-md" />;
-  if (data === null)
+  if (loaded.status === "error")
+    return <ListError onRetry={() => window.location.reload()} />;
+  if (!loaded.record || loaded.status === "missing")
     return (
       <p className="py-10 text-center text-sm text-muted-foreground">
         {t("sales.notFound")}
       </p>
     );
-  const { sale, items } = data;
+  const sale = loaded.record as Sale;
+  const items = ((loaded.record as unknown as { items?: SaleItem[] }).items ??
+    []) as SaleItem[];
 
   async function voidSale() {
     try {

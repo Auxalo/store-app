@@ -1,29 +1,29 @@
 "use client";
 
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useLiveQuery } from "dexie-react-hooks";
 import { Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   type RefObject,
   useDeferredValue,
+  useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { ListError } from "@/components/shared/load-more";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { getLocalDb } from "@/db/local/db";
-import {
-  findProductByCode,
-  searchProducts,
-  stockStatus,
-} from "@/db/local/queries/products";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useCategories, useList, useProductLookup } from "@/data/hooks";
+import { useDataMode } from "@/data/mode-store";
+import { stockStatus } from "@/db/local/queries/products";
 import type { Product } from "@/db/local/types";
 import { useFormat } from "@/i18n/use-format";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/stores/cart";
 import { usePreferences } from "@/stores/preferences";
+import { useSyncStore } from "@/sync/store";
 
 const ROW = 64;
 
@@ -46,23 +46,22 @@ export function ProductPicker({
   const deferred = useDeferredValue(query);
   const [category, setCategory] = useState("all");
 
-  const categories = useLiveQuery(
-    () =>
-      getLocalDb()
-        .categories.filter((c) => !c.deletedAt && c.isActive)
-        .sortBy("name"),
-    [],
+  const mode = useDataMode();
+  const initialSyncDone = useSyncStore((s) => s.initialSyncDone);
+  const lookup = useProductLookup();
+  const categories = useCategories()?.filter((c) => c.isActive);
+  const list = useList(
+    "products",
+    {
+      q: deferred.trim(),
+      categoryId: category === "all" ? undefined : category,
+      active: "active",
+      sort: "name",
+    },
+    { pageSize: 80 },
   );
-  const products = useLiveQuery(
-    () =>
-      searchProducts(getLocalDb(), {
-        query: deferred,
-        categoryId: category === "all" ? undefined : category,
-        limit: 80,
-      }),
-    [deferred, category],
-  );
-  const items = products ?? [];
+  const items = list.items;
+  const { hasMore, loadMore } = list;
 
   const inCart = useMemo(() => {
     const totals = new Map<string, number>();
@@ -79,8 +78,14 @@ export function ProductPicker({
     overscan: 8,
   });
 
+  // Near the bottom of what is loaded: get the next page.
+  const lastIndex = virtualizer.getVirtualItems().at(-1)?.index ?? 0;
+  useEffect(() => {
+    if (hasMore && lastIndex >= items.length - 12) loadMore();
+  }, [lastIndex, items.length, hasMore, loadMore]);
+
   async function onEnter() {
-    const exact = await findProductByCode(getLocalDb(), query);
+    const exact = await lookup(query).catch(() => null);
     const pick = exact ?? (items.length === 1 ? items[0] : undefined);
     if (!pick) return;
     addProduct(pick);
@@ -154,7 +159,16 @@ export function ProductPicker({
         className="min-h-0 flex-1 overflow-y-auto"
         data-testid="picker-list"
       >
-        {items.length === 0 ? (
+        {list.status === "error" ? (
+          <ListError onRetry={list.refetch} />
+        ) : list.status === "loading" ||
+          (items.length === 0 && mode === "offline" && !initialSyncDone) ? (
+          <div className="flex flex-col gap-1.5" aria-busy="true">
+            {[0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-14 w-full" />
+            ))}
+          </div>
+        ) : items.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
             {t("pos.noProducts")}
           </p>

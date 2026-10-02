@@ -1,79 +1,152 @@
 "use client";
 
-import { useLiveQuery } from "dexie-react-hooks";
-import { Search } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { useDeferredValue, useState } from "react";
+import { useMemo, useState } from "react";
+import { useDebounceValue } from "usehooks-ts";
+import {
+  type FilterField,
+  type FilterValues,
+  ListToolbar,
+} from "@/components/shared/list-toolbar";
+import { ListError, LoadMore } from "@/components/shared/load-more";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getLocalDb } from "@/db/local/db";
+import { useList, useTotals } from "@/data/hooks";
+import { useDataMode } from "@/data/mode-store";
+import type { ListParamsInput } from "@/data/spec";
 import { useFormat } from "@/i18n/use-format";
-import { startOfStoreDay } from "@/lib/time";
 import { cn } from "@/lib/utils";
+import { presetRange } from "@/reports/use-summary";
+import { PAYMENT_METHODS } from "@/schemas/sale";
 import { usePreferences } from "@/stores/preferences";
 import { useSyncStore } from "@/sync/store";
 
-type Period = "today" | "week" | "all";
-const PAGE = 50;
+type Period = "today" | "week" | "all" | "custom";
+const NONE = "all";
+const SORTS = ["newest", "oldest", "total", "due"] as const;
 
 export function SalesScreen() {
   const t = useTranslations();
   const f = useFormat();
   const timeZone = usePreferences((s) => s.timeZone);
+  const mode = useDataMode();
   const initialSyncDone = useSyncStore((s) => s.initialSyncDone);
+
   const [period, setPeriod] = useState<Period>("today");
-  const [query, setQuery] = useState("");
-  const deferred = useDeferredValue(query.trim());
-  const [limit, setLimit] = useState(PAGE);
+  const [search, setSearch] = useState("");
+  const [q] = useDebounceValue(search.trim(), 200);
+  const [sort, setSort] = useState<(typeof SORTS)[number]>("newest");
+  const [filters, setFilters] = useState<FilterValues>({
+    status: NONE,
+    method: NONE,
+    dueOnly: false,
+  });
 
-  const sales = useLiveQuery(async () => {
-    const { sales: table } = getLocalDb();
-    if (deferred)
-      return table
-        .where("invoiceNo")
-        .startsWithIgnoreCase(deferred)
-        .limit(limit)
-        .toArray();
-    const now = Date.now();
-    const since =
-      period === "today"
-        ? startOfStoreDay(now, timeZone).toISOString()
-        : period === "week"
-          ? startOfStoreDay(now - 6 * 86_400_000, timeZone).toISOString()
-          : null;
-    const rows = since
-      ? table.where("createdAt").aboveOrEqual(since)
-      : table.orderBy("createdAt");
-    return rows.reverse().limit(limit).toArray();
-  }, [period, deferred, limit, timeZone]);
+  // A typed search looks through all time (an invoice number is found wherever it is);
+  // otherwise the period applies, or the custom dates chosen in Filters.
+  const dates = useMemo(() => {
+    if (period === "custom")
+      return {
+        from: filters.from as string | undefined,
+        to: filters.to as string | undefined,
+      };
+    if (q || period === "all") return {};
+    return presetRange(period === "today" ? "today" : "days7", timeZone);
+  }, [period, q, filters.from, filters.to, timeZone]);
 
-  const rows = sales ?? [];
-  const active = rows.filter((s) => s.status === "active");
-  const sold = active.reduce((sum, s) => sum + s.total, 0);
+  const params: ListParamsInput<"sales"> = {
+    q,
+    ...dates,
+    status: filters.status as "all" | "active" | "voided",
+    method:
+      filters.method === NONE
+        ? undefined
+        : (filters.method as (typeof PAYMENT_METHODS)[number]),
+    dueOnly: filters.dueOnly === true,
+    sort,
+  };
+  const list = useList("sales", params);
+  const totals = useTotals("sales", params);
+
+  const fields: FilterField[] = [
+    {
+      kind: "dates",
+      fromKey: "from",
+      toKey: "to",
+      label: t("sales.filterDates"),
+    },
+    {
+      kind: "choice",
+      key: "status",
+      label: t("sales.filterStatus"),
+      none: NONE,
+      options: [
+        { value: NONE, label: t("sales.statusAll") },
+        { value: "active", label: t("sales.statusActive") },
+        { value: "voided", label: t("sales.statusVoided") },
+      ],
+    },
+    {
+      kind: "choice",
+      key: "method",
+      label: t("sales.filterMethod"),
+      none: NONE,
+      options: [
+        { value: NONE, label: t("sales.anyMethod") },
+        ...PAYMENT_METHODS.map((m) => ({ value: m, label: t(`payment.${m}`) })),
+      ],
+    },
+    { kind: "toggle", key: "dueOnly", label: t("sales.filterDue") },
+  ];
+
+  const clearFilters = () => {
+    setFilters({ status: NONE, method: NONE, dueOnly: false });
+    if (period === "custom") setPeriod("today");
+  };
+  const setFilter = (key: string, value: string | boolean | undefined) => {
+    setFilters((current) => ({ ...current, [key]: value }));
+    if (key === "from" || key === "to") setPeriod("custom");
+  };
+
+  const filtered =
+    q !== "" ||
+    period === "custom" ||
+    filters.status !== NONE ||
+    filters.method !== NONE ||
+    filters.dueOnly === true;
+  const waiting =
+    list.status === "loading" ||
+    (list.items.length === 0 && mode === "offline" && !initialSyncDone);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
-      <div className="relative">
-        <Search
-          className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-          aria-hidden
-        />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={t("sales.searchPlaceholder")}
-          aria-label={t("sales.searchPlaceholder")}
-          className="ps-9"
-          inputMode="search"
-        />
-      </div>
+      <ListToolbar
+        search={search}
+        onSearch={setSearch}
+        placeholder={t("sales.searchPlaceholder")}
+        fields={fields}
+        values={
+          period === "custom"
+            ? filters
+            : { ...filters, from: undefined, to: undefined }
+        }
+        onValue={setFilter}
+        sort={sort}
+        sortOptions={SORTS.map((s) => ({
+          value: s,
+          label: t(`sales.sort.${s}`),
+        }))}
+        onSort={(v) => setSort(v as (typeof SORTS)[number])}
+        onClear={clearFilters}
+      />
 
-      {!deferred ? (
-        <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
+      {!q ? (
+        <Tabs
+          value={period === "custom" ? "" : period}
+          onValueChange={(v) => setPeriod(v as Period)}
+        >
           <TabsList>
             <TabsTrigger value="today">{t("sales.today")}</TabsTrigger>
             <TabsTrigger value="week">{t("sales.week")}</TabsTrigger>
@@ -82,38 +155,50 @@ export function SalesScreen() {
         </Tabs>
       ) : null}
 
-      {sales !== undefined && rows.length > 0 ? (
+      {totals && totals.count > 0 ? (
         <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>
+          <span data-testid="sales-count">
             {t("sales.count", {
-              count: active.length,
-              n: f.integer(active.length),
+              count: totals.count,
+              n: f.integer(totals.count),
             })}
           </span>
           <span
             className="font-semibold text-foreground"
             data-testid="sales-total"
           >
-            {t("sales.totalSold", { value: f.money(sold) })}
+            {t("sales.totalSold", { value: f.money(totals.sold) })}
           </span>
         </div>
       ) : null}
 
-      {sales === undefined || (!initialSyncDone && rows.length === 0) ? (
+      {list.status === "error" ? (
+        <ListError onRetry={list.refetch} />
+      ) : waiting ? (
         <div className="flex flex-col gap-2" aria-busy="true">
           {[0, 1, 2].map((i) => (
             <Skeleton key={i} className="h-16 w-full" />
           ))}
         </div>
-      ) : rows.length === 0 ? (
-        <p className="py-10 text-center text-sm text-muted-foreground">
-          {deferred || period !== "all"
-            ? t("sales.emptyPeriod")
-            : t("sales.empty")}
+      ) : list.items.length === 0 ? (
+        <p
+          className="py-10 text-center text-sm text-muted-foreground"
+          data-testid="sales-empty"
+        >
+          {filtered
+            ? t("list.noMatch")
+            : period === "all"
+              ? t("sales.empty")
+              : t("sales.emptyPeriod")}
         </p>
       ) : (
-        <ul className="flex flex-col gap-2">
-          {rows.map((s) => (
+        <ul
+          className={cn(
+            "flex flex-col gap-2",
+            list.isRefreshing && "opacity-60",
+          )}
+        >
+          {list.items.map((s) => (
             <li key={s.id}>
               <Link
                 href={`/sales/view?id=${s.id}`}
@@ -130,6 +215,7 @@ export function SalesScreen() {
                   <span className="block truncate text-xs text-muted-foreground">
                     {f.dateTime(s.createdAt)} ·{" "}
                     {s.customerName || t("pos.walkIn")}
+                    {s.customerPhone ? ` · ${s.customerPhone}` : ""}
                   </span>
                 </span>
                 {s.status === "voided" ? (
@@ -154,11 +240,7 @@ export function SalesScreen() {
         </ul>
       )}
 
-      {rows.length === limit ? (
-        <Button variant="outline" onClick={() => setLimit((l) => l + PAGE)}>
-          {t("sales.all")} +
-        </Button>
-      ) : null}
+      <LoadMore list={list} />
     </div>
   );
 }

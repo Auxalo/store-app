@@ -41,8 +41,17 @@ export interface HeldCart extends CartContents {
   heldAt: string;
 }
 
+/** The ids of a sale being sent. A retry of the same cart reuses them, so it is never rung up twice. */
+export interface SaleAttempt {
+  saleId: string;
+  operationId: string;
+  fingerprint: string;
+}
+
 interface CartState extends CartContents {
   held: HeldCart[];
+  attempt: SaleAttempt | null;
+  setAttempt: (attempt: SaleAttempt | null) => void;
   addProduct: (product: Product, qty?: number) => void;
   setQty: (key: string, qty: number) => void;
   setUnitPrice: (key: string, unitPrice: number) => void;
@@ -97,6 +106,8 @@ export const useCart = create<CartState>()(
     (set, get) => ({
       ...empty,
       held: [],
+      attempt: null,
+      setAttempt: (attempt) => set({ attempt }),
 
       addProduct: (product, qty = 1000) =>
         set((s) => {
@@ -144,7 +155,7 @@ export const useCart = create<CartState>()(
       setTendered: (tendered) => set({ tendered }),
       setPaymentMethod: (paymentMethod) => set({ paymentMethod }),
       setNotes: (notes) => set({ notes }),
-      clear: () => set({ ...empty }),
+      clear: () => set({ ...empty, attempt: null }),
 
       hold: () => {
         const s = get();
@@ -187,7 +198,11 @@ export const useCart = create<CartState>()(
       storage: dexieStorage,
       // Hydrated explicitly on the POS screen: pages are prerendered, where there is no database.
       skipHydration: true,
-      partialize: (s) => ({ ...contentsOf(s), held: s.held }),
+      partialize: (s) => ({
+        ...contentsOf(s),
+        held: s.held,
+        attempt: s.attempt,
+      }),
     },
   ),
 );

@@ -9,6 +9,7 @@ import {
   signUp,
   tapProduct,
 } from "./helpers";
+import { deviceOptions, E2E_MODE } from "./mode";
 
 test.afterEach(async ({ page }) => {
   await page.goto("about:blank").catch(() => undefined);
@@ -117,6 +118,10 @@ test("a deactivated person cannot sign in; a cut-off device cannot sync", async 
   page,
   browser,
 }, testInfo) => {
+  test.skip(
+    E2E_MODE === "online",
+    "this is about the offline queue, which online mode does not use",
+  );
   const owner = `adm${Date.now()}${testInfo.project.name}`;
   const cashier = `off${Date.now()}${testInfo.project.name}`;
   await signUp(page, owner);
@@ -135,10 +140,9 @@ test("a deactivated person cannot sign in; a cut-off device cannot sync", async 
     page.getByTestId("staff-row").filter({ hasText: "জামাল" }),
   ).toContainText("নিষ্ক্রিয়");
 
-  const blocked = await browser.newContext({
-    locale: "bn-BD",
-    baseURL: testInfo.project.use.baseURL,
-  });
+  const blocked = await browser.newContext(
+    deviceOptions(testInfo.project.use.baseURL),
+  );
   const loginPage = await blocked.newPage();
   await loginPage.goto("/login");
   await loginPage.getByLabel("মোবাইল নম্বর বা ইউজারনেম").fill(cashier);
@@ -149,10 +153,9 @@ test("a deactivated person cannot sign in; a cut-off device cannot sync", async 
   await blocked.close();
 
   // A second device joins, then the owner cuts it off.
-  const second = await browser.newContext({
-    locale: "bn-BD",
-    baseURL: testInfo.project.use.baseURL,
-  });
+  const second = await browser.newContext(
+    deviceOptions(testInfo.project.use.baseURL),
+  );
   const pageB = await second.newPage();
   await signIn(pageB, owner);
   await expect(indicator(pageB, "synced")).toBeVisible({ timeout: 20_000 });

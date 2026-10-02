@@ -12,6 +12,12 @@ export type DataMode = "online" | "offline";
 
 export const MODE_STORAGE_KEY = "sa.dataMode";
 
+/**
+ * What a brand-new device starts with. It becomes "online" when the Work-offline switch ships
+ * (phase S6); until then every device keeps working the way it always has.
+ */
+export const DEFAULT_FOR_NEW_DEVICES: DataMode = "offline";
+
 const isMode = (value: unknown): value is DataMode =>
   value === "online" || value === "offline";
 
@@ -44,9 +50,16 @@ export async function resolveDataMode(db: StoreDB): Promise<DataMode> {
     mirror(saved);
     return saved;
   }
+  // A choice remembered by the browser (or set up front by a test) counts when the device has none.
+  const remembered = readStoredMode();
+  if (remembered) {
+    await setMeta(db, "dataMode", remembered);
+    return remembered;
+  }
   const hasDownloaded = (await getMeta(db, "cursor")) !== undefined;
   const hasQueue = (await db.outbox.count()) > 0;
-  const mode: DataMode = hasDownloaded || hasQueue ? "offline" : "online";
+  const mode: DataMode =
+    hasDownloaded || hasQueue ? "offline" : DEFAULT_FOR_NEW_DEVICES;
   await setMeta(db, "dataMode", mode);
   mirror(mode);
   return mode;

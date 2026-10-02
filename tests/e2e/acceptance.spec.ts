@@ -17,6 +17,7 @@ import {
   signUp,
   tapProduct,
 } from "./helpers";
+import { deviceOptions, E2E_MODE } from "./mode";
 
 test.afterEach(async ({ page }) => {
   await page.goto("about:blank").catch(() => undefined);
@@ -38,6 +39,10 @@ test("tests 3-5: ten offline sales survive a restart, then sync once each throug
   context,
   browser,
 }, testInfo) => {
+  test.skip(
+    E2E_MODE === "online",
+    "this is about the offline queue, which online mode does not use",
+  );
   test.setTimeout(180_000);
   const username = `acc${Date.now()}${testInfo.project.name}`;
   await signUp(page, username);
@@ -73,10 +78,9 @@ test("tests 3-5: ten offline sales survive a restart, then sync once each throug
   await expect(indicator(reopened, "synced")).toBeVisible({ timeout: 60_000 });
 
   // A second device sees every sale exactly once, and the stock is right.
-  const second = await browser.newContext({
-    locale: "bn-BD",
-    baseURL: testInfo.project.use.baseURL,
-  });
+  const second = await browser.newContext(
+    deviceOptions(testInfo.project.use.baseURL),
+  );
   const other = await second.newPage();
   await signIn(other, username);
   await other.goto("/sales");
@@ -93,6 +97,10 @@ test("test 6: two devices sell while one is offline; both end up with every sale
   context,
   browser,
 }, testInfo) => {
+  test.skip(
+    E2E_MODE === "online",
+    "this is about the offline queue, which online mode does not use",
+  );
   test.setTimeout(180_000);
   const username = `two${Date.now()}${testInfo.project.name}`;
   await signUp(page, username);
@@ -104,10 +112,9 @@ test("test 6: two devices sell while one is offline; both end up with every sale
   });
   await expect(indicator(page, "synced")).toBeVisible({ timeout: 20_000 });
 
-  const second = await browser.newContext({
-    locale: "bn-BD",
-    baseURL: testInfo.project.use.baseURL,
-  });
+  const second = await browser.newContext(
+    deviceOptions(testInfo.project.use.baseURL),
+  );
   const b = await second.newPage();
   await signIn(b, username);
   await b.goto("/inventory");

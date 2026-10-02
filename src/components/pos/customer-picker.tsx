@@ -1,23 +1,22 @@
 "use client";
 
-import { useLiveQuery } from "dexie-react-hooks";
 import { Check, Search, UserPlus } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useDeferredValue, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
+import { useDebounceValue } from "usehooks-ts";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { getLocalDb } from "@/db/local/db";
-import { searchCustomers } from "@/db/local/queries/customers";
+import { useCommand, useList } from "@/data/hooks";
+import type { Customer } from "@/db/local/types";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
 import { isValidPhone, normalizePhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/stores/cart";
-import { useCommands } from "@/sync/use-commands";
 
 /** Choose who the sale is for: nobody (walk-in), an existing customer, or a new one added on the spot. */
 export function CustomerPicker({
@@ -29,21 +28,24 @@ export function CustomerPicker({
 }) {
   const t = useTranslations();
   const f = useFormat();
-  const run = useCommands();
+  const run = useCommand();
   const selectedId = useCart((s) => s.customerId);
   const setCustomer = useCart((s) => s.setCustomer);
 
   const [query, setQuery] = useState("");
-  const deferred = useDeferredValue(query);
+  const [deferred] = useDebounceValue(query.trim(), 200);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const phoneOk = isValidPhone(phone);
   const [saving, setSaving] = useState(false);
 
-  const customers =
-    useLiveQuery(() => searchCustomers(getLocalDb(), deferred), [deferred]) ??
-    [];
+  const list = useList(
+    "customers",
+    { q: deferred },
+    { pageSize: 30, enabled: open },
+  );
+  const customers = list.items as Customer[];
 
   const choose = (id: string | null, label: string) => {
     setCustomer(id, label);

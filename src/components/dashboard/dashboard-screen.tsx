@@ -1,6 +1,5 @@
 "use client";
 
-import { useLiveQuery } from "dexie-react-hooks";
 import {
   AlertTriangle,
   Banknote,
@@ -20,12 +19,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getLocalDb } from "@/db/local/db";
-import { stockStatus } from "@/db/local/queries/products";
+import { useList, useTotals } from "@/data/hooks";
 import { useSetting } from "@/hooks/use-setting";
 import { useFormat } from "@/i18n/use-format";
 import { SETUP_SETTING } from "@/lib/constants";
-import { loadDues, loadStock } from "@/reports/local";
 import { presetRange, useSummary } from "@/reports/use-summary";
 import { usePreferences } from "@/stores/preferences";
 
@@ -46,23 +43,19 @@ export function DashboardScreen() {
   const showSetup = can(role, "settings.manage") && !setupDone;
   const today = useSummary(presetRange("today", timeZone)).summary;
   const trend = useSummary(presetRange(days, timeZone)).summary;
-  const dues = useLiveQuery(() => loadDues(getLocalDb()), []);
-  const stock = useLiveQuery(() => loadStock(getLocalDb()), []);
-  const recent = useLiveQuery(
-    () =>
-      getLocalDb()
-        .sales.orderBy("createdAt")
-        .reverse()
-        .filter((s) => s.status === "active")
-        .limit(6)
-        .toArray(),
-    [],
+  const customerDues = useTotals("customers", { balance: "owes" });
+  const supplierDues = useTotals("suppliers", { balance: "owes" });
+  const lowList = useList(
+    "products",
+    { stock: "low", active: "active", sort: "stock" },
+    { pageSize: 6 },
   );
-
-  const low = (stock?.rows ?? [])
-    .filter((r) => stockStatus(r) !== "ok")
-    .sort((a, b) => a.stock - b.stock)
-    .slice(0, 6);
+  const recent = useList(
+    "sales",
+    { status: "active", sort: "newest" },
+    { pageSize: 6 },
+  );
+  const low = lowList.items;
 
   const stats = [
     {
@@ -93,8 +86,8 @@ export function DashboardScreen() {
       value: today?.purchasesTotal,
       sub: "",
     },
-    { key: "customerDue", icon: Users, value: dues?.customerTotal, sub: "" },
-    { key: "supplierDue", icon: Truck, value: dues?.supplierTotal, sub: "" },
+    { key: "customerDue", icon: Users, value: customerDues?.owed, sub: "" },
+    { key: "supplierDue", icon: Truck, value: supplierDues?.owed, sub: "" },
   ] as const;
 
   return (
@@ -186,16 +179,16 @@ export function DashboardScreen() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {stock && low.length === 0 ? (
+            {lowList.status === "ready" && low.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 {t("lowStockEmpty")}
               </p>
             ) : null}
             <ul className="grid gap-1" data-testid="low-stock">
               {low.map((r) => (
-                <li key={r.productId}>
+                <li key={r.id}>
                   <Link
-                    href={`/products/view?id=${r.productId}`}
+                    href={`/products/view?id=${r.id}`}
                     className="flex items-center justify-between gap-2 rounded-md px-1 py-1.5 text-sm hover:bg-muted"
                   >
                     <span className="min-w-0 truncate">
@@ -227,13 +220,13 @@ export function DashboardScreen() {
             </Link>
           </CardHeader>
           <CardContent>
-            {recent && recent.length === 0 ? (
+            {recent.status === "ready" && recent.items.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 {t("recentEmpty")}
               </p>
             ) : null}
             <ul className="grid gap-1" data-testid="recent-sales">
-              {recent?.map((s) => (
+              {recent.items.map((s) => (
                 <li key={s.id}>
                   <Link
                     href={`/sales/view?id=${s.id}`}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
 import { ClipboardPaste, Copy, Plus, Trash2, X } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -9,6 +10,10 @@ import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useCategories, useCommand } from "@/data/hooks";
+import { useDataMode } from "@/data/mode-store";
+import { fetchPage } from "@/data/online";
+import { parseListParams } from "@/data/spec";
 import { getLocalDb } from "@/db/local/db";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
@@ -30,7 +35,61 @@ import {
   type SetupKind,
   templateText,
 } from "@/setup/rows";
-import { useCommands } from "@/sync/use-commands";
+
+type Doc = Record<string, unknown>;
+
+async function localDocs(kind: SetupKind): Promise<Doc[]> {
+  const db = getLocalDb();
+  const table =
+    kind === "products"
+      ? db.products
+      : kind === "customers"
+        ? db.customers
+        : db.suppliers;
+  return (await table
+    .filter((x) => !x.deletedAt)
+    .toArray()) as unknown as Doc[];
+}
+
+/** Everything of this kind on the server (setup runs once, so a few pages at most). */
+async function serverDocs(kind: SetupKind): Promise<Doc[]> {
+  const params = parseListParams(
+    kind,
+    kind === "products" ? { active: "all" } : {},
+  );
+  const docs: Doc[] = [];
+  let cursor: string | null = null;
+  for (let page = 0; page < 100; page++) {
+    const result = await fetchPage(kind, params, cursor, 200);
+    docs.push(...result.items);
+    cursor = result.nextCursor;
+    if (!cursor) break;
+  }
+  return docs;
+}
+
+function existingFrom(kind: SetupKind, docs: Doc[]) {
+  const e = emptyExisting();
+  for (const d of docs) {
+    if (kind === "products") {
+      const p = d as {
+        sku?: string;
+        barcode?: string;
+        name: string;
+        unit: never;
+        sellingPrice: number;
+      };
+      if (p.sku) e.skus.add(p.sku);
+      if (p.barcode) e.barcodes.add(p.barcode);
+      e.productKeys.add(productKey(p.name, p.unit, p.sellingPrice));
+    } else {
+      const p = d as { phone?: string; name: string };
+      if (p.phone) e.phones.add(normalizePhone(p.phone));
+      e.names.add(normalizeSearch(p.name));
+    }
+  }
+  return e;
+}
 
 /** One line of the list: its cells (one per column, as typed) and an id so React can track it. */
 export interface SetupRow {
@@ -60,7 +119,9 @@ const isEmpty = (cells: string[]) => cells.every((c) => c.trim() === "");
 export function SetupTable({ kind, rows, onRows, onSaved }: SetupTableProps) {
   const t = useTranslations();
   const f = useFormat();
-  const run = useCommands();
+  const run = useCommand();
+  const mode = useDataMode();
+  const categoryList = useCategories();
   const [pasting, setPasting] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [progress, setProgress] = useState<{
@@ -81,24 +142,23 @@ export function SetupTable({ kind, rows, onRows, onSaved }: SetupTableProps) {
     return t(`${kind === "products" ? "products" : kind}.${key}` as never);
   };
 
-  const existing = useLiveQuery(async () => {
-    const db = getLocalDb();
-    const e = emptyExisting();
-    if (kind === "products") {
-      for (const p of await db.products.filter((x) => !x.deletedAt).toArray()) {
-        if (p.sku) e.skus.add(p.sku);
-        if (p.barcode) e.barcodes.add(p.barcode);
-        e.productKeys.add(productKey(p.name, p.unit, p.sellingPrice));
-      }
-    } else {
-      const table = kind === "customers" ? db.customers : db.suppliers;
-      for (const p of await table.filter((x) => !x.deletedAt).toArray()) {
-        if (p.phone) e.phones.add(normalizePhone(p.phone));
-        e.names.add(normalizeSearch(p.name));
-      }
-    }
-    return e;
-  }, [kind]);
+  // What the shop already has, so a row that repeats it is caught before saving. On the device it
+  // is all there; online it is read from the server a page at a time.
+  const local = useLiveQuery(
+    async () =>
+      mode === "offline"
+        ? existingFrom(kind, await localDocs(kind))
+        : undefined,
+    [kind, mode],
+  );
+  const online = useQuery({
+    // Not under "data": every saved row refreshes those, and this one is read once.
+    queryKey: ["setup-existing", kind],
+    enabled: mode === "online",
+    staleTime: 0,
+    queryFn: async () => existingFrom(kind, await serverDocs(kind)),
+  });
+  const existing = mode === "online" ? online.data : local;
 
   const unitOf = useMemo(
     () =>
@@ -172,12 +232,9 @@ export function SetupTable({ kind, rows, onRows, onSaved }: SetupTableProps) {
     try {
       if (kind === "products") {
         const products = items as ProductValue[];
-        const categories = await getLocalDb()
-          .categories.filter((c) => !c.deletedAt)
-          .toArray();
         const plan = planCategories(
           products.map((p) => p.category),
-          categories,
+          categoryList ?? [],
           newId,
         );
         for (const c of plan.toCreate)
@@ -236,6 +293,7 @@ export function SetupTable({ kind, rows, onRows, onSaved }: SetupTableProps) {
       if (done > 0) onSaved(done);
       toast.error(t("setup.saveFailed", { n: f.integer(done) }));
     } finally {
+      if (mode === "online") void online.refetch();
       setProgress(null);
     }
   }

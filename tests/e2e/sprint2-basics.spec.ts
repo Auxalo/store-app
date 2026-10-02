@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createProduct, signUp } from "./helpers";
+import { E2E_MODE } from "./mode";
 
 test.afterEach(async ({ page }) => {
   await page.goto("about:blank").catch(() => undefined);
@@ -30,10 +31,12 @@ test("a product needs a name and both prices; its SKU is created automatically",
   await expect(page.getByTestId("below-cost")).toHaveCount(0);
 
   // The SKU box shows what it will be, and leaving it empty creates it.
-  await expect(page.getByLabel("SKU")).toHaveAttribute(
-    "placeholder",
-    /[A-Z0-9]+\d{4}/,
-  );
+  // (Online, the server hands out the number when the product is saved, so there is no preview.)
+  if (E2E_MODE !== "online")
+    await expect(page.getByLabel("SKU")).toHaveAttribute(
+      "placeholder",
+      /[A-Z0-9]+\d{4}/,
+    );
   await page.getByRole("button", { name: "সংরক্ষণ" }).click();
   await expect(page).toHaveURL(/\/products$/);
   await page

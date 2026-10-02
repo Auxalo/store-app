@@ -1,7 +1,5 @@
 "use client";
 
-import Dexie from "dexie";
-import { useLiveQuery } from "dexie-react-hooks";
 import { Pencil, SlidersHorizontal, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -10,6 +8,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
+import { ListError } from "@/components/shared/load-more";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,11 +23,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getLocalDb } from "@/db/local/db";
+import { useCategories, useCommand, useRecord } from "@/data/hooks";
+import type { Product, StockMovement } from "@/db/local/types";
 import { useFormat } from "@/i18n/use-format";
 import { cn } from "@/lib/utils";
 import { usePreferences } from "@/stores/preferences";
-import { useCommands } from "@/sync/use-commands";
 import { StockAdjustDialog } from "./stock-adjust-dialog";
 import { StockBadge } from "./stock-badge";
 
@@ -51,7 +50,7 @@ export function ProductViewScreen() {
   const t = useTranslations();
   const f = useFormat();
   const router = useRouter();
-  const run = useCommands();
+  const run = useCommand();
   const { role } = useProfile();
   const locale = usePreferences((s) => s.locale);
   const id = useSearchParams().get("id") ?? "";
@@ -59,31 +58,20 @@ export function ProductViewScreen() {
   const [adjusting, setAdjusting] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const product = useLiveQuery(
-    async () => (await getLocalDb().products.get(id)) ?? null,
-    [id],
-  );
-  const category = useLiveQuery(async () => {
-    const categoryId = (await getLocalDb().products.get(id))?.categoryId;
-    return categoryId
-      ? await getLocalDb().categories.get(categoryId)
-      : undefined;
-  }, [id]);
-  const movements = useLiveQuery(
-    () =>
-      getLocalDb()
-        .stockMovements.where("[productId+createdAt]")
-        .between([id, Dexie.minKey], [id, Dexie.maxKey])
-        .reverse()
-        .limit(100)
-        .toArray(),
-    [id],
-    [],
-  );
+  const loaded = useRecord("products", id);
+  const product = loaded.record as Product | undefined;
+  const categories = useCategories();
+  const category = product?.categoryId
+    ? categories?.find((c) => c.id === product.categoryId)
+    : undefined;
+  const movements = (loaded.extra.stockMovements ??
+    []) as unknown as StockMovement[];
 
-  if (product === undefined)
+  if (loaded.status === "loading")
     return <Skeleton className="mx-auto h-64 w-full max-w-2xl" />;
-  if (product === null || product.deletedAt) {
+  if (loaded.status === "error")
+    return <ListError onRetry={() => router.refresh()} />;
+  if (!product || loaded.status === "missing" || product.deletedAt) {
     return (
       <p className="py-10 text-center text-sm text-muted-foreground">
         {t("products.notFound")}
@@ -99,7 +87,7 @@ export function ProductViewScreen() {
 
   async function remove() {
     try {
-      await run("product.delete", { id });
+      await run("product.delete", { id }, { baseVersion: product?.version });
       router.replace("/products");
     } catch {
       toast.error(t("common.somethingWrong"));
@@ -174,7 +162,8 @@ export function ProductViewScreen() {
             <Row label={t("products.sellingPrice")}>
               {f.money(product.sellingPrice)}
             </Row>
-            {can(role, "purchasePrice.view") ? (
+            {can(role, "purchasePrice.view") &&
+            product.purchasePrice !== undefined ? (
               <Row label={t("products.purchasePrice")}>
                 {f.money(product.purchasePrice)}
               </Row>

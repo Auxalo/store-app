@@ -1,6 +1,5 @@
 "use client";
 
-import { useLiveQuery } from "dexie-react-hooks";
 import { Undo2 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -9,10 +8,12 @@ import { useState } from "react";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
 import { ReturnDialog } from "@/components/returns/return-dialog";
+import { ListError } from "@/components/shared/load-more";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getLocalDb } from "@/db/local/db";
+import { useRecord } from "@/data/hooks";
+import type { Purchase, PurchaseItem, ReturnDoc } from "@/db/local/types";
 import { useFormat } from "@/i18n/use-format";
 import { usePreferences } from "@/stores/preferences";
 
@@ -39,16 +40,8 @@ export function PurchaseViewScreen() {
   const id = useSearchParams().get("id") ?? "";
   const [returning, setReturning] = useState(false);
 
-  const data = useLiveQuery(async () => {
-    const db = getLocalDb();
-    const purchase = await db.purchases.get(id);
-    if (!purchase) return null;
-    const items = (
-      await db.purchaseItems.where("purchaseId").equals(id).toArray()
-    ).sort((a, b) => Number(a.id.split(":i")[1]) - Number(b.id.split(":i")[1]));
-    const returns = await db.returns.where("refId").equals(id).toArray();
-    return { purchase, items, returns };
-  }, [id]);
+  const allowed = can(role, "purchase.manage");
+  const loaded = useRecord("purchases", allowed ? id : null);
 
   if (!can(role, "purchase.manage"))
     return (
@@ -56,15 +49,20 @@ export function PurchaseViewScreen() {
         {t("products.noAccess")}
       </p>
     );
-  if (data === undefined)
+  if (loaded.status === "loading")
     return <Skeleton className="mx-auto h-72 w-full max-w-2xl" />;
-  if (data === null)
+  if (loaded.status === "error")
+    return <ListError onRetry={() => window.location.reload()} />;
+  if (!loaded.record || loaded.status === "missing")
     return (
       <p className="py-10 text-center text-sm text-muted-foreground">
         {t("purchases.notFound")}
       </p>
     );
-  const { purchase: p, items, returns } = data;
+  const p = loaded.record as Purchase;
+  const items = ((loaded.record as unknown as { items?: PurchaseItem[] })
+    .items ?? []) as PurchaseItem[];
+  const returns = (loaded.extra.returns ?? []) as unknown as ReturnDoc[];
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">

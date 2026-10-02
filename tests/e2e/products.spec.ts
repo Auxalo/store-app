@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { indicator, signIn, signUp } from "./helpers";
+import { deviceOptions, E2E_MODE } from "./mode";
 
 test.afterEach(async ({ page }) => {
   await page.goto("about:blank").catch(() => undefined);
@@ -27,6 +28,10 @@ test("products: create offline, search in Bangla, adjust stock, sync to a second
   context,
   browser,
 }, testInfo) => {
+  test.skip(
+    E2E_MODE === "online",
+    "this is about the offline queue, which online mode does not use",
+  );
   const username = `prod${Date.now()}${testInfo.project.name}`;
   await signUp(page, username);
   await page.goto("/products");
@@ -79,10 +84,9 @@ test("products: create offline, search in Bangla, adjust stock, sync to a second
   await expect(indicator(page, "synced")).toBeVisible({ timeout: 30_000 });
 
   // A second device receives the product with stock 8 and can search it in Bangla.
-  const second = await browser.newContext({
-    locale: "bn-BD",
-    baseURL: testInfo.project.use.baseURL,
-  });
+  const second = await browser.newContext(
+    deviceOptions(testInfo.project.use.baseURL),
+  );
   const pageB = await second.newPage();
   await signIn(pageB, username);
   await pageB.goto("/inventory");
