@@ -5,7 +5,7 @@ import { StoreDB } from "@/db/local/db";
 import { getDeviceId, setMeta } from "@/db/local/meta";
 import type { Product } from "@/db/local/types";
 import { getDb } from "@/db/server/mongo";
-import { AUDIT_SETTING } from "@/lib/constants";
+import { AUDIT_SETTING, SETUP_SETTING } from "@/lib/constants";
 import { newId } from "@/lib/ids";
 import { startOfStoreDay } from "@/lib/time";
 import { dayKey } from "@/reports/compute";
@@ -233,6 +233,31 @@ async function main() {
       address: c.address,
     });
   }
+
+  // What they already owed when the shop started using the app (previous khata balances).
+  const previousDue = [125_000, 0, 60_000, 0, 240_000, 0, 0, 35_000];
+  for (const [i, amount] of previousDue.entries()) {
+    if (amount === 0) continue;
+    await run(owner, t0 + 40_000 + i * 1000, "party.openingBalance", {
+      id: newId(),
+      partyType: "customer",
+      partyId: customerIds[i],
+      amount,
+      note: "আগের হিসাব",
+    });
+  }
+  await run(owner, t0 + 50_000, "party.openingBalance", {
+    id: newId(),
+    partyType: "supplier",
+    partyId: supplierIds[0],
+    amount: 850_000,
+    note: "আগের হিসাব",
+  });
+  // The demo shop is already set up.
+  await run(owner, t0 + 51_000, "setting.set", {
+    key: SETUP_SETTING,
+    value: new RealDate(t0).toISOString(),
+  });
 
   interface Item {
     id: string;

@@ -1,9 +1,10 @@
 "use client";
 
 import { Store } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { type ReactNode, useEffect } from "react";
+import { can } from "@/auth/permissions";
 import { useAuth } from "@/auth/use-auth";
 import { LanguageSwitch } from "@/components/layout/language-switch";
 import { FullScreenLoader } from "@/components/shared/full-screen-loader";
@@ -13,12 +14,20 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
   const t = useTranslations("app");
   const auth = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   const role = auth.status === "authenticated" ? auth.profile.role : undefined;
 
+  // Someone who has just created a shop starts in the first-time setup; everyone else goes home.
+  // (The sign-up page sends them to the same place, so the two never pull in different directions.)
+  const target =
+    pathname === "/signup" && can(role, "settings.manage")
+      ? "/settings/setup"
+      : homeFor(role);
+
   useEffect(() => {
-    if (auth.status === "authenticated") router.replace(homeFor(role));
-  }, [auth.status, role, router]);
+    if (auth.status === "authenticated") router.replace(target);
+  }, [auth.status, target, router]);
 
   if (auth.status === "authenticated") return <FullScreenLoader />;
 

@@ -1,6 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 
-export async function signUp(
+/** Creates a shop and lands on the first-time setup (the owner's next step). */
+export async function signUpToSetup(
   page: Page,
   username: string,
   storeName = "রহিম স্টোর",
@@ -11,6 +12,17 @@ export async function signUp(
   await page.getByLabel("মোবাইল নম্বর বা ইউজারনেম").fill(username);
   await page.getByLabel("পাসওয়ার্ড").fill("password123");
   await page.getByRole("button", { name: "দোকান তৈরি করুন" }).click();
+  await expect(page).toHaveURL(/\/settings\/setup$/);
+}
+
+/** Creates a shop, skips the first-time setup, and lands on the dashboard. */
+export async function signUp(
+  page: Page,
+  username: string,
+  storeName = "রহিম স্টোর",
+) {
+  await signUpToSetup(page, username, storeName);
+  await page.getByTestId("setup-skip").click();
   await expect(page).toHaveURL(/\/dashboard$/);
 }
 

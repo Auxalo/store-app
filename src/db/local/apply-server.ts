@@ -42,6 +42,15 @@ function overlay(doc: Doc, op: OutboxOp): Doc {
       return { ...doc, deletedAt: op.createdAt, ...bump };
     case "expense.void":
       return { ...doc, status: "voided", voidReason: payload.reason, ...bump };
+    case "party.openingBalance":
+      // Like a payment, but in the other direction: only the party's balance changes here.
+      return payload.partyId === doc.id
+        ? {
+            ...doc,
+            balance: (doc.balance as number) + (payload.amount as number),
+            ...bump,
+          }
+        : doc;
     case "payment.collect":
     case "payment.pay":
       // Only the party's balance changes; the payment record itself is created by the operation.

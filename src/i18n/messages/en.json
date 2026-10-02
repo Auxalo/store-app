@@ -430,7 +430,8 @@
     "count": "{count, plural, one {{n} customer} other {{n} customers}}",
     "totalDue": "Total due: {value}",
     "quickAdd": "New customer",
-    "none": "None"
+    "none": "None",
+    "opening": "Previous due (they owe you), ৳ (optional)"
   },
   "suppliers": {
     "add": "Add supplier",
@@ -449,7 +450,8 @@
     "count": "{count, plural, one {{n} supplier} other {{n} suppliers}}",
     "totalOwed": "We owe: {value}",
     "owed": "We owe",
-    "advance": "Advance paid"
+    "advance": "Advance paid",
+    "opening": "Previous payable (you owe them), ৳ (optional)"
   },
   "party": {
     "statement": "Statement",
@@ -469,7 +471,8 @@
       "payment": "Payment",
       "sale_return": "Sale return",
       "purchase": "Purchase",
-      "purchase_return": "Purchase return"
+      "purchase_return": "Purchase return",
+      "opening": "Previous balance"
     },
     "balanceAfter": "Balance: {value}"
   },
@@ -670,7 +673,8 @@
       "profit_view": "See profit",
       "report_view": "See reports and the audit log",
       "user_manage": "Manage staff",
-      "settings_manage": "Change settings and devices"
+      "settings_manage": "Change settings and devices",
+      "opening_manage": "Enter previous balances"
     },
     "ownerNeedsPin": "Other people have PINs but you do not. Set your own PIN (top-right menu) or you will need your password to unlock."
   },
@@ -805,5 +809,71 @@
   "developer": {
     "label": "Developer",
     "whatsapp": "WhatsApp"
+  },
+  "setup": {
+    "title": "Set up your shop",
+    "subtitle": "Bring in what you already have. You can skip any step and come back later from Settings.",
+    "skip": "Skip for now",
+    "noAccess": "Only the owner can set up the shop.",
+    "steps": {
+      "store": "Shop",
+      "products": "Products",
+      "customers": "Customers",
+      "suppliers": "Suppliers",
+      "done": "Finish"
+    },
+    "storeIntro": "Your shop's name, address and phone are printed on receipts.",
+    "store": {
+      "name": "Shop name",
+      "address": "Address",
+      "phone": "Phone"
+    },
+    "storeSaved": "Shop details saved",
+    "saveContinue": "Save and continue",
+    "productsIntro": "Add the products you sell, with the stock you have now. Name, purchase price and selling price are needed; everything else is optional. Categories are created for you.",
+    "customersIntro": "Add customers who owe you money, and how much. Leave the amount empty if they owe nothing.",
+    "suppliersIntro": "Add suppliers you owe money to, and how much. Leave the amount empty if you owe nothing.",
+    "balanceCustomer": "Previous due (৳)",
+    "balanceSupplier": "Previous payable (৳)",
+    "balanceHint": "Use a minus sign (-) for money paid in advance.",
+    "openingNote": "Previous balance",
+    "addRow": "Add a row",
+    "paste": "Paste from Excel or Sheets",
+    "pasteTitle": "Paste rows",
+    "pasteHelp": "Copy the cells in Excel or Google Sheets, then paste them here. Columns, in this order: {columns}.",
+    "pasteAdd": "Add rows",
+    "copyTemplate": "Copy column titles",
+    "templateCopied": "Copied. Paste into the first row of your sheet.",
+    "clear": "Clear all",
+    "emptyTable": "No rows yet. Add a row, or paste from a spreadsheet.",
+    "tooMany": "Only the first {n} rows were added.",
+    "rowCount": "{count, plural, one {{n} row} other {{n} rows}}",
+    "problemCount": "{count, plural, one {{n} row needs fixing} other {{n} rows need fixing}}",
+    "save": "Save {count, plural, one {{n} row} other {{n} rows}}",
+    "saving": "Saving {done} of {total}…",
+    "saved": "{count, plural, one {{n} added} other {{n} added}}",
+    "saveFailed": "Something went wrong after {n} were saved. The rest are still in the list.",
+    "issue": {
+      "required": "is needed",
+      "invalidNumber": "is not a valid number",
+      "positive": "must be more than 0",
+      "unknownUnit": "is not a known unit",
+      "tooManyDecimals": "has too many decimals for this unit",
+      "invalidPhone": "is not a valid phone number",
+      "duplicate": "appears twice in your list",
+      "exists": "is already in your shop"
+    },
+    "back": "Back",
+    "next": "Next",
+    "nextWithout": "Skip this step",
+    "doneTitle": "You are ready to sell",
+    "doneBody": "Added: {products} products, {customers} customers, {suppliers} suppliers.",
+    "openPos": "Open the sales counter",
+    "goDashboard": "Go to the dashboard",
+    "banner": "Finish setting up your shop",
+    "bannerBody": "Add your products, and the customers and suppliers you already deal with.",
+    "bannerAction": "Continue setup",
+    "settingsLink": "Import existing data",
+    "settingsLinkHint": "Add products, customers with dues and suppliers you already have."
   }
 }

@@ -22,7 +22,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getLocalDb } from "@/db/local/db";
 import { stockStatus } from "@/db/local/queries/products";
+import { useSetting } from "@/hooks/use-setting";
 import { useFormat } from "@/i18n/use-format";
+import { SETUP_SETTING } from "@/lib/constants";
 import { loadDues, loadStock } from "@/reports/local";
 import { presetRange, useSummary } from "@/reports/use-summary";
 import { usePreferences } from "@/stores/preferences";
@@ -38,6 +40,10 @@ export function DashboardScreen() {
   const [days, setDays] = useState<"days7" | "days30">("days7");
 
   const showProfit = can(role, "profit.view");
+  const ts = useTranslations("setup");
+  // Owners are reminded to set up until they finish or skip it (the setting is empty until then).
+  const setupDone = useSetting<string>(SETUP_SETTING, "").value;
+  const showSetup = can(role, "settings.manage") && !setupDone;
   const today = useSummary(presetRange("today", timeZone)).summary;
   const trend = useSummary(presetRange(days, timeZone)).summary;
   const dues = useLiveQuery(() => loadDues(getLocalDb()), []);
@@ -93,6 +99,24 @@ export function DashboardScreen() {
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+      {showSetup ? (
+        <Card
+          className="border-primary/40 bg-primary/5"
+          data-testid="setup-banner"
+        >
+          <CardContent className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-medium">{ts("banner")}</p>
+              <p className="text-sm text-muted-foreground">
+                {ts("bannerBody")}
+              </p>
+            </div>
+            <Button asChild size="sm">
+              <Link href="/settings/setup">{ts("bannerAction")}</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
       <Button asChild size="lg" className="h-12 text-base">
         <Link href="/pos" data-testid="open-pos">
           {t("openPos")}

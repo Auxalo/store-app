@@ -6,6 +6,7 @@ import { AlreadyExistsError, NotFoundError } from "../errors";
 import {
   expenseCreate,
   expenseVoid,
+  openingBalanceCreate,
   paymentCreate,
   purchaseCreate,
   purchaseReturnCreate,
@@ -182,6 +183,8 @@ export const localCommands: { [T in CommandType]: LocalHandler<T> } = {
   "supplier.delete": (db, _ctx, input, now) => supplierDelete(db, input, now),
   "purchase.create": (db, ctx, input, now) =>
     purchaseCreate(db, ctx, input, now),
+  "party.openingBalance": (db, ctx, input, now) =>
+    openingBalanceCreate(db, ctx, input, now),
   "payment.collect": (db, ctx, input, now) =>
     paymentCreate(db, ctx, "customer", input, now),
   "payment.pay": (db, ctx, input, now) =>

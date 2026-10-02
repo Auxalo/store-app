@@ -76,7 +76,7 @@ type PartyKind = "customer" | "supplier";
  * matching ledger entry. Positive `delta` increases what is owed. Returns the party, or null if it
  * no longer exists on this device (then nothing is written).
  */
-async function adjustParty(
+export async function adjustParty(
   db: StoreDB,
   ctx: LocalContext,
   kind: PartyKind,
@@ -271,6 +271,29 @@ export async function paymentCreate(
     deviceId: ctx.deviceId,
     version: 1,
   });
+  return input;
+}
+
+/** Records the balance a customer or supplier already had when the shop started using the app. */
+export async function openingBalanceCreate(
+  db: StoreDB,
+  ctx: LocalContext,
+  input: CommandInput<"party.openingBalance">,
+  now: string,
+) {
+  const ledgerId = `${input.id}:l`;
+  if (await db.ledgerEntries.get(ledgerId))
+    throw new AlreadyExistsError("opening balance");
+  const party = await adjustParty(
+    db,
+    ctx,
+    input.partyType,
+    input.partyId,
+    input.amount,
+    { type: "opening", id: input.id, ledgerId, note: input.note },
+    now,
+  );
+  if (!party) throw new NotFoundError(input.partyType);
   return input;
 }
 

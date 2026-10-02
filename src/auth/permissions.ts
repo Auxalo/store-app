@@ -11,6 +11,7 @@ export const PERMISSIONS = [
   "sale.priceOverride",
   "sale.void",
   "product.create",
+  "opening.manage",
   "product.edit",
   "purchasePrice.view",
   "stock.adjust",

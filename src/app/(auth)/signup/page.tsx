@@ -62,7 +62,7 @@ export default function SignupPage() {
       return;
     }
     useActiveUser.getState().openAsAccount();
-    router.replace("/");
+    router.replace("/settings/setup");
   });
 
   return (

@@ -327,6 +327,42 @@ export async function paymentCreate(
   return { status: "applied", docs: [wire("payments", payment), ...partyDocs] };
 }
 
+/** A balance that existed before the shop started using the app: a ledger entry and a balance change. */
+export async function openingBalanceCreate(
+  ctx: ServerCtx,
+  p: CommandPayload<"party.openingBalance">,
+): Promise<ApplyResult> {
+  const ledgerId = `${p.id}:l`;
+  const party = await liveParty(ctx, p.partyType, p.partyId);
+  const existing = await ctx.db
+    .collection<Doc & { storeId: string }>("ledgerEntries")
+    .findOne({ _id: ledgerId }, { session: ctx.session });
+  if (existing) {
+    // Already applied (a retry that lost its answer): answer with what is there, change nothing.
+    if (existing.storeId !== ctx.storeId)
+      return { status: "rejected", error: "ID_COLLISION" };
+    return {
+      status: "applied",
+      docs: [
+        ...(party ? [wire(PARTY_COLLECTION[p.partyType], party)] : []),
+        wire("ledgerEntries", existing),
+      ],
+    };
+  }
+  if (!party) return { status: "rejected", error: "NOT_FOUND" };
+
+  const seq = await allocSeq(ctx.db, ctx.session, ctx.storeId, 2);
+  const docs = await adjustParty(
+    ctx,
+    p.partyType,
+    party,
+    p.amount,
+    { type: "opening", id: p.id, ledgerId, note: p.note },
+    seq,
+  );
+  return { status: "applied", docs };
+}
+
 export async function expenseCreate(
   ctx: ServerCtx,
   p: CommandPayload<"expense.create">,

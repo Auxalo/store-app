@@ -25,7 +25,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getLocalDb } from "@/db/local/db";
@@ -36,6 +41,7 @@ import {
 } from "@/db/local/queries/customers";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
+import { parseMoney } from "@/lib/money";
 import { isValidPhone, normalizePhone } from "@/lib/phone";
 import { useSyncStore } from "@/sync/store";
 import { useCommands } from "@/sync/use-commands";
@@ -45,16 +51,22 @@ const text = (max: number) => z.string().trim().max(max);
 const phone = text(30)
   .refine(isValidPhone, { error: "invalidPhone" })
   .transform(normalizePhone);
+/** Optional previous balance (signed taka) typed when adding someone new. */
+const openingBalance = text(30)
+  .refine((v) => v === "" || parseMoney(v) !== null, { error: "invalidNumber" })
+  .optional();
 const schemas = {
   customer: z.object({
     name: text(120).min(1, { error: "required" }),
     phone,
     address: text(200),
     notes: text(500),
+    openingBalance,
   }),
   supplier: z.object({
     name: text(120).min(1, { error: "required" }),
     phone,
+    openingBalance,
     email: text(120),
     contactPerson: text(120),
     address: text(200),
@@ -109,15 +121,23 @@ export function PartiesScreen({ kind }: { kind: PartyKind }) {
   async function save(values: FormValues) {
     try {
       if (editing === "new" || editing === null) {
-        await run(
-          `${kind}.create` as never,
-          { id: newId(), ...values } as never,
-        );
+        const { openingBalance: opening, ...fields } = values;
+        const id = newId();
+        await run(`${kind}.create` as never, { id, ...fields } as never);
+        const amount = opening ? (parseMoney(opening) ?? 0) : 0;
+        if (amount !== 0)
+          await run("party.openingBalance", {
+            id: newId(),
+            partyType: kind,
+            partyId: id,
+            amount,
+            note: t("setup.openingNote"),
+          });
       } else {
         const current = editing as unknown as Record<string, string>;
         const changes = Object.fromEntries(
           Object.keys(values)
-            .filter((k) => values[k] !== current[k])
+            .filter((k) => k !== "openingBalance" && values[k] !== current[k])
             .map((k) => [k, values[k]]),
         );
         if (Object.keys(changes).length > 0)
@@ -296,8 +316,11 @@ function PartyForm({
   onCancel: () => void;
 }) {
   const t = useTranslations();
+  const { role } = useProfile();
   const ns = kind === "customer" ? "customers" : "suppliers";
   const fields = FIELDS[kind];
+  // Owners and managers can record what a new person already owed (or was owed) before the app.
+  const asksOpening = !party && can(role, "opening.manage");
   const current = (party ?? {}) as unknown as Record<string, string>;
   const {
     register,
@@ -332,6 +355,21 @@ function PartyForm({
             <ValidationError error={errors[name] as never} />
           </Field>
         ))}
+        {asksOpening ? (
+          <Field data-invalid={!!errors.openingBalance}>
+            <FieldLabel htmlFor="p-openingBalance">
+              {t(`${ns}.opening` as never)}
+            </FieldLabel>
+            <Input
+              id="p-openingBalance"
+              inputMode="decimal"
+              aria-invalid={!!errors.openingBalance}
+              {...register("openingBalance")}
+            />
+            <ValidationError error={errors.openingBalance as never} />
+            <FieldDescription>{t("setup.balanceHint")}</FieldDescription>
+          </Field>
+        ) : null}
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button type="button" variant="outline" onClick={onCancel}>
             {t("common.cancel")}

@@ -5,3 +5,6 @@ export const DEFAULT_CURRENCY = "BDT";
 export const AUDIT_SETTING = "audit.enabled";
 /** Audit rows are deleted automatically this long after they were written (TTL index). */
 export const AUDIT_RETENTION_SECONDS = 7 * 24 * 60 * 60;
+
+/** Store setting holding when first-time setup was finished or skipped (empty until then). */
+export const SETUP_SETTING = "setup.completedAt";

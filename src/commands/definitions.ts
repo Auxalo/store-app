@@ -22,6 +22,7 @@ import {
   expenseVoidInput,
   expenseVoidPayload,
 } from "@/schemas/expense";
+import { openingBalanceInput, openingBalancePayload } from "@/schemas/opening";
 import { paymentInput, paymentPayload } from "@/schemas/payment";
 import {
   productCreateInput,
@@ -246,6 +247,14 @@ export const COMMANDS = {
     permission: "purchase.manage",
     input: paymentInput,
     payload: paymentPayload,
+    entityIds: (p: { id: string; partyId: string }) => [p.id, p.partyId],
+  },
+  // A balance a customer or supplier already had before using the app (owner and manager only).
+  "party.openingBalance": {
+    collection: "ledgerEntries",
+    permission: "opening.manage",
+    input: openingBalanceInput,
+    payload: openingBalancePayload,
     entityIds: (p: { id: string; partyId: string }) => [p.id, p.partyId],
   },
   "expense.create": {

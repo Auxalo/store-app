@@ -20,6 +20,9 @@ test("app shell works offline after first load", async ({
   await page.getByLabel("মোবাইল নম্বর বা ইউজারনেম").fill(username);
   await page.getByLabel("পাসওয়ার্ড").fill("password123");
   await page.getByRole("button", { name: "দোকান তৈরি করুন" }).click();
+  // A new owner starts in the first-time setup; skip it to reach the dashboard.
+  await expect(page).toHaveURL(/\/settings\/setup$/);
+  await page.getByTestId("setup-skip").click();
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(
     page.getByRole("heading", { name: "ড্যাশবোর্ড", level: 1 }),

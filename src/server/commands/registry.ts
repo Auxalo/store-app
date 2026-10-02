@@ -11,6 +11,7 @@ import { productConfig, productCreate, stockAdjust } from "./products";
 import {
   expenseCreate,
   expenseVoid,
+  openingBalanceCreate,
   paymentCreate,
   purchaseCreate,
   purchaseReturnCreate,
@@ -93,6 +94,7 @@ export const serverCommands: { [T in CommandType]: ServerHandler<T> } = {
     masterUpdate(ctx, suppliers, id, baseVersion, changes),
   "supplier.delete": (ctx, { id }) => masterDelete(ctx, suppliers, id),
   "purchase.create": (ctx, payload) => purchaseCreate(ctx, payload),
+  "party.openingBalance": (ctx, payload) => openingBalanceCreate(ctx, payload),
   "payment.collect": (ctx, payload) => paymentCreate(ctx, "customer", payload),
   "payment.pay": (ctx, payload) => paymentCreate(ctx, "supplier", payload),
   "expense.create": (ctx, payload) => expenseCreate(ctx, payload),

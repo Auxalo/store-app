@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Download,
   KeyRound,
+  PackagePlus,
   ScrollText,
   Smartphone,
 } from "lucide-react";
@@ -293,6 +294,12 @@ export function SettingsScreen() {
             icon: Smartphone,
             title: t("settings.devices"),
             hint: t("settings.devicesHint"),
+          },
+          {
+            href: "/settings/setup",
+            icon: PackagePlus,
+            title: t("setup.settingsLink"),
+            hint: t("setup.settingsLinkHint"),
           },
           {
             href: "/settings/audit",
