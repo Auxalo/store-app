@@ -352,3 +352,44 @@ export function referenceList<R extends Resource>(
     .filter((doc) => matches(resource, doc, params, timeZone))
     .sort((a, b) => compare(resource, a, b, params));
 }
+
+/**
+ * The numbers a list's header shows, over EVERYTHING that matches (not just the page on screen).
+ * `docs` are the records that already passed `matches`. Sales and expenses count only the ones that
+ * stand (a cancelled sale is listed, but not in what was sold).
+ */
+export function referenceTotals(
+  resource: Resource,
+  docs: Doc[],
+): Record<string, number> {
+  const sum = (field: string, only?: (d: Doc) => boolean) =>
+    docs.reduce((s, d) => s + (!only || only(d) ? num(d[field]) : 0), 0);
+  const standing = (d: Doc) => d.status === "active";
+  const out: Record<string, number> = { count: docs.length };
+  switch (resource) {
+    case "sales":
+      out.sold = sum("total", standing);
+      out.due = sum("due", standing);
+      out.paid = sum("paid", standing);
+      break;
+    case "purchases":
+      out.total = sum("total");
+      out.due = sum("due");
+      break;
+    case "customers":
+    case "suppliers":
+      out.owed = docs.reduce((s, d) => s + Math.max(0, num(d.balance)), 0);
+      out.advance = docs.reduce((s, d) => s + Math.max(0, -num(d.balance)), 0);
+      break;
+    case "expenses":
+      out.amount = sum("amount", standing);
+      break;
+    case "payments":
+      out.amount = sum("amount");
+      break;
+    case "returns":
+      out.total = sum("total");
+      break;
+  }
+  return out;
+}
