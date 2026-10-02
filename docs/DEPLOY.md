@@ -83,8 +83,8 @@ npx playwright test        # browser tests: offline, sync, POS, staff, reports, 
 
 Every device chooses for itself with the **Work offline** switch (Sync screen and sidebar; owner and managers can change it).
 
-- **Online (the default for a new device)** is best for a shop with steady internet and a large catalogue: nothing to download, search and totals come from the database, and every screen is always current. It needs internet to save. With no connection the app says saving is paused and keeps the cart.
-- **Offline** is for a shop whose internet drops: the device downloads the whole shop once (with a progress bar; it needs internet that first time and some free space, roughly 2 KB per change in the shop's history) and then works with no internet at all, sending changes when the connection returns. Install the app to the home screen on phones, especially iPhone, so the browser does not clear the data.
+- **Online** is best for a shop with steady internet and a large catalogue: nothing to download, search and totals come from the database, and every screen is always current. It needs internet to save. With no connection the app says saving is paused and keeps the cart.
+- **Offline (the default for a new device)** is for a shop whose internet drops: the device downloads the whole shop once (with a progress bar; it needs internet that first time and some free space, roughly 2 KB per change in the shop's history) and then works with no internet at all, sending changes when the connection returns. Install the app to the home screen on phones, especially iPhone, so the browser does not clear the data.
 - In a shop where staff use PINs, online mode asks the server to check the PIN. **Set a PIN for the owner too**, or the owner cannot act online once PINs exist.
 - Updating the app is safe for existing devices: a device that already downloaded the shop (or has changes waiting) stays offline.
 
@@ -102,3 +102,7 @@ Every device chooses for itself with the **Work offline** switch (Sync screen an
 | Report for 30 days (about 66,000 sales) | about 1.3 s |
 
 The long reports are worked out from every sale in the range, so they grow with how many sales there are: a shop that makes 300 sales a day sees a 30-day report in roughly 0.2 s. The server keeps each report until something changes in the shop, so opening it again costs one tiny read. In offline mode reports are computed on the device and need no server.
+
+## 13. Opening and closing shop creation
+
+For now new shops cannot sign themselves up. The create-shop page is there, but pressing "Create shop" shows who to contact (the developer's name, website and WhatsApp, from `src/config/developer.ts`), and the server refuses `POST /api/stores` with 403 `SIGNUP_CLOSED`. To open it again, set `NEXT_PUBLIC_SIGNUP_ENABLED=1` **at build time** (pages are built ahead, so the page must be rebuilt) and redeploy. The test server and `pnpm db:seed` are not affected by the closed state (the tests build with it open; the seed does not use the endpoint).

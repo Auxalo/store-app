@@ -6,9 +6,10 @@ import {
   signUp,
   tapProduct,
 } from "./helpers";
+import { startingIn } from "./mode";
 
-// These tests start from the app's own default for a brand-new device (online), not the suite's.
-test.use({ storageState: { cookies: [], origins: [] } });
+// These start in online mode (the Work offline switch is what they are about).
+test.use({ storageState: startingIn("online") });
 
 test.afterEach(async ({ page }) => {
   await page.goto("about:blank").catch(() => undefined);
@@ -25,7 +26,7 @@ async function openSync(page: Page) {
   await expect(page.getByTestId("mode-card")).toBeVisible();
 }
 
-test("a new device starts online; Work offline downloads the shop, then works with no internet; turning it off goes back", async ({
+test("an online device: Work offline downloads the shop, then works with no internet; turning it off goes back", async ({
   page,
   context,
 }, testInfo) => {
@@ -156,4 +157,19 @@ test("online with no internet: saving is paused, the cart is kept, and the same 
 
   await page.goto("/sales");
   await expect(page.getByTestId("sale-row")).toHaveCount(1);
+});
+
+test.describe("a brand-new device", () => {
+  // Nothing remembered: the app's own default.
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test("starts offline, with the shop downloaded to the device", async ({
+    page,
+  }, testInfo) => {
+    await signUp(page, `new${Date.now()}${testInfo.project.name}`);
+    expect(await storedMode(page)).toBe("offline");
+    await openSync(page);
+    await expect(modeSwitch(page)).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByTestId("readiness")).toBeVisible();
+  });
 });

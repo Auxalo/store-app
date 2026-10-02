@@ -93,7 +93,10 @@
     "creating": "Creating…",
     "haveAccount": "Already have an account?",
     "usernameTaken": "This username is already taken.",
-    "welcome": "Welcome, {name}"
+    "welcome": "Welcome, {name}",
+    "signupClosedTitle": "Shop creation is not open yet",
+    "signupClosedBody": "For now, new shops are set up by the developer. Please contact {name} to create your shop.",
+    "signupClosedClose": "Close"
   },
   "validation": {
     "required": "This field is required",

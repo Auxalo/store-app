@@ -93,7 +93,10 @@
     "creating": "তৈরি হচ্ছে…",
     "haveAccount": "আগেই অ্যাকাউন্ট আছে?",
     "usernameTaken": "এই ইউজারনেম আগেই নেওয়া হয়েছে।",
-    "welcome": "স্বাগতম, {name}"
+    "welcome": "স্বাগতম, {name}",
+    "signupClosedTitle": "দোকান খোলা এখনো সবার জন্য নয়",
+    "signupClosedBody": "এখন নতুন দোকান ডেভেলপার নিজে চালু করে দেন। দোকান খুলতে অনুগ্রহ করে {name}-এর সাথে যোগাযোগ করুন।",
+    "signupClosedClose": "বন্ধ করুন"
   },
   "validation": {
     "required": "এই ঘরটি পূরণ করতে হবে",

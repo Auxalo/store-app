@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
+import { Globe, Loader2, MessageCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -9,15 +9,20 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { authClient } from "@/auth/client";
 import { ValidationError } from "@/components/shared/field-text";
+import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { DEVELOPER } from "@/config/developer";
+import { SIGNUP_OPEN } from "@/config/signup";
 import { type OwnerSignupInput, ownerSignupSchema } from "@/schemas/auth";
 import { useActiveUser } from "@/stores/active-user";
 
 export default function SignupPage() {
   const t = useTranslations("auth");
+  const td = useTranslations("developer");
   const router = useRouter();
+  const [closedOpen, setClosedOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const {
     register,
@@ -30,6 +35,11 @@ export default function SignupPage() {
 
   const onSubmit = handleSubmit(async (values) => {
     setFormError(null);
+    // Shop creation is closed for now: say who to contact instead.
+    if (!SIGNUP_OPEN) {
+      setClosedOpen(true);
+      return;
+    }
     if (!navigator.onLine) {
       setFormError(t("needInternetToSignIn"));
       return;
@@ -71,6 +81,43 @@ export default function SignupPage() {
         <h1 className="text-2xl font-semibold">{t("signUpTitle")}</h1>
         <p className="text-sm text-muted-foreground">{t("signUpSubtitle")}</p>
       </div>
+
+      <ResponsiveDialog
+        open={closedOpen}
+        onOpenChange={setClosedOpen}
+        title={t("signupClosedTitle")}
+        description={t("signupClosedBody", { name: DEVELOPER.name })}
+      >
+        <div
+          className="flex flex-col gap-3 text-sm"
+          data-testid="signup-closed"
+        >
+          <p className="font-medium">
+            {td("label")}: {DEVELOPER.name}
+          </p>
+          <a
+            href={DEVELOPER.siteUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-primary hover:underline"
+          >
+            <Globe className="size-4" aria-hidden />
+            {DEVELOPER.site}
+          </a>
+          <a
+            href={DEVELOPER.whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-primary hover:underline"
+          >
+            <MessageCircle className="size-4" aria-hidden />
+            {td("whatsapp")}: {DEVELOPER.whatsapp}
+          </a>
+          <Button variant="outline" onClick={() => setClosedOpen(false)}>
+            {t("signupClosedClose")}
+          </Button>
+        </div>
+      </ResponsiveDialog>
 
       <form onSubmit={onSubmit} noValidate>
         <FieldGroup>

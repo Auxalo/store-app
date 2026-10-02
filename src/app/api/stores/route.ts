@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { SIGNUP_OPEN } from "@/config/signup";
 import { ownerSignupSchema } from "@/schemas/auth";
 import { createStoreWithOwner, UsernameTakenError } from "@/server/onboarding";
 
@@ -6,6 +7,9 @@ export const dynamic = "force-dynamic";
 
 /** Public owner onboarding: creates a store and its owner account. */
 export async function POST(request: Request) {
+  // Shop creation is closed for now (see src/config/signup.ts).
+  if (!SIGNUP_OPEN)
+    return NextResponse.json({ code: "SIGNUP_CLOSED" }, { status: 403 });
   const body = await request.json().catch(() => null);
   const parsed = ownerSignupSchema.safeParse(body);
   if (!parsed.success) {

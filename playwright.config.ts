@@ -50,6 +50,8 @@ export default defineConfig({
           `mongodb://127.0.0.1:${dbPort}/?replicaSet=rs0`,
         MONGODB_DB: process.env.E2E_MONGODB_DB ?? "store_app_e2e",
         BETTER_AUTH_URL: baseURL,
+        // Shop creation is closed in the app for now; the tests create shops, so they open it.
+        NEXT_PUBLIC_SIGNUP_ENABLED: "1",
         // Tests sign in far more often than any person would; production keeps the limiter on.
         E2E_DISABLE_RATE_LIMIT: "1",
       },

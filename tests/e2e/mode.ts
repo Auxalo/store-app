@@ -28,3 +28,12 @@ export function deviceOptions(baseURL: string | undefined) {
   const url = baseURL ?? "http://localhost:3100";
   return { locale: "bn-BD", baseURL: url, storageState: modeStorageState(url) };
 }
+
+/** Storage state for a device that starts in this mode (for specs about switching between them). */
+export function startingIn(mode: "online" | "offline") {
+  const origin = `http://localhost:${process.env.E2E_PORT ?? 3100}`;
+  return {
+    cookies: [],
+    origins: [{ origin, localStorage: [{ name: "sa.dataMode", value: mode }] }],
+  };
+}

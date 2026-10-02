@@ -1,8 +1,9 @@
 import { expect, test } from "@playwright/test";
 import { createProduct, openCart, signUp, tapProduct } from "./helpers";
+import { startingIn } from "./mode";
 
-// A whole shop day in online mode, starting from the app's own default for a new device.
-test.use({ storageState: { cookies: [], origins: [] } });
+// A whole shop day in online mode.
+test.use({ storageState: startingIn("online") });
 
 test.afterEach(async ({ page }) => {
   await page.goto("about:blank").catch(() => undefined);
