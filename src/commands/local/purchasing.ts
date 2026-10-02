@@ -1,7 +1,7 @@
 import type { StoreDB } from "@/db/local/db";
 import { lineTotal } from "@/lib/qty";
 import { qtyByProduct } from "@/lib/sale-math";
-import { searchWords } from "@/lib/search";
+import { derivedSearchFields } from "@/lib/search-fields";
 import { purchaseTotals } from "@/schemas/purchase";
 import { returnTotal } from "@/schemas/return";
 import type { CommandInput, CommandPayload } from "../definitions";
@@ -9,11 +9,8 @@ import { AlreadyExistsError, NotFoundError } from "../errors";
 import type { LocalContext } from "./registry";
 import { nextDocNo } from "./sales";
 
-const supplierWords = (s: {
-  name: string;
-  phone: string;
-  contactPerson: string;
-}) => searchWords(s.name, s.phone, s.contactPerson);
+const supplierFields = (s: object) =>
+  derivedSearchFields("suppliers", s as Record<string, unknown>);
 
 export async function supplierCreate(
   db: StoreDB,
@@ -33,7 +30,7 @@ export async function supplierCreate(
     deviceId: ctx.deviceId,
     version: 1,
     deletedAt: null,
-    searchWords: supplierWords(input),
+    ...supplierFields(input),
   });
   return input;
 }
@@ -47,7 +44,7 @@ export async function supplierUpdate(
   if (!doc || doc.deletedAt) throw new NotFoundError("supplier");
   await db.suppliers.update(input.id, {
     ...input.changes,
-    searchWords: supplierWords({ ...doc, ...input.changes }),
+    ...supplierFields({ ...doc, ...input.changes }),
     version: doc.version + 1,
     updatedAt: now,
   });

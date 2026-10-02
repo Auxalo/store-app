@@ -1,4 +1,5 @@
 import type { CommandPayload } from "@/commands/definitions";
+import { derivedSearchFields } from "@/lib/search-fields";
 import { PRODUCT_CRITICAL_FIELDS } from "@/schemas/product";
 import type { WireChange } from "@/schemas/sync";
 import { writeAudit } from "../audit";
@@ -9,6 +10,7 @@ import type { ApplyResult, ServerCtx } from "./types";
 export const productConfig: MasterConfig = {
   collection: "products",
   criticalFields: PRODUCT_CRITICAL_FIELDS,
+  derive: (doc) => derivedSearchFields("products", doc),
 };
 
 export interface StoredMovement {
@@ -107,6 +109,7 @@ export async function productCreate(
     deletedAt: null,
     syncSeq: first,
   };
+  Object.assign(doc, derivedSearchFields("products", doc));
   await products.insertOne(doc, { session: ctx.session });
 
   const docs = [productChange(doc)];

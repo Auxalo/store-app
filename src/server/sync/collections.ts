@@ -26,6 +26,19 @@ export async function ensureSyncIndexes(db: Db): Promise<void> {
     db.collection("sales").createIndex({ storeId: 1, syncSeq: 1 }),
     db.collection("sales").createIndex({ storeId: 1, createdAt: -1 }),
     db.collection("sales").createIndex({ storeId: 1, customerId: 1 }),
+    // Searching and sorting lists on the server (see src/lib/search-fields.ts).
+    db.collection("sales").createIndex({ storeId: 1, searchWords: 1 }),
+    db.collection("sales").createIndex({ storeId: 1, invoiceNo: 1 }),
+    db
+      .collection("sales")
+      .createIndex({ storeId: 1, status: 1, createdAt: -1 }),
+    ...["products", "customers", "suppliers"].flatMap((name) => [
+      db.collection(name).createIndex({ storeId: 1, searchWords: 1 }),
+      db.collection(name).createIndex({ storeId: 1, nameKey: 1, _id: 1 }),
+    ]),
+    db.collection("products").createIndex({ storeId: 1, sku: 1 }),
+    db.collection("products").createIndex({ storeId: 1, barcode: 1 }),
+    db.collection("purchases").createIndex({ storeId: 1, searchWords: 1 }),
     db.collection("ledgerEntries").createIndex({ storeId: 1, syncSeq: 1 }),
     db
       .collection("ledgerEntries")

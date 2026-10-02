@@ -44,6 +44,8 @@ export interface Product extends SyncedBase {
   isActive: boolean;
   /** Normalized words for the search index. Computed on this device, never synced. */
   searchWords: string[];
+  /** Normalised name, so lists sort A-Z the same way on the device and the server. */
+  nameKey?: string;
 }
 
 /** One line of the stock ledger. Append-only: stock is the sum of movements, never overwritten. */
@@ -72,6 +74,8 @@ export interface Customer extends SyncedBase {
   balance: number;
   /** Normalized words for the search index. Computed on this device, never synced. */
   searchWords: string[];
+  /** Normalised name for A-Z sorting. */
+  nameKey?: string;
 }
 
 export interface Sale {
@@ -80,6 +84,10 @@ export interface Sale {
   invoiceNo: string;
   customerId: string | null;
   customerName: string;
+  /** The buyer's phone at the time of sale, so the sale can be found by it. */
+  customerPhone?: string;
+  /** Normalised search words (invoice number, buyer). Computed locally, never synced. */
+  searchWords?: string[];
   subtotal: number;
   discount: number;
   total: number;
@@ -147,6 +155,8 @@ export interface Supplier extends SyncedBase {
   /** Poisha we owe this supplier (negative: they owe us). */
   balance: number;
   searchWords: string[];
+  /** Normalised name for A-Z sorting. */
+  nameKey?: string;
 }
 
 export interface Purchase {
@@ -158,6 +168,8 @@ export interface Purchase {
   invoiceRef: string;
   supplierId: string | null;
   supplierName: string;
+  /** Normalised search words. Computed locally, never synced. */
+  searchWords?: string[];
   /** Day the goods arrived, yyyy-mm-dd. */
   date: string;
   subtotal: number;
@@ -346,4 +358,6 @@ export interface MetaValues {
   lastPruneAt: number;
   /** The last automatic SKU number this device issued (A0042 → 42). */
   skuSeq: number;
+  /** How this device gets its data: "online" (ask the server) or "offline" (a full copy on the device). */
+  dataMode: "online" | "offline";
 }

@@ -1,6 +1,6 @@
 import type { Role } from "@/auth/permissions";
 import type { StoreDB } from "@/db/local/db";
-import { searchWords } from "@/lib/search";
+import { derivedSearchFields } from "@/lib/search-fields";
 import type { CommandInput, CommandPayload, CommandType } from "../definitions";
 import { AlreadyExistsError, NotFoundError } from "../errors";
 import {
@@ -99,12 +99,7 @@ export const localCommands: { [T in CommandType]: LocalHandler<T> } = {
       deviceId: ctx.deviceId,
       version: 1,
       deletedAt: null,
-      searchWords: searchWords(
-        product.name,
-        product.nameBn,
-        product.sku,
-        product.barcode,
-      ),
+      ...derivedSearchFields("products", product),
     });
     if (openingStock !== 0) {
       await db.stockMovements.add({
@@ -128,7 +123,7 @@ export const localCommands: { [T in CommandType]: LocalHandler<T> } = {
     const next = { ...doc, ...input.changes };
     await db.products.update(input.id, {
       ...input.changes,
-      searchWords: searchWords(next.name, next.nameBn, next.sku, next.barcode),
+      ...derivedSearchFields("products", next),
       version: doc.version + 1,
       updatedAt: now,
     });

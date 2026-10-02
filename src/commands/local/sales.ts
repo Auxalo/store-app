@@ -7,7 +7,7 @@ import {
   qtyByProduct,
   saleRecordIds,
 } from "@/lib/sale-math";
-import { searchWords } from "@/lib/search";
+import { derivedSearchFields } from "@/lib/search-fields";
 import type { CommandInput, CommandPayload } from "../definitions";
 import { AlreadyExistsError, NotFoundError } from "../errors";
 import type { LocalContext } from "./registry";
@@ -53,8 +53,8 @@ export async function nextDocNo(
 export const nextInvoiceNo = (db: StoreDB, deviceId: string, now: string) =>
   nextDocNo(db, deviceId, now);
 
-const customerWords = (c: { name: string; phone: string }) =>
-  searchWords(c.name, c.phone);
+const customerFields = (c: object) =>
+  derivedSearchFields("customers", c as Record<string, unknown>);
 
 export async function customerCreate(
   db: StoreDB,
@@ -74,7 +74,7 @@ export async function customerCreate(
     deviceId: ctx.deviceId,
     version: 1,
     deletedAt: null,
-    searchWords: customerWords(input),
+    ...customerFields(input),
   });
   return input;
 }
@@ -89,7 +89,7 @@ export async function customerUpdate(
   const next = { ...doc, ...input.changes };
   await db.customers.update(input.id, {
     ...input.changes,
-    searchWords: customerWords(next),
+    ...customerFields(next),
     version: doc.version + 1,
     updatedAt: now,
   });
@@ -214,12 +214,23 @@ export async function saleCreate(
     }
   }
 
+  // The buyer's phone is kept on the sale, so the sale can be found by it later.
+  const buyer = input.customerId
+    ? await db.customers.get(input.customerId)
+    : undefined;
+  const customerPhone = buyer?.phone ?? "";
   await db.sales.add({
     id: input.id,
     storeId: ctx.storeId,
     invoiceNo,
     customerId: input.customerId,
     customerName: input.customerName,
+    customerPhone,
+    ...derivedSearchFields("sales", {
+      invoiceNo,
+      customerName: input.customerName,
+      customerPhone,
+    }),
     subtotal: totals.subtotal,
     discount: totals.discount,
     total: totals.total,
@@ -237,7 +248,7 @@ export async function saleCreate(
     deletedAt: null,
   });
 
-  return { ...input, invoiceNo };
+  return { ...input, invoiceNo, customerPhone };
 }
 
 /** Cancelling a sale never edits it: it adds reversing movements and ledger entries and flags the sale. */

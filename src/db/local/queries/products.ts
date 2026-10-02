@@ -1,22 +1,14 @@
 import { normalizeSearch } from "@/lib/search";
+import {
+  type StockFilter,
+  type StockStatus,
+  stockStatus,
+} from "@/lib/stock-status";
 import type { StoreDB } from "../db";
 import type { Product } from "../types";
 
-export type StockFilter = "all" | "low" | "out";
-export type StockStatus = "ok" | "low" | "out";
-
-/** out: nothing (or less than nothing) on hand · low: at or under the product's own threshold. */
-export function stockStatus(
-  product: Pick<Product, "stock" | "lowStockThreshold">,
-): StockStatus {
-  if (product.stock <= 0) return "out";
-  if (
-    product.lowStockThreshold > 0 &&
-    product.stock <= product.lowStockThreshold
-  )
-    return "low";
-  return "ok";
-}
+// The rule lives in src/lib/stock-status.ts (the server uses it too); re-exported for existing callers.
+export { type StockFilter, type StockStatus, stockStatus };
 
 export interface ProductSearch {
   query?: string;

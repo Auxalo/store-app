@@ -1,4 +1,6 @@
 import { refreshStaff } from "@/auth/staff-cache";
+import { resolveDataMode } from "@/data/mode";
+import { useDataModeStore } from "@/data/mode-store";
 import { getLocalDb, type StoreDB } from "@/db/local/db";
 import { getDeviceId, getMeta, setMeta } from "@/db/local/meta";
 import { APP_VERSION } from "@/lib/app-version";
@@ -83,6 +85,7 @@ class SyncManager {
     }
     await setMeta(db, "storeId", this.session.storeId);
     await recoverInterrupted(db);
+    useDataModeStore.getState().set(await resolveDataMode(db));
     // Ask the browser not to evict our data under storage pressure.
     void navigator.storage?.persist?.();
 

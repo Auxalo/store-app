@@ -64,3 +64,45 @@ test("private endpoints refuse visitors who are not signed in", async ({
   const pin = await request.put("/api/staff/abc/pin", { data: {} });
   expect([401, 403]).toContain(pin.status());
 });
+
+test("the PIN unlock endpoint needs a registered device and checks who is asking", async ({
+  page,
+  request,
+}, testInfo) => {
+  // No device cookie: refused.
+  const anonymous = await request.post("/api/actor/unlock", {
+    data: { userId: "x", pin: "1234" },
+  });
+  expect(anonymous.status()).toBe(401);
+  expect((await anonymous.json()).code).toBe("DEVICE_UNKNOWN");
+
+  // A registered device (signing in registers it): an unknown person is refused, and so is junk.
+  await signUp(page, `act${Date.now()}${testInfo.project.name}`);
+  await expect
+    .poll(async () =>
+      page.evaluate(async () => {
+        const r = await fetch("/api/actor/unlock", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ userId: "nobody", pin: "1234" }),
+        });
+        return `${r.status} ${(await r.json()).code}`;
+      }),
+    )
+    .toBe("401 UNKNOWN_USER");
+  const junk = await page.evaluate(async () => {
+    const r = await fetch("/api/actor/unlock", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pin: 5 }),
+    });
+    return r.status;
+  });
+  expect(junk).toBe(400);
+
+  // Locking always works and clears the cookie.
+  const lock = await page.evaluate(
+    async () => (await fetch("/api/actor/lock", { method: "POST" })).status,
+  );
+  expect(lock).toBe(200);
+});

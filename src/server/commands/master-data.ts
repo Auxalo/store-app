@@ -17,6 +17,8 @@ import type { ApplyResult, ServerCtx } from "./types";
 export interface MasterConfig {
   collection: SyncCollection;
   criticalFields: readonly string[];
+  /** Fields kept with the record that are worked out from its others (search words, sort key). */
+  derive?: (doc: Record<string, unknown>) => Record<string, unknown>;
 }
 
 export interface StoredDoc extends Document {
@@ -32,8 +34,18 @@ export interface StoredDoc extends Document {
   syncSeq: number;
 }
 
+/**
+ * What goes to devices. Search words and the sort key are for searching on the server; devices
+ * work them out themselves, so they are not sent.
+ */
 export function toWire(doc: StoredDoc): WireDoc {
-  const { _id, fieldVersions: _internal, ...rest } = doc;
+  const {
+    _id,
+    fieldVersions: _internal,
+    searchWords: _words,
+    nameKey: _nameKey,
+    ...rest
+  } = doc;
   return { id: _id, ...rest } as WireDoc;
 }
 
@@ -77,6 +89,7 @@ export async function masterCreate(
     deletedAt: null,
     syncSeq,
   };
+  Object.assign(doc, cfg.derive?.(doc));
   await col.insertOne(doc, { session: ctx.session });
   return applied(cfg, doc);
 }
@@ -123,6 +136,7 @@ export async function masterUpdate(
     {
       $set: {
         ...effective,
+        ...(cfg.derive ? cfg.derive({ ...doc, ...effective }) : {}),
         ...Object.fromEntries(
           Object.keys(effective).map((field) => [
             `fieldVersions.${field}`,

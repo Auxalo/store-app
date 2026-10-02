@@ -1,4 +1,5 @@
 import type { CommandType } from "@/commands/definitions";
+import { derivedSearchFields } from "@/lib/search-fields";
 import { writeAudit } from "../audit";
 import { allocSeq } from "../sync/txn";
 import {
@@ -20,9 +21,17 @@ import {
 import { saleCreate, saleVoid } from "./sales";
 import type { ApplyResult, ServerHandler } from "./types";
 
-const suppliers: MasterConfig = { collection: "suppliers", criticalFields: [] };
+const suppliers: MasterConfig = {
+  collection: "suppliers",
+  criticalFields: [],
+  derive: (doc) => derivedSearchFields("suppliers", doc),
+};
 
-const customers: MasterConfig = { collection: "customers", criticalFields: [] };
+const customers: MasterConfig = {
+  collection: "customers",
+  criticalFields: [],
+  derive: (doc) => derivedSearchFields("customers", doc),
+};
 
 const categories: MasterConfig = {
   collection: "categories",

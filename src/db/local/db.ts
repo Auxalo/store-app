@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
+import { derivedSearchFields } from "@/lib/search-fields";
 import type {
   Category,
   Customer,
@@ -96,6 +97,47 @@ export class StoreDB extends Dexie {
 
     // v5: the people who can work on this device (for offline PIN sign-in).
     this.version(5).stores({ localUsers: "userId" });
+
+    // v6: what lists search and sort by. Sales and purchases become searchable by number and by
+    // buyer or supplier; products, customers and suppliers sort A-Z by a normalised `nameKey`.
+    // The upgrade fills the new fields for what is already on the device.
+    this.version(6)
+      .stores({
+        products:
+          "id, sku, barcode, categoryId, name, nameKey, *searchWords, isActive, updatedAt, deletedAt",
+        customers: "id, phone, name, nameKey, *searchWords, deletedAt",
+        suppliers: "id, phone, name, nameKey, *searchWords, deletedAt",
+        sales:
+          "id, invoiceNo, createdAt, customerId, status, paymentMethod, *searchWords, [status+createdAt], [customerId+createdAt]",
+        purchases: "id, purchaseNo, date, createdAt, supplierId, *searchWords",
+      })
+      .upgrade(async (tx) => {
+        for (const name of ["products", "customers", "suppliers"] as const) {
+          await tx
+            .table(name)
+            .toCollection()
+            .modify((doc: Record<string, unknown>) => {
+              Object.assign(doc, derivedSearchFields(name, doc));
+            });
+        }
+        // A sale remembers its buyer's phone so it can be found by it; older ones read it from the customer.
+        const phones = new Map<string, string>();
+        for (const c of await tx.table("customers").toArray())
+          phones.set(c.id, c.phone ?? "");
+        await tx
+          .table("sales")
+          .toCollection()
+          .modify((doc: Record<string, unknown>) => {
+            doc.customerPhone ??= phones.get(String(doc.customerId)) ?? "";
+            Object.assign(doc, derivedSearchFields("sales", doc));
+          });
+        await tx
+          .table("purchases")
+          .toCollection()
+          .modify((doc: Record<string, unknown>) => {
+            Object.assign(doc, derivedSearchFields("purchases", doc));
+          });
+      });
   }
 }
 

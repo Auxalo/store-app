@@ -15,6 +15,7 @@
     "check": "pnpm lint && pnpm typecheck && pnpm check:i18n && pnpm test && pnpm test:perf",
     "db:dev": "node scripts/dev-db.mjs",
     "db:seed": "node scripts/seed.mjs",
+    "db:backfill-search": "node scripts/backfill-search.mjs",
     "test:perf": "vitest run --config vitest.perf.config.mts"
   },
   "dependencies": {

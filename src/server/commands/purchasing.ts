@@ -1,6 +1,7 @@
 import type { CommandPayload } from "@/commands/definitions";
 import { lineTotal } from "@/lib/qty";
 import { qtyByProduct } from "@/lib/sale-math";
+import { derivedSearchFields } from "@/lib/search-fields";
 import { purchaseTotals } from "@/schemas/purchase";
 import { returnTotal } from "@/schemas/return";
 import type { WireChange } from "@/schemas/sync";
@@ -213,6 +214,11 @@ export async function purchaseCreate(
     invoiceRef: p.invoiceRef,
     supplierId: p.supplierId,
     supplierName: p.supplierName,
+    ...derivedSearchFields("purchases", {
+      purchaseNo: p.purchaseNo,
+      invoiceRef: p.invoiceRef,
+      supplierName: p.supplierName,
+    }),
     date: p.date,
     subtotal: totals.subtotal,
     discount: totals.discount,

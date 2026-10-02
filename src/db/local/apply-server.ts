@@ -1,6 +1,6 @@
 import type { SyncCollection } from "@/commands/definitions";
 import { computeTotals, qtyByProduct } from "@/lib/sale-math";
-import { searchWords } from "@/lib/search";
+import { derivedSearchFields } from "@/lib/search-fields";
 import { purchaseTotals } from "@/schemas/purchase";
 import { returnTotal } from "@/schemas/return";
 import type { WireDoc } from "@/schemas/sync";
@@ -179,34 +179,16 @@ function overlayReturn(doc: Doc, op: OutboxOp, kind: "sale" | "purchase"): Doc {
 
 /** Fields that exist only on this device (never synced), derived from the synced ones. */
 export function withLocalFields(collection: SyncCollection, doc: Doc): Doc {
-  if (collection === "products") {
-    return {
-      ...doc,
-      searchWords: searchWords(
-        doc.name as string,
-        doc.nameBn as string,
-        doc.sku as string,
-        doc.barcode as string,
-      ),
-    };
+  switch (collection) {
+    case "products":
+    case "customers":
+    case "suppliers":
+    case "sales":
+    case "purchases":
+      return { ...doc, ...derivedSearchFields(collection, doc) };
+    default:
+      return doc;
   }
-  if (collection === "suppliers") {
-    return {
-      ...doc,
-      searchWords: searchWords(
-        doc.name as string,
-        doc.phone as string,
-        doc.contactPerson as string,
-      ),
-    };
-  }
-  if (collection === "customers") {
-    return {
-      ...doc,
-      searchWords: searchWords(doc.name as string, doc.phone as string),
-    };
-  }
-  return doc;
 }
 
 /**

@@ -6,6 +6,7 @@ import {
   qtyByProduct,
   saleRecordIds,
 } from "@/lib/sale-math";
+import { derivedSearchFields } from "@/lib/search-fields";
 import type { WireChange } from "@/schemas/sync";
 import { writeAudit } from "../audit";
 import { allocSeq } from "../sync/txn";
@@ -34,6 +35,9 @@ interface StoredSale {
   invoiceNo: string;
   customerId: string | null;
   customerName: string;
+  customerPhone?: string;
+  /** For searching on the server; devices work these out themselves. */
+  searchWords?: string[];
   subtotal: number;
   discount: number;
   total: number;
@@ -153,6 +157,12 @@ export async function saleCreate(
     invoiceNo: p.invoiceNo,
     customerId: p.customerId,
     customerName: p.customerName,
+    customerPhone: p.customerPhone,
+    ...derivedSearchFields("sales", {
+      invoiceNo: p.invoiceNo,
+      customerName: p.customerName,
+      customerPhone: p.customerPhone,
+    }),
     subtotal: totals.subtotal,
     discount: totals.discount,
     total: totals.total,

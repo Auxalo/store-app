@@ -140,3 +140,125 @@ describe("clearing out old sent operations", () => {
     db.close();
   });
 });
+
+describe("upgrading to search and sort fields (v6)", () => {
+  it("fills in search words, sort keys and the buyer's phone for data already on the device", async () => {
+    const dbName = name();
+    // A device that last ran version 5.
+    const old = new Dexie(dbName);
+    old.version(5).stores({
+      categories: "id, name, updatedAt, deletedAt",
+      settings: "id",
+      outbox: "++seq, &operationId, entityId, *entityIds, status, [status+seq]",
+      syncMeta: "key",
+      products:
+        "id, sku, barcode, categoryId, name, *searchWords, isActive, updatedAt, deletedAt",
+      stockMovements: "id, productId, createdAt, [productId+createdAt]",
+      customers: "id, phone, name, *searchWords, deletedAt",
+      sales: "id, invoiceNo, createdAt, customerId, status, [status+createdAt]",
+      saleItems: "id, saleId, productId, createdAt",
+      ledgerEntries: "id, partyId, createdAt, [partyId+createdAt]",
+      drafts: "key",
+      suppliers: "id, phone, name, *searchWords, deletedAt",
+      purchases: "id, purchaseNo, date, createdAt, supplierId",
+      purchaseItems: "id, purchaseId, productId, createdAt",
+      payments: "id, partyId, partyType, createdAt",
+      expenses: "id, date, category, status, createdAt",
+      returns: "id, kind, refId, createdAt",
+      localUsers: "userId",
+    });
+    await old.table("products").put({
+      id: "p1",
+      name: "Miniket Rice",
+      nameBn: "মিনিকেট চাল",
+      sku: "A0001",
+      barcode: "",
+      searchWords: [],
+    });
+    await old
+      .table("customers")
+      .put({ id: "c1", name: "রহিম", phone: "01711000001", searchWords: [] });
+    await old.table("suppliers").put({
+      id: "s1",
+      name: "করিম ট্রেডার্স",
+      phone: "",
+      contactPerson: "",
+      searchWords: [],
+    });
+    await old.table("sales").put({
+      id: "sale1",
+      invoiceNo: "A-2610-0042",
+      customerId: "c1",
+      customerName: "রহিম",
+      createdAt: "2026-10-02T00:00:00.000Z",
+      status: "active",
+    });
+    await old.table("sales").put({
+      id: "sale2",
+      invoiceNo: "A-2610-0043",
+      customerId: null,
+      customerName: "",
+      createdAt: "2026-10-02T00:01:00.000Z",
+      status: "active",
+    });
+    await old.table("purchases").put({
+      id: "pu1",
+      purchaseNo: "P-A-2610-0007",
+      invoiceRef: "INV-9",
+      supplierId: "s1",
+      supplierName: "করিম ট্রেডার্স",
+      date: "2026-10-02",
+      createdAt: "2026-10-02T00:02:00.000Z",
+    });
+    old.close();
+
+    const db = new StoreDB(dbName);
+    await db.open();
+
+    expect(await db.products.get("p1")).toMatchObject({
+      nameKey: "miniket rice",
+    });
+    expect((await db.products.get("p1"))?.searchWords).toEqual(
+      expect.arrayContaining(["miniket", "চাল", "a0001"]),
+    );
+    expect(await db.customers.get("c1")).toMatchObject({ nameKey: "রহিম" });
+    expect(await db.suppliers.get("s1")).toMatchObject({
+      nameKey: "করিম ট্রেডার্স",
+    });
+
+    // The sale learned its buyer's phone, and can be found by number (with or without zeros) and by phone.
+    expect(await db.sales.get("sale1")).toMatchObject({
+      customerPhone: "01711000001",
+    });
+    expect(await db.sales.get("sale2")).toMatchObject({ customerPhone: "" });
+    expect(
+      (await db.sales.where("searchWords").equals("42").toArray()).map(
+        (s) => s.id,
+      ),
+    ).toEqual(["sale1"]);
+    expect(
+      (await db.sales.where("searchWords").equals("01711000001").toArray()).map(
+        (s) => s.id,
+      ),
+    ).toEqual(["sale1"]);
+    expect(
+      (
+        await db.sales
+          .where("searchWords")
+          .startsWith("2610")
+          .distinct()
+          .toArray()
+      ).length,
+    ).toBe(2);
+    expect(
+      (await db.purchases.where("searchWords").equals("7").toArray()).map(
+        (p) => p.id,
+      ),
+    ).toEqual(["pu1"]);
+    expect(
+      (await db.products.where("nameKey").equals("miniket rice").toArray())
+        .length,
+    ).toBe(1);
+    db.close();
+  });
+});

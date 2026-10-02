@@ -69,7 +69,11 @@ const needsCustomerForDue = (
 export const saleCreateInput = saleBase.superRefine(needsCustomerForDue);
 /** The device adds the invoice number inside the same transaction that numbers it. */
 export const saleCreatePayload = saleBase
-  .extend({ invoiceNo: z.string().min(1).max(40) })
+  .extend({
+    invoiceNo: z.string().min(1).max(40),
+    /** The buyer's phone at the time of sale (copied from the customer by whoever applies the sale). */
+    customerPhone: text(30).default(""),
+  })
   .superRefine(needsCustomerForDue);
 
 export const saleVoidInput = z.object({
