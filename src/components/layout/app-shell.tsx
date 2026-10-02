@@ -12,6 +12,7 @@ import { findNavItem } from "@/config/nav";
 import { AppSidebar } from "./app-sidebar";
 import { BottomNav } from "./bottom-nav";
 import { LanguageSwitch } from "./language-switch";
+import { OnlineBanner } from "./online-banner";
 import { SyncBadge } from "./sync-badge";
 import { UserMenu } from "./user-menu";
 
@@ -33,7 +34,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           <LanguageSwitch />
           <UserMenu />
         </header>
-        <main className="flex-1 p-3 pb-24 md:p-6 md:pb-6">{children}</main>
+        <main className="flex-1 p-3 pb-24 md:p-6 md:pb-6">
+          <OnlineBanner />
+          {children}
+        </main>
         <BottomNav />
       </SidebarInset>
     </SidebarProvider>

@@ -16,6 +16,8 @@ export interface EngineOptions {
   deviceId: string;
   appVersion: string;
   now?: () => number;
+  /** Position reached while downloading (the sync manager shows it while a device is preparing). */
+  onPullProgress?: (cursor: number) => void;
 }
 
 const MAX_BATCHES_PER_RUN = 40;
@@ -186,6 +188,12 @@ export async function pushAll(
 export async function pullAll(
   db: StoreDB,
   transport: SyncTransport,
+  options: {
+    /** Bigger pages for the one-time download. */
+    limit?: number;
+    /** Called after each saved page with the position reached (to show a progress bar). */
+    onProgress?: (cursor: number) => void;
+  } = {},
 ): Promise<{ pages: number; docs: number }> {
   let cursor = (await getMeta(db, "cursor")) ?? 0;
   let pages = 0;
@@ -193,7 +201,7 @@ export async function pullAll(
 
   while (pages < MAX_PAGES_PER_RUN) {
     const before = Date.now();
-    const page = await transport.pull(cursor);
+    const page = await transport.pull(cursor, options.limit);
     const after = Date.now();
 
     // Apply the page and advance the cursor atomically: a crash mid-pull just repeats this page.
@@ -213,6 +221,7 @@ export async function pullAll(
 
     pages++;
     cursor = page.cursor;
+    options.onProgress?.(cursor);
     if (!page.hasMore) break;
   }
   return { pages, docs };
@@ -231,7 +240,9 @@ export async function syncOnce(
   options: EngineOptions,
 ): Promise<SyncOutcome> {
   const { sent } = await pushAll(db, transport, options);
-  const { pages, docs } = await pullAll(db, transport);
+  const { pages, docs } = await pullAll(db, transport, {
+    onProgress: options.onPullProgress,
+  });
   await setMeta(db, "lastSyncAt", (options.now ?? Date.now)());
   return { pushed: sent, pages, pulled: docs };
 }

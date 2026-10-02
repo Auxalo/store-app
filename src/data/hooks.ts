@@ -26,6 +26,7 @@ import type {
 import { newId } from "@/lib/ids";
 import type { WireChange } from "@/schemas/sync";
 import { usePreferences } from "@/stores/preferences";
+import { syncNow } from "@/sync/manager";
 import { useCommands } from "@/sync/use-commands";
 import { DataError } from "./errors";
 import { localList, localLookup, localRecord, localTotals } from "./local";
@@ -321,6 +322,9 @@ export function useCommand() {
     ): Promise<CommandOutcome> => {
       if (useDataModeStore.getState().mode !== "online")
         return runLocal(type, input);
+      // Changes made before this device went online go first, so everything reaches the shop in
+      // the order it happened. If they cannot be sent yet, nothing new is saved either.
+      await sendLeftovers();
       const operationId = options.operationId ?? newId();
       const result = await postCommand({
         operationId,
@@ -333,6 +337,15 @@ export function useCommand() {
     },
     [runLocal, client],
   );
+}
+
+const waiting = () =>
+  getLocalDb().outbox.where("status").anyOf("pending", "syncing").count();
+
+async function sendLeftovers() {
+  if ((await waiting()) === 0) return;
+  await syncNow();
+  if ((await waiting()) > 0) throw new DataError("OFFLINE", 0);
 }
 
 /** Categories, A-Z. A small list: it comes whole in either mode. */

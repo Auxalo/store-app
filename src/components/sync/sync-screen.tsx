@@ -24,6 +24,7 @@ import {
   retryOperation,
 } from "@/sync/resolve";
 import { useSyncStatus } from "@/sync/use-sync-status";
+import { ModeCard } from "./mode-card";
 
 const CLOCK_SKEW_WARN_MS = 5 * 60_000;
 
@@ -122,6 +123,7 @@ export function SyncScreen() {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <ModeCard />
       <Card>
         <CardContent className="flex flex-col gap-4 pt-4">
           <div className="flex items-start gap-3">

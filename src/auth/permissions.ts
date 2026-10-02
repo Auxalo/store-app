@@ -21,6 +21,7 @@ export const PERMISSIONS = [
   "report.view",
   "user.manage",
   "settings.manage",
+  "mode.switch",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 

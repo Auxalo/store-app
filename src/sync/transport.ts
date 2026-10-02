@@ -24,7 +24,7 @@ export class TransportError extends Error {
 /** How the engine talks to the server. Tests replace this with an in-process fake. */
 export interface SyncTransport {
   push(request: PushRequest): Promise<PushResponse>;
-  pull(cursor: number): Promise<PullResponse>;
+  pull(cursor: number, limit?: number): Promise<PullResponse>;
 }
 
 async function request<T>(
@@ -61,7 +61,10 @@ export function createFetchTransport(
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       }),
-    pull: (cursor) =>
-      request<PullResponse>(fetchImpl, `/api/sync/pull?cursor=${cursor}`),
+    pull: (cursor, limit) =>
+      request<PullResponse>(
+        fetchImpl,
+        `/api/sync/pull?cursor=${cursor}${limit ? `&limit=${limit}` : ""}`,
+      ),
   };
 }

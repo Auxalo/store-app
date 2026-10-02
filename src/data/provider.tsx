@@ -5,6 +5,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { FullScreenLoader } from "@/components/shared/full-screen-loader";
 import { DataError } from "./errors";
 import { useDataMode } from "./mode-store";
+import { onModeChangedElsewhere } from "./mode-switch";
 import { fetchHead } from "./online";
 
 /** How often an online screen asks "has anything changed?" (one tiny request). */
@@ -65,6 +66,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [client] = useState(makeClient);
   const mode = useDataMode();
   useChangeWatcher(client, mode === "online");
+  // Another tab of this device switched mode: reload into it, so every tab agrees.
+  useEffect(() => onModeChangedElsewhere(() => location.reload()), []);
   if (mode === null) return <FullScreenLoader />;
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }

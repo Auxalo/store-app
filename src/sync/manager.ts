@@ -168,6 +168,7 @@ class SyncManager {
           : syncOnce)(db, this.transport, {
           deviceId,
           appVersion: APP_VERSION,
+          onPullProgress: (pulledTo) => this.patch({ pulledTo }),
         });
       try {
         await sync();

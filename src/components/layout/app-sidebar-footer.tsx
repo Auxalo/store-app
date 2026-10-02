@@ -3,6 +3,7 @@
 import { Globe, Info, MessageCircle, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { WorkOfflineSwitch } from "@/components/sync/work-offline";
 import {
   SidebarFooter,
   SidebarMenu,
@@ -31,6 +32,7 @@ export function AppSidebarFooter() {
   return (
     <SidebarFooter>
       <SidebarMenu>
+        <WorkOfflineSwitch variant="sidebar" />
         <SidebarMenuItem>
           <SidebarMenuButton asChild tooltip={syncLabel}>
             <Link

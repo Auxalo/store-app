@@ -24,6 +24,7 @@ export async function signUp(
   await signUpToSetup(page, username, storeName);
   await page.getByTestId("setup-skip").click();
   await expect(page).toHaveURL(/\/dashboard$/);
+  await appReadyOffline(page);
 }
 
 export async function signIn(page: Page, username: string) {
@@ -32,6 +33,26 @@ export async function signIn(page: Page, username: string) {
   await page.getByLabel("পাসওয়ার্ড").fill("password123");
   await page.getByRole("button", { name: "সাইন ইন", exact: true }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
+  await appReadyOffline(page);
+}
+
+/**
+ * The app saves its own files for offline use in the background after the first visit. A test that
+ * is about to cut the network waits for that to finish, as a person would not: it can be slow on a
+ * busy machine.
+ */
+export async function appReadyOffline(page: Page) {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          async () =>
+            !!navigator.serviceWorker?.controller &&
+            !!(await caches.match("/pos", { ignoreSearch: true })),
+        ),
+      { timeout: 90_000, message: "the app's files are saved for offline use" },
+    )
+    .toBe(true);
 }
 
 /** The global sync chip: synced | pending | syncing | offline | issue. */

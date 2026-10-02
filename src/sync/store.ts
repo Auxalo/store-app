@@ -20,6 +20,8 @@ interface SyncState {
   lastSyncAt?: number;
   /** True once the first full download finished (before that the screens may be empty). */
   initialSyncDone: boolean;
+  /** How far the first download has got (the position in the shop's change history). */
+  pulledTo?: number;
   deviceId?: string;
   deviceCode?: string;
   clockOffsetMs?: number;

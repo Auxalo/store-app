@@ -74,3 +74,12 @@ npx playwright test        # browser tests: offline, sync, POS, staff, reports, 
 ## 10. Demo data (development only)
 
 `pnpm db:seed` builds a demo shop ("রহিম জেনারেল স্টোর") with a month of history: 33 products in Bangla and English, 8 customers, 4 suppliers, about 700 sales, purchases on credit, expenses, returns, cancellations and a monthly stock count (a few items are low or out of stock). It runs the app's own commands and sync code, so everything is exactly what the app would have produced. Sign in as `demo`, `manager` or `cashier` (password `demo1234`). `pnpm db:seed --reset` deletes and rebuilds it. It needs the database from `pnpm db:dev` (or whatever `MONGODB_URI` points to): never run it against a real shop's database.
+
+## 11. Online and offline mode (which to recommend)
+
+Every device chooses for itself with the **Work offline** switch (Sync screen and sidebar; owner and managers can change it).
+
+- **Online (the default for a new device)** is best for a shop with steady internet and a large catalogue: nothing to download, search and totals come from the database, and every screen is always current. It needs internet to save. With no connection the app says saving is paused and keeps the cart.
+- **Offline** is for a shop whose internet drops: the device downloads the whole shop once (with a progress bar; it needs internet that first time and some free space, roughly 2 KB per change in the shop's history) and then works with no internet at all, sending changes when the connection returns. Install the app to the home screen on phones, especially iPhone, so the browser does not clear the data.
+- In a shop where staff use PINs, online mode asks the server to check the PIN. **Set a PIN for the owner too**, or the owner cannot act online once PINs exist.
+- Updating the app is safe for existing devices: a device that already downloaded the shop (or has changes waiting) stays offline.

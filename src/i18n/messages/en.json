@@ -839,6 +839,19 @@
       "type": "Type",
       "costValue": "Value at cost",
       "retailValue": "Value at selling price"
+    },
+    "kpi": {
+      "vsPrevious": "vs the days before",
+      "vsYesterday": "vs yesterday",
+      "new": "New",
+      "flat": "No change",
+      "avgBill": "Average bill {value}",
+      "margin": "Margin {pct}%",
+      "received": "Received {value}",
+      "topProducts": "Top products",
+      "paymentSplit": "How people paid",
+      "netSales": "Net sales",
+      "creditGiven": "Credit given"
     }
   },
   "developer": {
@@ -931,6 +944,64 @@
       "total": "Biggest first",
       "due": "Most due first",
       "amount": "Biggest first"
+    }
+  },
+  "mode": {
+    "label": "Work offline",
+    "on": "On",
+    "off": "Off",
+    "hintOn": "This device keeps the whole shop and works with no internet.",
+    "hintOff": "Online: always up to date. Needs internet.",
+    "ownerOnly": "Only the owner or a manager can change this.",
+    "onTitle": "Work offline on this device?",
+    "onBody": "The shop's records (about {n} changes) are downloaded to this device first. The app only switches when everything is here.",
+    "start": "Download and switch",
+    "cancel": "Cancel",
+    "close": "Close",
+    "checking": "Checking…",
+    "wait": "Please wait a moment.",
+    "preparing": "Preparing offline mode",
+    "keepOpen": "Keep this screen open until it finishes.",
+    "downloading": "{done} of {total}",
+    "offTitle": "Go back online?",
+    "offBody": "Changes waiting on this device are sent first. The shop's copy stays on this device so you can switch back quickly.",
+    "offConfirm": "Send and go online",
+    "sending": "Sending your changes…",
+    "errorTitle": "Could not switch",
+    "openSync": "Open Sync",
+    "problem": {
+      "NO_INTERNET": "You need internet to do this.",
+      "NO_SPACE": "There is not enough free space on this device for the shop's data.",
+      "UNSENT": "Some changes are not sent yet or need your decision. Sort them out on the Sync screen first.",
+      "AUTH": "This device is signed out. Sign in again, then try once more.",
+      "FAILED": "It stopped part way. Try again: it carries on where it stopped."
+    },
+    "banner": {
+      "text": "No internet: saving is paused. Your cart is safe.",
+      "hint": "To keep working without internet, turn on Work offline.",
+      "action": "Work offline"
+    },
+    "gate": {
+      "title": "Preparing offline mode",
+      "body": "This device is getting the shop's data. It needs internet this first time."
+    },
+    "readiness": {
+      "title": "Offline readiness",
+      "data": "Shop data on this device",
+      "files": "App files saved",
+      "storage": "Data protected from clearing",
+      "ready": "Ready",
+      "notReady": "Not yet",
+      "storageWarn": "The browser may clear saved data when space is low. Adding the app to the home screen helps keep it.",
+      "iosHint": "On iPhone, use Share, then Add to Home Screen, to keep offline data safe."
+    },
+    "remove": {
+      "title": "Remove offline data",
+      "body": "Frees the space the shop's copy uses on this device. Turning on Work offline downloads it again.",
+      "action": "Remove",
+      "confirm": "Remove the shop's copy from this device?",
+      "done": "Offline data removed.",
+      "blocked": "Send the waiting changes first."
     }
   }
 }

@@ -13,10 +13,10 @@ export type DataMode = "online" | "offline";
 export const MODE_STORAGE_KEY = "sa.dataMode";
 
 /**
- * What a brand-new device starts with. It becomes "online" when the Work-offline switch ships
- * (phase S6); until then every device keeps working the way it always has.
+ * What a brand-new device starts with: online, which needs nothing downloaded. A device that
+ * already works offline (it has downloaded data or has changes waiting) stays offline.
  */
-export const DEFAULT_FOR_NEW_DEVICES: DataMode = "offline";
+export const DEFAULT_FOR_NEW_DEVICES: DataMode = "online";
 
 const isMode = (value: unknown): value is DataMode =>
   value === "online" || value === "offline";

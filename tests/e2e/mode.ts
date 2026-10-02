@@ -1,14 +1,12 @@
 /**
  * The suite runs in either data mode: `E2E_MODE=online npx playwright test` makes every browser
- * (every device a test creates) start in online mode; without it, devices start with the app's
- * default. A device remembers its mode in localStorage, so setting it up front is enough.
+ * (every device a test creates) start in online mode; by default devices start offline, the way
+ * most of these tests are written. (The app's own default for a new device is online; the mode
+ * switch tests start from that.) A device remembers its mode in localStorage, so setting it up
+ * front is enough.
  */
 export const E2E_MODE =
-  process.env.E2E_MODE === "online"
-    ? "online"
-    : process.env.E2E_MODE === "offline"
-      ? "offline"
-      : undefined;
+  process.env.E2E_MODE === "online" ? "online" : "offline";
 
 /** Storage state that pre-sets the mode for a browser context (undefined when the default is wanted). */
 export function modeStorageState(baseURL: string) {
