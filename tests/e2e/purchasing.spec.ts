@@ -189,6 +189,8 @@ test("return goods from a sale: stock goes back, and you cannot return more than
   await dialog.getByLabel("ফেরতের পরিমাণ").fill("1");
   await expect(page.getByTestId("refund-total")).toHaveText("৳৫০");
   await page.getByTestId("confirm-return").click();
+  // Wait until it is saved (the dialog closes) before leaving the page, or the save can be cut off.
+  await expect(page.getByTestId("return-lines")).toBeHidden();
 
   // Stock: 10 − 3 + 1 = 8.
   await page.goto("/inventory");

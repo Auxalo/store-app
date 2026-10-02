@@ -1,0 +1,232 @@
+import type { CommandInput, CommandType } from "@/commands/definitions";
+import { onlineNumber, onlineSku, yearMonth } from "@/lib/doc-number";
+import { PrepareRejection } from "../sync/push";
+import type { ServerCtx } from "./types";
+
+/**
+ * Online, the browser sends only what the person did ("sell these, to this customer"). The server
+ * works out the rest, from its own records, inside the same transaction as the change:
+ *   - document numbers (2610-00042) and automatic SKUs (00042), from counters, so they are unique
+ *     across the whole shop and can never equal a number a device made offline;
+ *   - what things cost and what they are listed at (never taken from the browser, so a cashier
+ *     cannot hide a price change or inflate a refund);
+ *   - who the customer or supplier was, and what a cancelled sale touched;
+ *   - the version an edit is based on.
+ * The result is exactly the payload a device would have queued, so the same handlers apply it.
+ */
+
+type Doc = Record<string, unknown> & { _id: string };
+
+/** The next number of a counter, reserved inside the transaction (it commits or rolls back with the document). */
+async function nextCount(ctx: ServerCtx, key: string): Promise<number> {
+  const counter = await ctx.db
+    .collection<{ _id: string; seq: number }>("counters")
+    .findOneAndUpdate(
+      { _id: `${ctx.storeId}:${key}` },
+      { $inc: { seq: 1 } },
+      { upsert: true, returnDocument: "after", session: ctx.session },
+    );
+  return counter?.seq ?? 1;
+}
+
+async function storeMonth(ctx: ServerCtx): Promise<string> {
+  const store = await ctx.db
+    .collection<{ _id: string; timeZone?: string }>("stores")
+    .findOne({ _id: ctx.storeId }, { session: ctx.session });
+  return yearMonth(ctx.opCreatedAt, store?.timeZone);
+}
+
+async function documentNumber(ctx: ServerCtx, prefix: string) {
+  const month = await storeMonth(ctx);
+  return onlineNumber(
+    prefix,
+    month,
+    await nextCount(ctx, `${prefix || "S"}:${month}`),
+  );
+}
+
+const find = (ctx: ServerCtx, collection: string, id: string) =>
+  ctx.db
+    .collection<Doc>(collection)
+    .findOne({ _id: id, storeId: ctx.storeId }, { session: ctx.session });
+
+/** Edits carry the version the person was looking at, so a clash with someone else is noticed. */
+const withBase = async <I extends object>(
+  _ctx: ServerCtx,
+  input: I,
+  baseVersion?: number,
+) => {
+  if (baseVersion === undefined)
+    throw new PrepareRejection("BASE_VERSION_REQUIRED");
+  return { ...input, baseVersion };
+};
+const passthrough = async <I>(_ctx: ServerCtx, input: I) => input;
+
+type Lines = Array<{ itemIndex: number; productId: string; qty: number }>;
+interface StoredItem {
+  productId: string;
+  productName: string;
+  productNameBn: string;
+  unit: string;
+  unitPrice?: number;
+  unitCost?: number;
+  qty: number;
+}
+
+/** Rebuilds a return's lines from the original document, so the refund is what was really paid. */
+function rebuildLines(
+  items: StoredItem[],
+  lines: Lines,
+  amountField: "unitPrice" | "unitCost",
+) {
+  return lines.map((line) => {
+    const item = items[line.itemIndex];
+    if (!item || item.productId !== line.productId)
+      throw new PrepareRejection("INVALID_LINE");
+    return {
+      itemIndex: line.itemIndex,
+      productId: item.productId,
+      productName: item.productName,
+      productNameBn: item.productNameBn ?? "",
+      unit: item.unit,
+      qty: line.qty,
+      [amountField]: item[amountField] ?? 0,
+    };
+  });
+}
+
+export const preparePayload: {
+  [T in CommandType]: (
+    ctx: ServerCtx,
+    input: CommandInput<T>,
+    baseVersion?: number,
+  ) => Promise<unknown>;
+} = {
+  "category.create": passthrough,
+  "category.update": withBase,
+  "category.delete": withBase,
+
+  "product.create": async (ctx, input) => {
+    if (input.sku.trim()) return input;
+    // A blank SKU gets the next free short number (skipping any already typed in by hand).
+    const products = ctx.db.collection("products");
+    for (let guard = 0; guard < 50; guard++) {
+      const sku = onlineSku(await nextCount(ctx, "sku"));
+      const taken = await products.findOne(
+        { storeId: ctx.storeId, deletedAt: null, sku },
+        { session: ctx.session, projection: { _id: 1 } },
+      );
+      if (!taken) return { ...input, sku };
+    }
+    throw new PrepareRejection("SKU_UNAVAILABLE");
+  },
+  "product.update": withBase,
+  "product.delete": withBase,
+  "stock.adjust": passthrough,
+
+  "customer.create": passthrough,
+  "customer.update": withBase,
+  "customer.delete": withBase,
+
+  "sale.create": async (ctx, input) => {
+    const ids = [...new Set(input.lines.map((l) => l.productId))];
+    const found = await ctx.db
+      .collection<Doc>("products")
+      .find(
+        { _id: { $in: ids }, storeId: ctx.storeId, deletedAt: null },
+        { session: ctx.session },
+      )
+      .toArray();
+    const products = new Map(found.map((p) => [p._id, p]));
+    // What an item costs and is listed at comes from the shop's records, not from the browser.
+    const lines = input.lines.map((line) => {
+      const product = products.get(line.productId);
+      return product
+        ? {
+            ...line,
+            listPrice: Number(product.sellingPrice ?? line.listPrice),
+            unitCost: Number(product.purchasePrice ?? 0),
+          }
+        : line;
+    });
+    const customer = input.customerId
+      ? await find(ctx, "customers", input.customerId)
+      : null;
+    return {
+      ...input,
+      lines,
+      customerName: customer ? String(customer.name) : input.customerName,
+      customerPhone: customer ? String(customer.phone ?? "") : "",
+      invoiceNo: await documentNumber(ctx, ""),
+    };
+  },
+  "sale.void": async (ctx, input) => {
+    const sale = await find(ctx, "sales", input.saleId);
+    if (!sale) throw new PrepareRejection("NOT_FOUND");
+    const items = (sale.items as StoredItem[]) ?? [];
+    return {
+      ...input,
+      customerId: (sale.customerId as string | null) ?? null,
+      due: Number(sale.due ?? 0),
+      lines: items.map((i) => ({ productId: i.productId, qty: i.qty })),
+    };
+  },
+
+  "supplier.create": passthrough,
+  "supplier.update": withBase,
+  "supplier.delete": withBase,
+  "purchase.create": async (ctx, input) => ({
+    ...input,
+    purchaseNo: await documentNumber(ctx, "P"),
+  }),
+
+  "party.openingBalance": passthrough,
+  "payment.collect": passthrough,
+  "payment.pay": passthrough,
+  "expense.create": passthrough,
+  "expense.void": passthrough,
+
+  "saleReturn.create": async (ctx, input) => {
+    const sale = await find(ctx, "sales", input.saleId);
+    if (!sale || sale.status === "voided")
+      throw new PrepareRejection("NOT_FOUND");
+    if (input.settlement === "credit" && !sale.customerId)
+      throw new PrepareRejection("NO_CUSTOMER");
+    return {
+      ...input,
+      lines: rebuildLines(
+        (sale.items as StoredItem[]) ?? [],
+        input.lines,
+        "unitPrice",
+      ),
+      customerId: (sale.customerId as string | null) ?? null,
+      returnNo: await documentNumber(ctx, "R"),
+    };
+  },
+  "purchaseReturn.create": async (ctx, input) => {
+    const purchase = await find(ctx, "purchases", input.purchaseId);
+    if (!purchase) throw new PrepareRejection("NOT_FOUND");
+    if (input.settlement === "credit" && !purchase.supplierId)
+      throw new PrepareRejection("NO_SUPPLIER");
+    return {
+      ...input,
+      lines: rebuildLines(
+        (purchase.items as StoredItem[]) ?? [],
+        input.lines,
+        "unitCost",
+      ),
+      supplierId: (purchase.supplierId as string | null) ?? null,
+      returnNo: await documentNumber(ctx, "PR"),
+    };
+  },
+
+  "setting.set": async (ctx, input) => {
+    const existing = await ctx.db
+      .collection<{ _id: string; version?: number }>("settings")
+      .findOne(
+        { _id: `${ctx.storeId}:${input.key}` },
+        { session: ctx.session },
+      );
+    return { ...input, baseVersion: existing?.version ?? 0 };
+  },
+};

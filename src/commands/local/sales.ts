@@ -1,6 +1,6 @@
 import type { StoreDB } from "@/db/local/db";
 import { getMeta, setMeta } from "@/db/local/meta";
-import { DEFAULT_TIME_ZONE } from "@/lib/constants";
+import { yearMonth } from "@/lib/doc-number";
 import {
   computeTotals,
   lineAmount,
@@ -11,18 +11,6 @@ import { derivedSearchFields } from "@/lib/search-fields";
 import type { CommandInput, CommandPayload } from "../definitions";
 import { AlreadyExistsError, NotFoundError } from "../errors";
 import type { LocalContext } from "./registry";
-
-/** "2610" for October 2026 in the store's time zone. */
-function yearMonth(iso: string, timeZone = DEFAULT_TIME_ZONE): string {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone,
-    year: "2-digit",
-    month: "2-digit",
-  }).formatToParts(new Date(iso));
-  const get = (type: string) =>
-    parts.find((p) => p.type === type)?.value ?? "00";
-  return `${get("year")}${get("month")}`;
-}
 
 /**
  * Document numbers look like "A-2610-0042": the device's code, the month, and a counter that only

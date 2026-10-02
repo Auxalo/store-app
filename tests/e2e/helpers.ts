@@ -80,3 +80,22 @@ export async function openCart(page: Page) {
   if (await bar.isVisible()) await bar.click();
   await expect(page.getByTestId("cart-panel")).toBeVisible();
 }
+
+/** Owner adds a cashier (optionally with a PIN) on the staff screen. */
+export async function addCashier(
+  page: Page,
+  name: string,
+  username: string,
+  pin?: string,
+) {
+  await page.goto("/settings/staff");
+  await page.getByTestId("add-staff").click();
+  await page.getByTestId("staff-name").fill(name);
+  await page.getByTestId("staff-username").fill(username);
+  await page.getByTestId("staff-password").fill("password123");
+  if (pin) await page.getByTestId("staff-pin-input").fill(pin);
+  await page.getByTestId("save-staff").click();
+  await expect(
+    page.getByTestId("staff-row").filter({ hasText: name }),
+  ).toBeVisible();
+}

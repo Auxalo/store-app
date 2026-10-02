@@ -69,12 +69,31 @@ const isDuplicateKey = (error: unknown) =>
  * as the business change. A retry therefore finds either the record (→ duplicate, nothing changes)
  * or neither (→ the earlier attempt never committed, so it is applied now).
  */
-async function applyOnce(
+/** Thrown while preparing a payload to refuse the operation with a reason (nothing is written). */
+export class PrepareRejection extends Error {
+  constructor(public readonly code: string) {
+    super(code);
+  }
+}
+
+/** Aborts the transaction but still reports what the handler decided (so numbers are not used up). */
+class AbortWith extends Error {
+  constructor(public readonly result: ApplyResult) {
+    super("ABORT");
+  }
+}
+
+export async function applyOperation(
   deps: SyncDeps,
   device: DeviceAuth,
   op: OpEnvelope,
   role: Role,
   payload: never,
+  /**
+   * Online commands build their payload on the server, inside the same transaction as the change,
+   * so a document number is only used up if the document is really saved.
+   */
+  prepare?: (ctx: ServerCtx) => Promise<unknown>,
 ) {
   const applied = deps.db.collection<AppliedOp>(COL.appliedOps);
 
@@ -99,7 +118,26 @@ async function applyOnce(
         const handler = serverCommands[
           op.type as keyof typeof serverCommands
         ] as (ctx: ServerCtx, payload: never) => Promise<ApplyResult>;
-        const result = await handler(ctx, payload);
+        let toApply: never = payload;
+        if (prepare) {
+          try {
+            const raw = await prepare(ctx);
+            const checked =
+              COMMANDS[op.type as keyof typeof COMMANDS].payload.safeParse(raw);
+            if (!checked.success)
+              return {
+                status: "rejected",
+                error: "INVALID_PAYLOAD",
+              } as ApplyResult;
+            toApply = checked.data as never;
+          } catch (error) {
+            if (error instanceof PrepareRejection)
+              return { status: "rejected", error: error.code } as ApplyResult;
+            throw error;
+          }
+        }
+        const result = await handler(ctx, toApply);
+        if (prepare && result.status !== "applied") throw new AbortWith(result);
         if (result.status === "applied") {
           await applied.insertOne(
             {
@@ -115,6 +153,7 @@ async function applyOnce(
         return result;
       });
     } catch (error) {
+      if (error instanceof AbortWith) return error.result;
       // A concurrent retry of the same operation committed first: loop and report it as a duplicate.
       if (isDuplicateKey(error)) continue;
       throw error;
@@ -147,7 +186,7 @@ async function processOp(
   if (!actor) return reject("ACTOR_NOT_ALLOWED");
   if (!can(actor.role, def.permission)) return reject("FORBIDDEN");
 
-  const result = await applyOnce(
+  const result = await applyOperation(
     deps,
     device,
     op,

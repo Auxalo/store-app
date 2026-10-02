@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import {
+  addCashier,
   createProduct,
   indicator,
   openCart,
@@ -12,24 +13,6 @@ import {
 test.afterEach(async ({ page }) => {
   await page.goto("about:blank").catch(() => undefined);
 });
-
-async function addCashier(
-  page: Page,
-  name: string,
-  username: string,
-  pin?: string,
-) {
-  await page.goto("/settings/staff");
-  await page.getByTestId("add-staff").click();
-  await page.getByTestId("staff-name").fill(name);
-  await page.getByTestId("staff-username").fill(username);
-  await page.getByTestId("staff-password").fill("password123");
-  if (pin) await page.getByTestId("staff-pin-input").fill(pin);
-  await page.getByTestId("save-staff").click();
-  await expect(
-    page.getByTestId("staff-row").filter({ hasText: name }),
-  ).toBeVisible();
-}
 
 async function tapPin(page: Page, pin: string) {
   for (const digit of pin) await page.getByTestId(`pin-${digit}`).click();
