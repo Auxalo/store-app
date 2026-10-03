@@ -46,6 +46,10 @@ export async function ingestStamp(
   if (!stamp) return;
   const serverMs = Date.parse(stamp.serverTime);
   if (Number.isNaN(serverMs)) return;
+  // Answers can arrive out of order (a slow request overtaken by a quicker one): the one the
+  // server gave last is the truth, so an older one is ignored.
+  const current = useBillingStore.getState().stamp;
+  if (current && Date.parse(current.serverTime) > serverMs) return;
   const deviceMs =
     sentAt !== undefined && receivedAt !== undefined
       ? (sentAt + receivedAt) / 2

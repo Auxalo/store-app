@@ -143,7 +143,7 @@ export async function shopBillingView(
     provisionalHours: settings.provisionalHours,
     /** A locked shop sending a payment now would be let in while it is checked. */
     canOpenNow:
-      status.locked &&
+      (status.locked || status.state === "overdue") &&
       settings.provisionalHours > 0 &&
       !samePeriod(billing?.provisionalFor, billing?.paidUntil ?? new Date(0)),
     payments: rows.map(viewOf),
@@ -197,19 +197,34 @@ export async function submitPayment(
     throw error;
   }
 
+  // At most three wait at once, even when they arrive together: count again now that this one is
+  // in, and take it back if the others got in first.
+  if (
+    (await payments(db).countDocuments({ storeId, status: "pending" })) >
+    MAX_PENDING
+  ) {
+    await payments(db).deleteOne({ _id: payment._id });
+    throw new HttpError(429, "TOO_MANY_PENDING");
+  }
+
   const status = billingStateOf(billing, now);
   const periodKey = billing.paidUntil ?? new Date(0);
+  // A shop already locked, or in its last grace days (it would lock while the payment waits), is
+  // let in while the operator checks.
   const opened =
-    status.locked &&
+    (status.locked || status.state === "overdue") &&
     settings.provisionalHours > 0 &&
     !samePeriod(billing.provisionalFor, periodKey);
   if (opened) {
+    // The checking time is counted from the lock date at the earliest, so a payment sent in the
+    // last grace days still gets its full time.
+    const from = Math.max(now.getTime(), billing.lockAt?.getTime() ?? 0);
     await stores(db).updateOne(
       { _id: storeId },
       {
         $set: {
           "billing.provisionalUntil": new Date(
-            now.getTime() + settings.provisionalHours * 3_600_000,
+            from + settings.provisionalHours * 3_600_000,
           ),
           "billing.provisionalFor": periodKey,
         },
@@ -479,7 +494,7 @@ export async function setShopBilling(
     // Turning billing on for a shop with no period yet gives it the trial before it must pay.
     if (
       patch.mode === "paid" &&
-      !current.paidUntil &&
+      (!current.paidUntil || current.paidUntil.getTime() <= now.getTime()) &&
       patch.paidUntil === undefined
     ) {
       next.paidUntil = endOfDayPlus(now, settings.newShop.trialDays);
@@ -522,6 +537,8 @@ export async function setShopBilling(
     }
     next.provisionalUntil = null;
   }
+  if (next.mode === "paid" && !next.paidUntil)
+    throw new HttpError(400, "END_DATE_REQUIRED"); // it would lock the shop at once
   if (changes.length === 0) return current;
 
   const billing = withMarks(next, settings);
@@ -556,9 +573,12 @@ export async function extendShop(
   if (!store) return null;
   const current = store.billing;
   if (current?.mode !== "paid") throw new HttpError(409, "BILLING_NOT_PAID");
-  // A locked shop gets the days from today; otherwise they are added to the end of its period.
-  const locked = billingStateOf(current, now).locked;
-  const from = !locked && current.paidUntil ? current.paidUntil : now;
+  // The days are added to the end of the period, or counted from today when that end is already
+  // behind us (a locked shop, or one let in while a payment is checked).
+  const from =
+    current.paidUntil && current.paidUntil.getTime() > now.getTime()
+      ? current.paidUntil
+      : now;
   const billing = withMarks(
     { ...current, paidUntil: endOfDayPlus(from, days), provisionalUntil: null },
     settings,

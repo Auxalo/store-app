@@ -4,7 +4,7 @@ import type { BillingStamp } from "@/billing/state";
 import { getLocalDb } from "@/db/local/db";
 import type { WireChange } from "@/schemas/sync";
 import { useActiveUser } from "@/stores/active-user";
-import { registerDevice } from "@/sync/register-device";
+import { giveDeviceNewIdentity, registerDevice } from "@/sync/register-device";
 import { useSyncStore } from "@/sync/store";
 import { DataError } from "./errors";
 import type { ListParams, Resource } from "./spec";
@@ -22,7 +22,8 @@ async function request<T>(
     throw new DataError("OFFLINE", 0);
   }
   // A brand-new device asks before it has been registered with the shop: register, then ask again.
-  if (response.status === 401 && !retried) {
+  // (WRONG_STORE: this browser still has the device of the shop that used it before.)
+  if ((response.status === 401 || response.status === 403) && !retried) {
     const peek = (await response
       .clone()
       .json()
@@ -30,9 +31,21 @@ async function request<T>(
       code?: string;
     };
     // (DEVICE_UNKNOWN from the data endpoints, DEVICE_MISSING from the sync ones such as head.)
-    if (peek.code === "DEVICE_UNKNOWN" || peek.code === "DEVICE_MISSING") {
+    if (
+      peek.code === "DEVICE_UNKNOWN" ||
+      peek.code === "DEVICE_MISSING" ||
+      peek.code === "WRONG_STORE"
+    ) {
       try {
-        await registerDevice(getLocalDb());
+        const db = getLocalDb();
+        try {
+          await registerDevice(db);
+        } catch (error) {
+          // The identity belongs to the other shop: use a new one, once.
+          if (peek.code !== "WRONG_STORE") throw error;
+          await giveDeviceNewIdentity(db);
+          await registerDevice(db);
+        }
         return request<T>(path, init, true);
       } catch {
         /* fall through to the original answer */

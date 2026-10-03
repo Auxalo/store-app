@@ -115,3 +115,64 @@ Tests: `src/server/__tests__/qa-security.test.ts` (unit) and `tests/e2e/qa-secur
 ## Not covered yet
 
 Sync/mode/restore (S3, S6–S8, S10, D1–D4), billing (B1–B8), the screens, and the untested modules.
+
+---
+
+# Part 3: sync, restore, mode switching and billing
+
+Tests: `src/server/__tests__/qa-sync-server.test.ts`, `src/sync/__tests__/qa-sync2.test.ts`, `src/server/__tests__/qa-billing.test.ts`, `tests/e2e/qa-sync.spec.ts`, `tests/e2e/qa-billing.spec.ts`, and tests for modules that had none: `src/sync/__tests__/{transport,manager}.test.ts`, `src/stores/__tests__/cart.test.ts`. Each unit test failed before its fix (the failures are listed below); the two-shops browser test hung for 4 minutes on the old code.
+
+Not part of this round, by your choice: the screens and forms findings (barcode Enter, Bangla idle-lock minutes, `/reports` by URL, exports, 360 px layout).
+
+## Sync, restore and mode switching
+
+| ID | Finding | Status |
+|---|---|---|
+| S6 / M9 | A deactivated person's earlier offline sales were rejected at sync (the goods had left and the cash was taken) | **Fixed** |
+| S7 | A second shop signing in on the same browser could not sync (the device stayed tied to the first shop) and could reuse its invoice numbers | **Fixed** |
+| S8 | A device with a clock a day ahead moved records into the future, so its edits beat everybody else's | **Fixed** |
+| S10 | After a restore, devices that were up to date never received the restored records, and the shop's change counter went backwards | **Fixed** |
+| M8 | A restore of an older backup brought back revoked devices and deactivated people | **Fixed** |
+| S3 | After a lost answer to a sale, a download counted the sale twice on screen (stock 96 instead of 98) | **Fixed** |
+| D1 | "Remove offline data" could lose work saved in another tab, and left the sales' and purchases' lines (the biggest part) | **Fixed** |
+| D2 | Switching to online mode was refused for up to 5 minutes while an operation waited out a retry delay | **Fixed** |
+| D3 | The "no internet" message appears when the real cause is a paused shop or an update | Not fixed (message only) |
+| D4 | A save that changed nothing, plus exactly one change by someone else, is taken as the browser's own, so screens do not refresh until the next check | Not fixed (rare; screens refresh within a minute) |
+| S4 | The paused-shop retry loop, at manager level | **Confirmed in a test of the real manager: 4 requests in under 4 seconds before the fix, 1 after** |
+
+- **S6.** The time of deactivation is kept (`deactivatedAt`). Work dated before it is accepted when sent within 14 days; work dated after is refused. *Trade-off:* a technical person with a still-trusted device could date work before their deactivation; the window is 14 days and the device must belong to the shop.
+- **S8.** An operation dated more than 5 minutes ahead of the server is treated as made now.
+- **S10.** Every restored record gets a new, higher change number (`src/server/shop-export.ts`). Records created after the backup stay on devices that already had them (they are not in the backup and nothing removes them): after a restore, ask each device to "remove offline data" and download again if exact agreement matters.
+- **S3.** A cycle that ends with operations still waiting no longer downloads (`src/sync/engine.ts`).
+- **S7.** `resetForNewStore` now also drops the device identity (`src/sync/manager.ts`), so the new shop registers a new device with a new short code. The browser test showed a second part in online mode: the new shop's first request still carried the old shop's device cookie and was refused (`403 WRONG_STORE`), which left the setup screen stuck. The online request path now registers the device, with a new identity if needed, and asks again (`src/data/online.ts`). Online browser suite: 100 passed, 0 failed.
+
+## Billing
+
+| ID | Finding | Status |
+|---|---|---|
+| B2 | A shop that paid in its last grace days locked while the payment waited; payments sent together passed the limit of 3 waiting (8 got in) | **Fixed** |
+| B3 | Extra days for a shop let in while a payment waits started from the past, so it could lock again at once | **Fixed** |
+| B4 | A paying shop could be left with no end date (locked at once); turning billing on over an old end date locked the shop with no trial | **Fixed** |
+| B5 | An older answer arriving late could lock a shop again after its payment was approved | **Fixed** |
+| B6 | `2026-13-45` and month `2026-13` were accepted | **Fixed** |
+| B1 | A locked shop's ways into the data | **Checked, no bug:** the dashboard, reports, audit log and saving all answer 402, while the staff list and the billing page stay open |
+| B7 | A cashier's view of billing | **Checked, no bug:** only where the shop stands; sending a payment is refused (403) |
+| B8 | The service worker's page list | **Checked, no bug in this build:** `/pos`, `/billing`, `/login` and others are in the list. It is read from `src/app` when the app is built; if the build runs from a different folder the list is empty and the app will not open offline, so check `/serwist/sw.js` on the first deploy |
+| B4(c) | Approving a payment for a shop the operator had set to "billing off" turns billing on | Left as designed (a payment means the shop pays) |
+
+- **B2.** A payment sent in the grace days opens the shop too, and the checking time (48 hours) counts from the lock date at the earliest. The limit of 3 waiting is checked again after saving.
+
+## Modules that had no tests
+
+- `transport.ts`: how each kind of answer is understood (paused shop, refused device, old app, busy, bad gateway, no connection). No bugs.
+- `cart.ts`: merging, repricing, holding and resuming, totals, and the lock while saving. No bugs beyond the ones already fixed.
+- `manager.ts`: the paused-shop loop is now tested with the real manager. Other manager behavior (store mismatch, multi-tab lock) is still not covered.
+
+## Observed, not fixed
+
+- After signing out, the page re-saves the name-and-role copy of the old session (used to open the app offline). The server session is gone at once (checked), but the next visit can flash "signed in" and bounce to the sign-in page. Cosmetic.
+
+## Not done
+
+- The screens and forms findings (skipped by your choice).
+- The four product decisions and the two security design limits (H2, H3) are unchanged.

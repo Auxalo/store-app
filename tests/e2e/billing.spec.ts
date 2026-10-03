@@ -108,6 +108,20 @@ test("a shop whose subscription ran out is sent to billing, pays, is let in, and
   await expect(page.getByTestId("billing-locked")).toBeVisible();
   expect((await page.request.get("/api/data/products")).status()).toBe(402);
   expect((await page.request.get("/api/sync/head")).status()).toBe(200);
+  // Every other way into the shop's data is closed too: reading, saving and the reports.
+  for (const path of ["/api/dashboard", "/api/audit", "/api/reports/stock"])
+    expect((await page.request.get(path)).status(), path).toBe(402);
+  const save = await page.request.post("/api/commands", {
+    data: {
+      operationId: "00000000-0000-4000-8000-000000000000",
+      type: "category.create",
+      input: {},
+    },
+  });
+  expect(save.status(), "saving").toBe(402);
+  // ...while the people can still be listed and the billing page still answers (to pay).
+  expect((await page.request.get("/api/staff")).status()).toBe(200);
+  expect((await page.request.get("/api/billing")).status()).toBe(200);
   await page.goto("/products");
   await expect(page).toHaveURL(/\/billing$/, { timeout: 30_000 });
 

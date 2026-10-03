@@ -41,7 +41,19 @@ export type SubmitPaymentInput = z.infer<typeof submitPaymentSchema>;
 /** A Dhaka calendar day, "2026-10-31". */
 export const dayKeySchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, { error: "invalidDate" });
+  .regex(/^\d{4}-\d{2}-\d{2}$/, { error: "invalidDate" })
+  .refine(
+    (key) => {
+      const [y, m, d] = key.split("-").map(Number);
+      const date = new Date(Date.UTC(y, m - 1, d));
+      return (
+        date.getUTCFullYear() === y &&
+        date.getUTCMonth() === m - 1 &&
+        date.getUTCDate() === d
+      );
+    },
+    { error: "invalidDate" },
+  );
 
 /** The operator changes a shop's billing (only what is given changes). */
 export const shopBillingSchema = z
@@ -129,7 +141,7 @@ export const paymentsQuery = z.object({
   status: z.enum(["pending", "approved", "rejected"]).optional(),
   month: z
     .string()
-    .regex(/^\d{4}-\d{2}$/)
+    .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
     .optional(),
   storeId: z.string().max(64).optional(),
 });
