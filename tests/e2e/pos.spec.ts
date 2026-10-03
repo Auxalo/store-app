@@ -213,6 +213,39 @@ test("the cart survives a reload", async ({ page }, testInfo) => {
   await tapProduct(page, "চা");
   await tapProduct(page, "চা");
 
+  // The cart is saved on the device a moment after each change. A person reloads later than that;
+  // the test must not reload in the same instant, so it waits until the save has happened.
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            new Promise<boolean>((resolve) => {
+              const open = indexedDB.open("store-app");
+              open.onerror = () => resolve(false);
+              open.onsuccess = () => {
+                const db = open.result;
+                const get = db
+                  .transaction("drafts")
+                  .objectStore("drafts")
+                  .get("pos-cart");
+                get.onerror = () => {
+                  db.close();
+                  resolve(false);
+                };
+                get.onsuccess = () => {
+                  db.close();
+                  resolve(
+                    String(get.result?.value ?? "").includes('"qty":2000'),
+                  );
+                };
+              };
+            }),
+        ),
+      { message: "the cart is saved on the device" },
+    )
+    .toBe(true);
+
   await page.reload();
   await openCart(page);
   await expect(page.getByTestId("cart-line")).toHaveCount(1);

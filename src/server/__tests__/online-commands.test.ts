@@ -211,9 +211,19 @@ describe("sales", () => {
     expect(seqs[7] - seqs[0]).toBe(7); // no gaps, no repeats
   });
 
-  it("an unknown product still sells (it was deleted), with the cost the browser knew", async () => {
-    const result = await sell(randomUUID(), {}, asOwner(), { unitCost: 3000 });
-    expect(result.ok).toBe(true);
+  it("a product deleted a moment ago still sells, but a product that is not in the shop at all does not", async () => {
+    const id = await product();
+    const removed = await run(
+      asOwner(),
+      "product.delete",
+      { id },
+      { baseVersion: 1 },
+    );
+    expect(removed.ok).toBe(true);
+    expect((await sell(id, {}, asOwner(), { unitCost: 3000 })).ok).toBe(true);
+    // An id of another shop, or a made-up one: refused, nothing recorded.
+    const unknown = await sell(randomUUID());
+    expect(unknown).toMatchObject({ ok: false, code: "NOT_FOUND" });
   });
 });
 

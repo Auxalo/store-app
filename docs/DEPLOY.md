@@ -17,7 +17,11 @@ A short runbook. The app is one Next.js project (pages plus `/api` routes) and o
 | `MONGODB_URI` | yes | Atlas connection string for a user that can read and write the one database. |
 | `MONGODB_DB` | no | Database name (default `store_app`). |
 | `BETTER_AUTH_SECRET` | yes | 32+ random characters (`openssl rand -base64 32`). Changing it signs everyone out. |
-| `BETTER_AUTH_URL` | yes in production | The public origin, e.g. `https://app.example.com`. |
+| `BETTER_AUTH_URL` | yes in production | The public origin, e.g. `https://app.example.com`. The server refuses to start answering without it (Vercel preview deployments may leave it out). |
+| `SENTRY_DSN` | no | Turns on error reporting to Sentry (see section 15). Nothing is sent without it. |
+| `SKIP_RUNTIME_INDEXES` | no | Set to `1` after running `pnpm db:indexes` as part of a deploy: servers then skip the start-up index check. |
+| `RATE_LIMIT_READ_PER_MIN`, `RATE_LIMIT_WRITE_PER_MIN` | no | Per-device request limits (default 600 and 180). |
+| `NEXT_PUBLIC_SIGNUP_ENABLED` | no | `1` at build time opens shop sign-up (section 13). |
 
 Never set `E2E_DISABLE_RATE_LIMIT` in production: it exists only for the automated browser tests.
 
@@ -108,3 +112,23 @@ The long reports are worked out from every sale in the range, so they grow with 
 For now new shops cannot sign themselves up. The create-shop page is there, but pressing "Create shop" shows who to contact (the developer's name, website and WhatsApp, from `src/config/developer.ts`), and the server refuses `POST /api/stores` with 403 `SIGNUP_CLOSED`. To open it again, set `NEXT_PUBLIC_SIGNUP_ENABLED=1` **at build time** (pages are built ahead, so the page must be rebuilt) and redeploy. The test server and `pnpm db:seed` are not affected by the closed state (the tests build with it open; the seed does not use the endpoint).
 
 To create a shop yourself while sign-up is closed, run `pnpm shop:create` on a computer that has the project and the database settings in `.env.local`. It asks for the shop name, the owner's name, the username to sign in with and a password (typed without showing), shows which database it will write to, and asks you to type "yes". The owner then signs in with that username and password and is guided through first-time setup. A username that is already used is refused without leaving anything half-made.
+
+## 14. Backup and restore of one shop
+
+Atlas keeps the whole cluster safe (continuous backup on M10 and up; daily snapshots on the smaller tiers). To get **one shop** back without touching the other 299, use the shop backup:
+
+- **Make a backup:** `pnpm shop:export --store <shop id or the owner's username> [--out file]`, or "Download backup" on the shop's page in the operator panel (`/admin`). It is one text file with that shop's records and its people, a checksum, and nothing of any other shop. It includes password hashes so people can sign in after a restore: keep it as private as a password file. Every download from the panel is logged.
+- **Check a file:** `pnpm shop:restore <file> --dry-run` reads the whole file and says what it holds. It checks the shape, the checksum, the counts, and that every record belongs to the one shop the file names. A changed, cut-off or foreign file is refused before anything is written.
+- **Restore:** `pnpm shop:restore <file>` (the shop must not exist) or `pnpm shop:restore <file> --replace` (deletes that shop's current records first, only that shop's, then restores). It asks you to type "yes". A restore that stops half way leaves no shop record; run it again with `--replace`.
+- **"Put this shop back as it was yesterday":** restore Atlas's snapshot into a temporary cluster, point `.env.local` at it, run `pnpm shop:export --store ...`, point `.env.local` back at production, run `pnpm shop:restore <file> --replace`. Do this once a month on a test shop so the first time is not during an emergency.
+- Usernames are unique across all shops: a restore is refused if a person's username now belongs to someone else.
+
+## 15. Keeping the shops separate, and knowing when something breaks
+
+- **Shops cannot see each other.** Every query names the shop. An automated test (`src/server/__tests__/tenant-isolation.test.ts`) records every database command made for one shop while another shop has data, fails if one is not tied to the shop, and tries to reach the other shop's records with their real ids through every kind of save. Run it before every release; it found two gaps while it was being written (both fixed).
+- **SKUs and barcodes** belong to one live product per shop, enforced by the database (a unique index per shop), not only by the form. Before the first deploy of this version on an existing database, run `pnpm db:check-duplicates`; fix any it lists; then `pnpm db:indexes`.
+- **Pausing a shop.** In the operator panel, "Pause shop" refuses that shop's devices and sign-ins (403 SHOP_SUSPENDED) and its screens show who to contact; nothing is deleted and it all returns on "Resume". The server you pause on obeys at once; others within about 10 seconds.
+- **Operator accounts.** `pnpm admin:create` makes one (it belongs to no shop; no shop's data is reachable with it). Sign in at `/admin`. The panel lists shops, creates a shop, pauses or resumes one, resets an owner's password, downloads a backup, and shows what operators did (kept forever). The operator flag is read from the database on every request and can be set only by the command above.
+- **Errors.** Set `SENTRY_DSN` to get an alert when something breaks. Errors only: no performance traces, no request bodies, cookies or headers, and long numbers (phones, amounts) are blanked. Each report is tagged with the route, shop id, device id, app version and a request id, which also appears in the server's one-line JSON log of the failure. Browser crashes are sent through the server (`/api/client-error`) so the page does not carry Sentry's large browser library. `/api/health` shows the app version, the database round-trip time and whether error reporting is on.
+- **Region.** `vercel.json` pins the functions to `bom1` (Mumbai), next to an Atlas cluster in `ap-south-1`. After changing region, check Vercel → Settings → Functions. `pnpm latency --url https://your-site --user <username> --password <password> [--write]` times the main online calls from wherever you run it (run it from Dhaka). Targets: reads under 300 ms, a save under 600 ms.
+- **Storage.** Applied-operation records now live 45 days (they were 180 and held a full copy of every changed record); the audit log keeps 7 days when switched on; Better Auth's sessions expire on their own.

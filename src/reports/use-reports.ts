@@ -16,17 +16,18 @@ export interface StockHeader {
 }
 
 /** What the stock is worth and how much is low or out: from this device, or from the server. */
-export function useStockHeader(): StockHeader | undefined {
+export function useStockHeader(enabled = true): StockHeader | undefined {
   const mode = useDataMode();
   const local = useLiveQuery(
-    async () => (mode === "offline" ? loadStock(getLocalDb()) : undefined),
-    [mode],
+    async () =>
+      mode === "offline" && enabled ? loadStock(getLocalDb()) : undefined,
+    [mode, enabled],
   );
   const online = useQuery({
     queryKey: ["data", "stock-summary"],
-    enabled: mode === "online",
-    queryFn: async () => {
-      const response = await fetch("/api/reports/stock");
+    enabled: mode === "online" && enabled,
+    queryFn: async ({ signal }) => {
+      const response = await fetch("/api/reports/stock", { signal });
       if (!response.ok) throw new Error(String(response.status));
       return ((await response.json()) as { summary: StockHeader }).summary;
     },

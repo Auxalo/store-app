@@ -6,43 +6,12 @@ import { useDataMode } from "@/data/mode-store";
 import { getLocalDb } from "@/db/local/db";
 import { useActiveUser } from "@/stores/active-user";
 import { usePreferences } from "@/stores/preferences";
-import { type DayRange, dayKey, type Summary } from "./compute";
+import type { DayRange, Summary } from "./compute";
 import { loadSummary } from "./local";
 
 export type ReportSource = "device" | "server";
 
-export type RangePreset =
-  | "today"
-  | "yesterday"
-  | "days7"
-  | "days30"
-  | "thisMonth"
-  | "custom";
-
-const DAY = 86_400_000;
-
-/** The days a preset covers, in the store's time zone. */
-export function presetRange(
-  preset: Exclude<RangePreset, "custom">,
-  timeZone: string,
-  now = Date.now(),
-): DayRange {
-  const today = dayKey(now, timeZone);
-  switch (preset) {
-    case "today":
-      return { from: today, to: today };
-    case "yesterday": {
-      const day = dayKey(now - DAY, timeZone);
-      return { from: day, to: day };
-    }
-    case "days7":
-      return { from: dayKey(now - 6 * DAY, timeZone), to: today };
-    case "days30":
-      return { from: dayKey(now - 29 * DAY, timeZone), to: today };
-    case "thisMonth":
-      return { from: `${today.slice(0, 8)}01`, to: today };
-  }
-}
+export { presetRange, type RangePreset } from "./ranges";
 
 /**
  * The report for a range. Offline mode reads this device and updates live as sales happen, with

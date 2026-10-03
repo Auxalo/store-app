@@ -15,6 +15,19 @@ const strip = <T extends { _id?: unknown }>(
   return { ...rest, id: String(_id) } as never;
 };
 
+/** A report for someone who may see sales but not what the goods cost (so not profit either). */
+export function hideProfit(summary: Summary): Summary {
+  return {
+    ...summary,
+    cost: 0,
+    profit: 0,
+    netProfit: 0,
+    byProduct: summary.byProduct.map((p) => ({ ...p, profit: 0 })),
+    byCategory: summary.byCategory.map((c) => ({ ...c, profit: 0 })),
+    byDay: summary.byDay.map((d) => ({ ...d, profit: 0 })),
+  };
+}
+
 const cache = new Map<string, { head: number; summary: Summary }>();
 const CACHE_ENTRIES = 60;
 

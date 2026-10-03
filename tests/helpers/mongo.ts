@@ -24,7 +24,7 @@ export async function startMongo(): Promise<TestMongo> {
   const rs = await MongoMemoryReplSet.create({
     replSet: { count: 1, storageEngine: "wiredTiger" },
   });
-  const client = new MongoClient(rs.getUri());
+  const client = new MongoClient(rs.getUri(), { monitorCommands: true });
   await client.connect();
   const db = client.db(`test_${randomUUID().slice(0, 8)}`);
   await ensureSyncIndexes(db);

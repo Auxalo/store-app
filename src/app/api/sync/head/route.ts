@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSyncDeps } from "@/server/deps";
-import { checkDevice } from "@/server/devices";
-import { errorResponse, HttpError } from "@/server/http";
+import { requireDevice } from "@/server/device-request";
+import { errorResponse } from "@/server/http";
 
 export const dynamic = "force-dynamic";
 
@@ -12,11 +12,10 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
     const { db } = await getSyncDeps();
-    const device = await checkDevice(db, request.headers.get("cookie"));
-    if (!device.ok) throw new HttpError(401, "DEVICE_UNKNOWN");
+    const device = await requireDevice(request, db, "read");
     const store = await db
       .collection<{ _id: string; syncSeq?: number }>("stores")
-      .findOne({ _id: device.device.storeId }, { projection: { syncSeq: 1 } });
+      .findOne({ _id: device.storeId }, { projection: { syncSeq: 1 } });
     return NextResponse.json({ syncSeq: store?.syncSeq ?? 0 });
   } catch (error) {
     return errorResponse(error);

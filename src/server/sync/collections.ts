@@ -1,4 +1,4 @@
-import type { Db } from "mongodb";
+import type { CreateIndexesOptions, Db, IndexSpecification } from "mongodb";
 import { AUDIT_RETENTION_SECONDS } from "@/lib/constants";
 
 /** Mongo collection names used by the sync engine (business collections match SYNC_COLLECTIONS). */
@@ -8,6 +8,38 @@ export const COL = {
   appliedOps: "appliedOps",
   users: "user", // owned by Better Auth
 } as const;
+
+/**
+ * How long the "this operation was already applied" records are kept. A retry comes within hours
+ * or days of the original (the answer was lost, the phone came back online), and every create is
+ * also guarded by its own id, so 45 days is far more than enough. (They held a full copy of every
+ * changed record for 180 days, which roughly doubled the storage a shop used.)
+ */
+export const APPLIED_OPS_RETENTION_SECONDS = 60 * 60 * 24 * 45;
+
+/**
+ * An expiring index. If the index already exists with another lifetime (this was 180 days), the
+ * lifetime is changed in place (collMod) instead of failing.
+ */
+async function ensureTtl(
+  db: Db,
+  collection: string,
+  field: string,
+  seconds: number,
+) {
+  try {
+    await db
+      .collection(collection)
+      .createIndex({ [field]: 1 }, { expireAfterSeconds: seconds });
+  } catch (error) {
+    const code = (error as { code?: number }).code;
+    if (code !== 85 && code !== 86) throw error;
+    await db.command({
+      collMod: collection,
+      index: { keyPattern: { [field]: 1 }, expireAfterSeconds: seconds },
+    });
+  }
+}
 
 const ensured = new WeakSet<Db>();
 
@@ -89,23 +121,61 @@ export async function ensureSyncIndexes(db: Db): Promise<void> {
       .createIndex({ storeId: 1, partyId: 1, createdAt: -1 }),
     db.collection("auditLogs").createIndex({ storeId: 1, at: -1 }),
     // The audit log keeps 7 days; MongoDB deletes older rows on its own (within about a minute).
-    db
-      .collection("auditLogs")
-      .createIndex(
-        { recordedAt: 1 },
-        { expireAfterSeconds: AUDIT_RETENTION_SECONDS },
-      ),
+    ensureTtl(db, "auditLogs", "recordedAt", AUDIT_RETENTION_SECONDS),
     db
       .collection(COL.devices)
       .createIndex({ storeId: 1, code: 1 }, { unique: true }),
     db.collection(COL.appliedOps).createIndex({ storeId: 1 }),
     // Idempotency records only need to outlive any realistic retry window.
-    db
-      .collection(COL.appliedOps)
-      .createIndex(
-        { appliedAt: 1 },
-        { expireAfterSeconds: 60 * 60 * 24 * 180 },
-      ),
+    ensureTtl(db, COL.appliedOps, "appliedAt", APPLIED_OPS_RETENTION_SECONDS),
   ]);
+
+  // A SKU or barcode belongs to one live product of a shop: the database refuses a second one, so
+  // two devices (or two requests) saving at the same moment cannot both take it. Only live
+  // products with a non-empty code count; a deleted product frees its code. A failure is logged and
+  // never stops the app (run `pnpm db:check-duplicates` to find existing clashes).
+  for (const field of ["sku", "barcode"] as const) {
+    const options: CreateIndexesOptions = {
+      unique: true,
+      name: `uniq_live_${field}`,
+      partialFilterExpression: {
+        deletedAt: null,
+        [field]: { $type: "string", $gt: "" },
+      },
+    };
+    await db
+      .collection("products")
+      .createIndex({ storeId: 1, [field]: 1 }, options)
+      .catch((error: unknown) =>
+        console.error(`unique index on product ${field} not created`, error),
+      );
+  }
+
+  // Better Auth creates no indexes of its own for its collections. Without these, every session
+  // lookup scans every session ever made, and old sessions are never cleaned up. They are created
+  // one by one and a failure is only logged, so an odd old row can never stop the app starting.
+  const authIndexes: Array<
+    [string, IndexSpecification, CreateIndexesOptions?]
+  > = [
+    ["session", { token: 1 }, { unique: true }],
+    ["session", { userId: 1 }],
+    // Sessions last 30 days; MongoDB removes them when they expire.
+    ["session", { expiresAt: 1 }, { expireAfterSeconds: 0 }],
+    ["account", { userId: 1 }],
+    ["rateLimit", { key: 1 }],
+  ];
+  await Promise.all(
+    authIndexes.map(([name, keys, options]) =>
+      db
+        .collection(name)
+        .createIndex(keys, options)
+        .catch((error: unknown) =>
+          console.error(
+            `index ${name} ${JSON.stringify(keys)} not created`,
+            error,
+          ),
+        ),
+    ),
+  );
   ensured.add(db);
 }

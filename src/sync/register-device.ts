@@ -32,6 +32,13 @@ export function registerDevice(db: StoreDB): Promise<string> {
     } catch {
       throw new TransportError("network");
     }
+    if (response.status === 403) {
+      const body = (await response.json().catch(() => ({}))) as {
+        code?: string;
+      };
+      if (body.code === "SHOP_SUSPENDED")
+        throw new TransportError("suspended", body.code, 403);
+    }
     if (response.status === 401 || response.status === 403)
       throw new TransportError("auth");
     if (!response.ok) throw new TransportError("server");

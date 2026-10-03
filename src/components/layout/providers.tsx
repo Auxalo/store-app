@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { I18nProvider } from "@/i18n/provider";
 import { ConnectivityWatcher } from "./connectivity-watcher";
+import { ErrorReporter } from "./error-reporter";
 import { SwUpdateNotifier } from "./sw-update-notifier";
 
 /**
@@ -36,6 +37,7 @@ export function Providers({ children }: { children: ReactNode }) {
           <I18nProvider>
             <TooltipProvider>
               <ConnectivityWatcher />
+              <ErrorReporter />
               <SwUpdateNotifier />
               {children}
               <Toaster position="top-center" />

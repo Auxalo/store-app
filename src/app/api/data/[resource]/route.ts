@@ -12,7 +12,7 @@ import {
 } from "@/server/data/http";
 import { BadCursorError, listResource } from "@/server/data/service";
 import { getSyncDeps } from "@/server/deps";
-import { checkDevice } from "@/server/devices";
+import { requireDevice } from "@/server/device-request";
 import { errorResponse, HttpError } from "@/server/http";
 
 export const dynamic = "force-dynamic";
@@ -32,11 +32,10 @@ export async function GET(
     if (resource === "categories" || resource === "settings") {
       // Small and not sensitive: the device alone is enough (the sync manager has no PIN).
       const { db } = await getSyncDeps();
-      const device = await checkDevice(db, request.headers.get("cookie"));
-      if (!device.ok) throw new HttpError(401, "DEVICE_UNKNOWN");
+      const device = await requireDevice(request, db, "read");
       const rows = await db
         .collection(resource)
-        .find({ storeId: device.device.storeId, deletedAt: null })
+        .find({ storeId: device.storeId, deletedAt: null })
         .limit(2000)
         .toArray();
       return NextResponse.json({

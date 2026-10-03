@@ -6,6 +6,7 @@ import { getSyncDeps } from "./deps";
 import { checkDevice } from "./devices";
 import { HttpError } from "./http";
 import { checkRateLimit } from "./rate-limit";
+import { noteRequest } from "./request-context";
 import { requireUser } from "./session";
 
 export interface RequestActor extends ActorUser {
@@ -24,10 +25,14 @@ export async function requireActor(
   request: Request,
   permission?: Permission,
 ): Promise<RequestActor> {
+  noteRequest(request);
   const { db } = await getSyncDeps();
   const cookieHeader = request.headers.get("cookie");
   const device = await checkDevice(db, cookieHeader);
-  if (!device.ok) throw new HttpError(401, "DEVICE_UNKNOWN");
+  if (!device.ok)
+    throw device.reason === "suspended"
+      ? new HttpError(403, "SHOP_SUSPENDED")
+      : new HttpError(401, "DEVICE_UNKNOWN");
   checkRateLimit(
     device.device.deviceId,
     request.method === "GET" ? "read" : "write",
@@ -55,5 +60,9 @@ export async function requireActor(
     throw new HttpError(403, "WRONG_STORE");
   if (permission && !can(actor.role, permission))
     throw new HttpError(403, "FORBIDDEN");
+  noteRequest(request, {
+    storeId: actor.storeId,
+    deviceId: device.device.deviceId,
+  });
   return { ...actor, deviceId: device.device.deviceId };
 }

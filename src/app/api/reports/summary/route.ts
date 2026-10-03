@@ -4,7 +4,7 @@ import { can } from "@/auth/permissions";
 import { requireActor } from "@/server/actor-request";
 import { getSyncDeps } from "@/server/deps";
 import { errorResponse } from "@/server/http";
-import { serverSummaryCached } from "@/server/reports";
+import { hideProfit, serverSummaryCached } from "@/server/reports";
 
 export const dynamic = "force-dynamic";
 
@@ -27,19 +27,8 @@ export async function GET(request: Request) {
     const { db } = await getSyncDeps();
     const summary = await serverSummaryCached(db, actor.storeId, { from, to });
     // Cost and profit are for people who may see them.
-    if (!can(actor.role, "profit.view")) {
-      return NextResponse.json({
-        summary: {
-          ...summary,
-          cost: 0,
-          profit: 0,
-          netProfit: 0,
-          byProduct: summary.byProduct.map((p) => ({ ...p, profit: 0 })),
-          byCategory: summary.byCategory.map((c) => ({ ...c, profit: 0 })),
-          byDay: summary.byDay.map((d) => ({ ...d, profit: 0 })),
-        },
-      });
-    }
+    if (!can(actor.role, "profit.view"))
+      return NextResponse.json({ summary: hideProfit(summary) });
     return NextResponse.json({ summary });
   } catch (error) {
     return errorResponse(error);

@@ -156,6 +156,9 @@ export async function stockAdjust(
     { _id: payload.movementId },
     { session: ctx.session },
   );
+  // An id that belongs to another shop is a clash, never an answer: nothing of theirs is returned.
+  if (already && already.storeId !== ctx.storeId)
+    return { status: "rejected", error: "ID_COLLISION" };
   if (already)
     return {
       status: "applied",

@@ -91,6 +91,9 @@ const later = (a: string, b: string) => (a > b ? a : b);
  * recorded (the goods did leave the shop) without trying to move stock that is not there.
  */
 async function liveProducts(ctx: ServerCtx, ids: string[]) {
+  // The prepare step (online sales) just read exactly these, in this same transaction.
+  const prepared = ctx.scratch?.get(`products:${ids.slice().sort().join(",")}`);
+  if (prepared) return prepared as Map<string, StoredDoc>;
   const found = await ctx.db
     .collection<StoredDoc>("products")
     .find(
@@ -101,8 +104,75 @@ async function liveProducts(ctx: ServerCtx, ids: string[]) {
   return new Map(found.map((p) => [p._id, p]));
 }
 
+/**
+ * Adds `direction * qty` to each product's stock. One product is one call; several are one bulk
+ * write plus one read back (a cart of ten items used to be ten calls one after another, inside
+ * the transaction). Returns the updated records, in the order given.
+ */
+async function moveStock(
+  ctx: ServerCtx,
+  products: Map<string, StoredDoc>,
+  perProduct: Map<string, number>,
+  direction: 1 | -1,
+  nextSeq: () => number,
+): Promise<WireChange[]> {
+  const collection = ctx.db.collection<StoredDoc>("products");
+  const change = (productId: string, qty: number) => {
+    const product = products.get(productId) as StoredDoc;
+    return {
+      filter: { _id: productId, storeId: ctx.storeId },
+      update: {
+        $inc: { stock: direction * qty, version: 1 },
+        $set: {
+          syncSeq: nextSeq(),
+          "fieldVersions.stock": product.version + 1,
+          updatedAt: later(ctx.opCreatedAt, product.updatedAt),
+        },
+      },
+    };
+  };
+  if (perProduct.size === 0) return [];
+  if (perProduct.size === 1) {
+    const [[productId, qty]] = [...perProduct];
+    const { filter, update } = change(productId, qty);
+    const updated = await collection.findOneAndUpdate(filter, update, {
+      returnDocument: "after",
+      session: ctx.session,
+    });
+    return [
+      wire("products", updated ?? (products.get(productId) as StoredDoc)),
+    ];
+  }
+  const entries = [...perProduct];
+  await collection.bulkWrite(
+    entries.map(([productId, qty]) => {
+      const { filter, update } = change(productId, qty);
+      return { updateOne: { filter, update } };
+    }),
+    { ordered: true, session: ctx.session },
+  );
+  const after = new Map(
+    (
+      await collection
+        .find(
+          { _id: { $in: entries.map(([id]) => id) }, storeId: ctx.storeId },
+          { session: ctx.session },
+        )
+        .toArray()
+    ).map((d) => [d._id, d]),
+  );
+  return entries.map(([productId]) =>
+    wire(
+      "products",
+      after.get(productId) ?? (products.get(productId) as StoredDoc),
+    ),
+  );
+}
+
 async function liveCustomer(ctx: ServerCtx, id: string | null) {
   if (!id) return null;
+  const prepared = ctx.scratch?.get(`customer:${id}`) as StoredDoc | undefined;
+  if (prepared) return prepared.deletedAt == null ? prepared : null;
   return ctx.db
     .collection<StoredDoc>("customers")
     .findOne(
@@ -219,24 +289,7 @@ export async function saleCreate(
     for (const m of movements) docs.push(wire("stockMovements", m));
   }
 
-  for (const [productId, qty] of perProduct) {
-    const product = products.get(productId) as StoredDoc;
-    const updated = await ctx.db
-      .collection<StoredDoc>("products")
-      .findOneAndUpdate(
-        { _id: productId, storeId: ctx.storeId },
-        {
-          $inc: { stock: -qty, version: 1 },
-          $set: {
-            syncSeq: seq++,
-            "fieldVersions.stock": product.version + 1,
-            updatedAt: later(ctx.opCreatedAt, product.updatedAt),
-          },
-        },
-        { returnDocument: "after", session: ctx.session },
-      );
-    docs.push(wire("products", updated ?? product));
-  }
+  docs.push(...(await moveStock(ctx, products, perProduct, -1, () => seq++)));
 
   if (customer) {
     const updated = await ctx.db
@@ -360,24 +413,7 @@ export async function saleVoid(
     for (const m of movements) docs.push(wire("stockMovements", m));
   }
 
-  for (const [productId, qty] of perProduct) {
-    const product = products.get(productId) as StoredDoc;
-    const updated = await ctx.db
-      .collection<StoredDoc>("products")
-      .findOneAndUpdate(
-        { _id: productId, storeId: ctx.storeId },
-        {
-          $inc: { stock: qty, version: 1 },
-          $set: {
-            syncSeq: seq++,
-            "fieldVersions.stock": product.version + 1,
-            updatedAt: later(ctx.opCreatedAt, product.updatedAt),
-          },
-        },
-        { returnDocument: "after", session: ctx.session },
-      );
-    docs.push(wire("products", updated ?? product));
-  }
+  docs.push(...(await moveStock(ctx, products, perProduct, 1, () => seq++)));
 
   if (customer) {
     const updated = await ctx.db

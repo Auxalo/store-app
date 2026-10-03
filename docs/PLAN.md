@@ -679,3 +679,35 @@ Plan: see the sprint plan (S1–S8). Notes per phase below.
 - **Bundle budgets** re-measured: login 349 KB, app pages 494-531 KB; each budget is the largest plus about 20 KB.
 - **Online shop-day test** (`tests/e2e/online-day.spec.ts`): from the app's own default (online), buy stock, pay the supplier, sell for cash and on credit, collect a due, add an expense, take a return, and check stock, invoice numbers and the reports.
 - **Known limits** (also in DEPLOY): offline PIN checking trusts the device; the rate limit is per server process; the longest reports of very large shops take over a second.
+
+## Sprint 3 (branch `dev`)
+
+Goal: make online mode fast, keep shops strictly apart, make backup simple, and be ready to run for 100-300 shops.
+
+### A. Server speed
+- **The cause.** `ensureSyncIndexes` kept "done" in a `WeakSet<Db>`, but the driver builds a new `Db` on every `client.db()`, so about 57 index commands ran on every request, up to three times (`requireActor`, the route, `viewerFor`) through a pool of 10. The Db handle and the deps are now built once per process (`src/db/server/mongo.ts`, `src/server/deps.ts`); `pnpm db:indexes` and `SKIP_RUNTIME_INDEXES=1` move index creation to deploy time. Pool 20, `maxIdleTimeMS`, `attachDatabasePool` on Vercel; `vercel.json` pins `bom1` (the function was running in `iad1`, an ocean away from the database).
+- **Caches** (`src/server/cache.ts`, 10-30 s, per process, cleared by this server's own staff, device and shop changes): the device record, PIN use, a person's role, the time zone, the shop's status. `lastSeenAt` is written at most every 5 minutes.
+- **Fewer round trips.** A list asks its exact-code query beside the page; a record asks its related rows beside it; a lookup is one query. A sale reuses what prepare read (`ctx.scratch`), and several stock updates are one bulk write: about 15 commands down to 11, and no longer growing with the cart. A budget test (`request-budget.test.ts`, driver command monitoring) fails if a request costs more.
+- Save responses no longer carry purchase prices or line costs to people who may not see them (`hideCostInChanges`), and return the shop's `head`.
+
+### B. A browser that does less
+- After a save the returned records go into the query cache and only the lists, totals and reports they belong to are marked out of date, without waiting (`src/data/cache-sync.ts`). Before, every write waited for every active query to refetch (every loaded page, one after another), and the minute poll then refetched everything again because the device's own save had moved the change counter (`src/data/head.ts` now tells a person's own save from someone else's).
+- One head poll feeds the rest: settings are fetched only when the shop changed, staff every 5 minutes (a minute-long cycle used to download every PIN hash); no refetch on tab focus; searches are cancelled when superseded; POS search is debounced and Enter reuses the exact match already in the list; the dashboard is one request instead of seven (`/api/dashboard`); the stock header loads only on its tab; rows prefetch their record on hover. A false OFFLINE error when a sync was already running is fixed.
+- A used SKU or barcode is refused inside the save itself (`DUPLICATE_SKU`, `DUPLICATE_BARCODE`), so the product form no longer asks twice first.
+
+### C. Isolation and safety
+- The tenant isolation test (see DEPLOY section 15). It found: a stock-adjust retry could return another shop's movement record if the ids matched; an online sale could carry another shop's product or customer id as a reference. Both closed. A product deleted a moment ago still sells; one that is not in the shop at all does not.
+- Unique partial indexes for SKU and barcode (live products only); a clash from an offline device is a clear "failed" item on the Sync screen, never an endless retry. `pnpm db:check-duplicates`. (Invoice and purchase numbers are not made unique in the database: a clash there would reject a real sale; online numbers come from per-shop counters inside the transaction.)
+- Shop suspension (`stores.status`), enforced for devices, sign-ins and sessions; the app shows who to contact. A per-device rate limit on the sync, settings and device routes. `BETTER_AUTH_URL` required in production. Better Auth's session collection gets its indexes and a TTL.
+
+### D. Backup and restore of one shop
+`src/server/shop-export.ts`, `pnpm shop:export` / `shop:restore`: streamed, checksummed, refuses any file that holds another shop's record, never writes before the whole file verifies, round-trip and refusal cases tested. Applied-operation records now expire after 45 days (changed in place with `collMod`).
+
+### E. Errors and logs
+Sentry on the server only (errors only, scrubbed), browser crashes reported through `/api/client-error` so the page stays light and the security policy unchanged; `error.tsx` and `global-error.tsx`; one structured JSON log line per server error with a request id; `/api/health` shows version, database ping and whether reporting is on.
+
+### F. Operator panel
+`/admin` (own sign-in, English only): shops list with search, create a shop, pause or resume, reset an owner's password, download a backup, activity log (`platformAudit`, kept). `pnpm admin:create` is the only way to make an operator. Tested end to end (`tests/e2e/admin.spec.ts`).
+
+### G. Verify on the real deployment
+`pnpm latency` (deployed URL, from Dhaka). Not yet measured against the deployed preview: that needs the `dev` branch deployed with the `bom1` setting.
