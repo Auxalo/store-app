@@ -235,7 +235,8 @@
   "account": {
     "signOutPendingTitle": "Sign out with unsynced changes?",
     "signOutPendingBody": "{count, plural, one {{n} change has} other {{n} changes have}} not reached the cloud yet. It stays safe on this device and syncs when you sign in again.",
-    "signOutConfirm": "Sign out anyway"
+    "signOutConfirm": "Sign out anyway",
+    "signOutFailed": "Could not sign out. Check your connection and try again."
   },
   "units": {
     "pcs": "pcs",

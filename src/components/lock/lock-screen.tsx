@@ -4,6 +4,7 @@ import { ArrowLeft, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { lockoutState } from "@/auth/lockout";
 import { verifyPin } from "@/auth/pin";
 import { signOut } from "@/auth/use-auth";
@@ -123,8 +124,8 @@ export function LockScreen({ users, storeName, onUnlock }: LockScreenProps) {
   }
 
   async function signInAgain() {
-    await signOut();
-    router.replace("/login");
+    if (await signOut()) router.replace("/login");
+    else toast.error(t("account.signOutFailed"));
   }
 
   const waitSeconds =

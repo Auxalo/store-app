@@ -17,7 +17,7 @@ A short runbook. The app is one Next.js project (pages plus `/api` routes) and o
 | `MONGODB_URI` | yes | Atlas connection string for a user that can read and write the one database. |
 | `MONGODB_DB` | no | Database name (default `store_app`). |
 | `BETTER_AUTH_SECRET` | yes | 32+ random characters (`openssl rand -base64 32`). Changing it signs everyone out. |
-| `BETTER_AUTH_URL` | yes in production | The public origin, e.g. `https://app.example.com`. The server refuses to start answering without it (Vercel preview deployments may leave it out). |
+| `BETTER_AUTH_URL` | yes in production | The public origin, e.g. `https://app.example.com`. The server refuses to start answering without it (Vercel preview deployments may leave it out). Requests from the very address they are sent to are always accepted, so opening the app on another address (a preview or alias) still signs out correctly. |
 | `SENTRY_DSN` | no | Turns on error reporting to Sentry (see section 15). Nothing is sent without it. |
 | `SKIP_RUNTIME_INDEXES` | no | Set to `1` after running `pnpm db:indexes` as part of a deploy: servers then skip the start-up index check. |
 | `RATE_LIMIT_READ_PER_MIN`, `RATE_LIMIT_WRITE_PER_MIN` | no | Per-device request limits (default 600 and 180). |

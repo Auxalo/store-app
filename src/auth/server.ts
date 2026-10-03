@@ -25,6 +25,21 @@ async function createAuth() {
     appName: "Store Manager",
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
+    // A request that comes from the very address it is sent to (same origin) is the app's own page,
+    // never another site, so it is trusted whatever BETTER_AUTH_URL says. Without this, opening the
+    // app on any other address (a Vercel preview or alias, www, a typo in the variable) signed in
+    // fine but refused every sign-out, which left people stuck inside the app. Requests from a
+    // different site still fail the origin check.
+    trustedOrigins: (request) => {
+      // The address the browser was really sent to: the Host header (the framework rewrites
+      // request.url to its own address), and https when a proxy says so.
+      const host = request?.headers.get("host");
+      if (!request || !host) return [];
+      const protocol =
+        request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ||
+        new URL(request.url).protocol.slice(0, -1);
+      return [`${protocol}://${host}`];
+    },
     database: mongodbAdapter(db, { client }),
     // Accounts are created only by our own onboarding/staff routes (a user belongs to a store).
     emailAndPassword: {

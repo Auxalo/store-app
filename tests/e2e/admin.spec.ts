@@ -136,6 +136,11 @@ test("an operator pauses, backs up and resets a shop; the shop cannot reach the 
   await expect(admin.getByTestId("admin-activity")).toContainText(
     "shop.export",
   );
+
+  // The operator can sign out, and the panel asks for a sign-in again.
+  await admin.getByTestId("admin-sign-out").click();
+  await expect(admin.getByTestId("admin-gate")).toBeVisible();
+  expect((await admin.request.get("/api/admin/shops")).status()).toBe(401);
   await fresh.close();
   await adminContext.close();
 });

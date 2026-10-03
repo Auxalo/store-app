@@ -3,6 +3,7 @@
 import { Globe, MessageCircle, PauseCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { signOut } from "@/auth/use-auth";
 import { Button } from "@/components/ui/button";
 import { DEVELOPER } from "@/config/developer";
@@ -14,6 +15,7 @@ import { DEVELOPER } from "@/config/developer";
 export function SuspendedScreen() {
   const t = useTranslations("suspended");
   const td = useTranslations("developer");
+  const ta = useTranslations("account");
   const router = useRouter();
   return (
     <div
@@ -49,7 +51,10 @@ export function SuspendedScreen() {
       <Button
         variant="outline"
         onClick={() => {
-          void signOut().then(() => router.replace("/login"));
+          void signOut().then((done) => {
+            if (done) router.replace("/login");
+            else toast.error(ta("signOutFailed"));
+          });
         }}
       >
         {t("signOut")}
