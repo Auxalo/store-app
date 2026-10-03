@@ -23,6 +23,10 @@ async function createAuth() {
 
   return betterAuth({
     appName: "Store Manager",
+    // A person's name and username are changed by the owner (staff screen) and by nobody else:
+    // the sign-in service's own "update my profile" is switched off, or anyone could take
+    // another person's name on the lock screen and in the audit log.
+    disabledPaths: ["/update-user", "/change-email", "/delete-user"],
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     // A request that comes from the very address it is sent to (same origin) is the app's own page,

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createStaffSchema } from "@/schemas/staff";
+import { requireActor } from "@/server/actor-request";
 import { getSyncDeps } from "@/server/deps";
 import { checkDevice } from "@/server/devices";
 import { errorResponse, HttpError, readJson } from "@/server/http";
@@ -30,7 +31,9 @@ export async function GET(request: Request) {
 /** Owner adds a manager or cashier. */
 export async function POST(request: Request) {
   try {
-    const owner = await requireUser(request, "user.manage");
+    const owner = await requireActor(request, "user.manage", {
+      allowLocked: true,
+    });
     const body = createStaffSchema.parse(await readJson(request));
     const { db } = await getSyncDeps();
     const member = await createStaffMember(db, owner.storeId, body);

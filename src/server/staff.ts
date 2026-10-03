@@ -82,6 +82,13 @@ export async function updateStaff(
 }
 
 /** Stores the hash a device computed for this person's PIN (never the PIN itself). */
+/** Forgets the wrong-PIN counters of a person (on every device): a new PIN or password starts clean. */
+export async function clearPinAttempts(db: Db, id: string): Promise<void> {
+  await db
+    .collection("pinAttempts")
+    .deleteMany({ _id: { $regex: `:${id}$` } } as never);
+}
+
 export async function setStaffPin(
   db: Db,
   storeId: string,
@@ -101,6 +108,7 @@ export async function setStaffPin(
       } as never,
     },
   );
+  await clearPinAttempts(db, id); // a new PIN: the old wrong tries and the "sign in again" lock end
   clearStoreCaches();
   return {
     ok: true,

@@ -76,3 +76,42 @@ Severity was my estimate for a shop selling every day.
 
 - A server left running on port 3100 is silently reused by the next run, so the tests then check an old build. Make sure nothing listens on 3100 first.
 - Do not run `pnpm test` while a Playwright build or run is going: the in-memory databases then fail to start (false failures).
+
+---
+
+# Part 2: who may do what (security)
+
+Tests: `src/server/__tests__/qa-security.test.ts` (unit) and `tests/e2e/qa-security.spec.ts` (browser, both modes). The browser tests were first run against the code before the fixes and failed as described below; then the fixes were applied and they pass.
+
+| ID | Finding | Status | Severity |
+|---|---|---|---|
+| H1 | On a shared counter a cashier could manage staff, devices and the audit log with the owner's sign-in | **Confirmed, fixed** | **Critical** |
+| H4 | A device kept working after the person who registered it was deactivated | **Confirmed, fixed** | High |
+| M10 | An operator account could use a shop's staff endpoints | **Confirmed, fixed** | Medium |
+| M11 | Anyone could rename themselves through the sign-in service | **Confirmed, fixed** | Medium |
+| M2 | After sign-out the server still knew who had been working | **Confirmed, fixed** | Medium |
+| M1 | After "sign in again" lock, setting a new PIN did not let the person unlock | **Confirmed, fixed** | Medium |
+| H5 | PIN guesses made at the same moment could all be checked | Hardened (could not be reproduced in the test) | Medium |
+| H2 | A cashier's device can push operations in the owner's name | **Confirmed, NOT fixed (design limit)** | High |
+| H3 | Every device can read every person's PIN hash | **Confirmed, NOT fixed (design limit)** | High |
+
+## Fixed
+
+- **H1.** Staff, device and audit endpoints used the signed-in account (the owner's, on a shared counter). They now act as the person at the counter (`requireActor`: the device plus the PIN-unlocked person). Before the fix, in the browser, a cashier's `PATCH /api/staff/<owner>` with a new password answered **200**: the shop could be taken over. Now it answers 403, as do setting the owner's PIN, promoting themselves, reading the audit log and listing devices. A person can still set their own PIN.
+  - *Side effect:* in a shop that uses PINs, these screens need the server to know who is working. If the PIN was entered while there was no internet, the screen now asks for the PIN again (`src/components/settings/api.ts`) instead of showing a generic error.
+- **H4.** Deactivating a person revokes the devices they registered (`src/server/staff-admin.ts`), and registering a device checks the database, not the 5-minute session copy. *Side effect:* if a cashier's account was the one used to set up the shared counter, deactivating them stops that counter until the owner signs it in again.
+- **M10.** `requireUser` refuses an operator account. Before: the operator got 200 from a shop's staff list.
+- **M11.** `/update-user`, `/change-email` and `/delete-user` of the sign-in service are switched off. Before: `update-user` answered 200.
+- **M2.** Signing out and locking now clear the "who is working" cookie in every mode (`src/auth/use-auth.tsx`, `src/stores/active-user.ts`). Before: after sign-out the shop's data still answered 200.
+- **M1.** Setting a new PIN, or a password reset, clears the wrong-PIN counters; a password reset also ends the person's sessions (`src/server/staff.ts`, `staff-admin.ts`).
+- **H5.** A PIN try is now claimed before the slow check, so tries made together see each other (`src/server/actor.ts`), and the unlock route is rate-limited. In the in-memory test only 4 of 30 parallel guesses were checked both before and after, so I could not show the race; the change closes the window that exists when the database is slower.
+
+## Not fixed: design limits that need a decision
+
+- **H2.** The server cannot tell who is at the counter when a device syncs later: it believes the person named in each queued operation. A cashier's device can name the owner (confirmed: a `setting.set` in the owner's name was applied). A fix needs per-person proof that does not exist yet (for example each person signing their operations with a secret only they know); a cheap check on the unlock cookie would reject legitimate operations queued by several people. Until then, treat the cashier role as "cannot use the app's screens to do owner things", not as a security boundary against a technical cashier.
+- **H3.** Offline PIN unlock needs the PIN hash on every device, so any registered device can read everyone's. A 4–6 digit PIN falls quickly to a guess against it. Options: longer PINs (6+ digits), or give up unlocking offline for owners and managers (their PIN is then checked only by the server).
+- **Related, by design:** cost prices and suppliers also reach every device through sync (offline mode needs them), so hiding costs from cashiers only holds in online mode.
+
+## Not covered yet
+
+Sync/mode/restore (S3, S6–S8, S10, D1–D4), billing (B1–B8), the screens, and the untested modules.

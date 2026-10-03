@@ -1,3 +1,4 @@
+import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuth } from "@/auth/server";
@@ -31,6 +32,13 @@ export async function POST(request: Request) {
 
     const body = bodySchema.parse(await readJson(request));
     const { db } = await getSyncDeps();
+    // The session cookie remembers the person for a few minutes; ask the database, so someone
+    // deactivated a moment ago cannot register a new device.
+    const live = ObjectId.isValid(user.id)
+      ? await db.collection("user").findOne({ _id: new ObjectId(user.id) })
+      : null;
+    if (!live || live.isActive === false || live.platformAdmin === true)
+      throw new HttpError(403, "USER_INACTIVE");
     // A paused shop cannot add devices (the app then shows who to contact).
     if (await shopIsSuspended(db, user.storeId))
       throw new HttpError(403, "SHOP_SUSPENDED");

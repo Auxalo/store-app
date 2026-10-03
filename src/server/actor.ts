@@ -116,15 +116,30 @@ export async function unlockActor(
   if (!user.pinHash || !user.pinSalt) return { ok: false, reason: "NO_PIN" };
 
   const key = `${input.deviceId}:${input.userId}`;
-  const before = await attempts(db).findOne({ _id: key });
-  const state = lockoutState(
-    before?.failures ?? 0,
-    before?.lastFailedAt ?? 0,
-    now,
+  // Claim this try first, in one step with reading the count: the check below takes a while, and
+  // guesses that arrive together must each see the others, not all start from the same count.
+  const claimed = await attempts(db).findOneAndUpdate(
+    { _id: key },
+    { $inc: { failures: 1 }, $set: { lastFailedAt: now } },
+    { upsert: true, returnDocument: "before" },
   );
-  if (state.needsOnlineLogin) return { ok: false, reason: "NEEDS_PASSWORD" };
-  if (state.waitMs > 0)
+  const failuresBefore = claimed?.failures ?? 0;
+  const lastFailedBefore = claimed?.lastFailedAt ?? 0;
+  const state = lockoutState(failuresBefore, lastFailedBefore, now);
+  // A try that is refused for waiting does not count as a mistake.
+  const release = () =>
+    attempts(db).updateOne(
+      { _id: key },
+      { $inc: { failures: -1 }, $set: { lastFailedAt: lastFailedBefore } },
+    );
+  if (state.needsOnlineLogin) {
+    await release();
+    return { ok: false, reason: "NEEDS_PASSWORD" };
+  }
+  if (state.waitMs > 0) {
+    await release();
     return { ok: false, reason: "LOCKED", waitMs: state.waitMs };
+  }
 
   const pin = normalizePin(input.pin);
   const correct =
@@ -132,12 +147,7 @@ export async function unlockActor(
     (await verifyPin(pin, { salt: user.pinSalt, hash: user.pinHash }));
 
   if (!correct) {
-    const after = await attempts(db).findOneAndUpdate(
-      { _id: key },
-      { $inc: { failures: 1 }, $set: { lastFailedAt: now } },
-      { upsert: true, returnDocument: "after" },
-    );
-    const next = lockoutState(after?.failures ?? 1, now, now);
+    const next = lockoutState(failuresBefore + 1, now, now);
     return next.needsOnlineLogin
       ? { ok: false, reason: "NEEDS_PASSWORD" }
       : next.freeLeft > 0

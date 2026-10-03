@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { can } from "@/auth/permissions";
 import { setPinSchema } from "@/schemas/staff";
+import { requireActor } from "@/server/actor-request";
 import { getSyncDeps } from "@/server/deps";
 import { errorResponse, HttpError, readJson } from "@/server/http";
-import { requireUser } from "@/server/session";
 import { setStaffPin } from "@/server/staff";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +14,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await requireUser(request);
+    const user = await requireActor(request, undefined, {
+      allowLocked: true,
+    });
     const { id } = await params;
     if (id !== user.id && !can(user.role, "user.manage"))
       throw new HttpError(403, "FORBIDDEN");

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { updateStaffSchema } from "@/schemas/staff";
+import { requireActor } from "@/server/actor-request";
 import { getSyncDeps } from "@/server/deps";
 import { errorResponse, HttpError, readJson } from "@/server/http";
-import { requireUser } from "@/server/session";
 import { updateStaffMember } from "@/server/staff-admin";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const owner = await requireUser(request, "user.manage");
+    const owner = await requireActor(request, "user.manage", {
+      allowLocked: true,
+    });
     const { id } = await params;
     const patch = updateStaffSchema.parse(await readJson(request));
     const { db } = await getSyncDeps();

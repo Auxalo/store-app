@@ -105,6 +105,8 @@ export function useProfile(): CachedProfile {
  * person straight back in. The caller says so instead of pretending.
  */
 export async function signOut(): Promise<boolean> {
+  // The server forgets who was working (the PIN person's cookie lasts 12 hours otherwise).
+  await fetch("/api/actor/lock", { method: "POST" }).catch(() => undefined);
   try {
     const { error } = await authClient.signOut();
     if (error?.status) return false;
