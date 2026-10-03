@@ -207,12 +207,16 @@ export function ReportsScreen() {
         <Section
           title={t("byDay")}
           action={csvButton(() =>
-            exportCsv("sales-by-day", s.byDay as never, [
-              "day",
-              "count",
-              "sales",
-              ...(showProfit ? ["profit"] : []),
-            ]),
+            exportCsv(
+              "sales-by-day",
+              s.byDay.map((d) => ({
+                day: d.day,
+                count: d.count,
+                sales: d.sales / 100,
+                ...(showProfit ? { profit: d.profit / 100 } : {}),
+              })),
+              ["day", "count", "sales", ...(showProfit ? ["profit"] : [])],
+            ),
           )}
         >
           <BarChart
@@ -400,17 +404,26 @@ export function ReportsScreen() {
       ) : null}
 
       {needsSummary && dataMode === "offline" ? (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
           <span>{t("source")}</span>
           <Tabs
             value={source}
             onValueChange={(v) => setSource(v as ReportSource)}
+            className="max-w-full"
           >
-            <TabsList>
-              <TabsTrigger value="device" data-testid="source-device">
+            <TabsList className="h-auto max-w-full">
+              <TabsTrigger
+                value="device"
+                className="h-auto whitespace-normal py-1.5 text-center"
+                data-testid="source-device"
+              >
                 {t("sourceDevice")}
               </TabsTrigger>
-              <TabsTrigger value="server" data-testid="source-server">
+              <TabsTrigger
+                value="server"
+                className="h-auto whitespace-normal py-1.5 text-center"
+                data-testid="source-server"
+              >
                 {t("sourceServer")}
               </TabsTrigger>
             </TabsList>

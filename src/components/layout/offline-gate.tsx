@@ -4,6 +4,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { type ReactNode, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { useDataMode } from "@/data/mode-store";
 import { fetchHead } from "@/data/online";
 import { getLocalDb } from "@/db/local/db";
@@ -38,6 +39,14 @@ export function OfflineGate({ children }: { children: ReactNode }) {
       .catch(() => undefined);
   }, [waiting]);
 
+  // After a while with no progress, say what to do instead of spinning forever.
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = setTimeout(() => setSlow(true), 20_000);
+    return () => clearTimeout(timer);
+  }, [waiting]);
+
   if (!waiting) return children;
   const percent =
     head && pulledTo ? Math.min(100, Math.round((pulledTo / head) * 100)) : 0;
@@ -49,6 +58,16 @@ export function OfflineGate({ children }: { children: ReactNode }) {
       <Loader2 className="size-8 animate-spin text-primary" aria-hidden />
       <h1 className="text-lg font-semibold">{t("title")}</h1>
       <p className="max-w-xs text-sm text-muted-foreground">{t("body")}</p>
+      {slow && !pulledTo ? (
+        <>
+          <p className="max-w-xs text-sm text-destructive" role="status">
+            {t("slow")}
+          </p>
+          <Button variant="outline" onClick={() => window.location.reload()}>
+            {t("retry")}
+          </Button>
+        </>
+      ) : null}
       {head ? (
         <div className="w-full max-w-xs">
           <div

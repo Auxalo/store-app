@@ -391,7 +391,9 @@
     "shortcuts": "Shortcuts: / search · F9 complete · F4 customer · Esc clear",
     "saving": "Saving…",
     "unitPrice": "Unit price",
-    "dueAmount": "On credit: {value}"
+    "dueAmount": "On credit: {value}",
+    "receiptUnavailable": "The sale is saved, but its receipt could not be shown. You can find it under Sales.",
+    "codeNotFound": "No product with this code or name."
   },
   "sales": {
     "searchPlaceholder": "Invoice number, customer name or mobile",
@@ -491,6 +493,7 @@
     "deleteHasBalance": "“{name}” still has a balance (money owed, or owed back). Settle it first, then remove."
   },
   "party": {
+    "notFound": "This person was not found on this device.",
     "statement": "Statement",
     "noEntries": "No transactions yet.",
     "collect": "Collect payment",
@@ -669,6 +672,7 @@
     "auditHint": "Who changed prices, stock and sales.",
     "export": "Backup and export",
     "exportHint": "Download a copy of the data on this device.",
+    "exportOnlineHint": "You are using online mode, so the shop's data is on the server and this device has no copy to download. Reports can be exported from the Reports page.",
     "exportJson": "Download everything (JSON)",
     "exportCsv": "Download {what} (CSV)",
     "exporting": "Preparing…",
@@ -735,6 +739,7 @@
     "revoked": "Cut off",
     "revoke": "Cut off",
     "revokeTitle": "Cut off this device?",
+    "revokeSelf": "This is the device you are using right now, so it will stop syncing too.",
     "revokeBody": "It will no longer be able to sync. Anything still waiting on it stays safe on that device.",
     "rename": "Rename",
     "needsInternet": "You need internet to manage devices.",
@@ -1019,7 +1024,9 @@
     },
     "gate": {
       "title": "Preparing offline mode",
-      "body": "This device is getting the shop's data. It needs internet this first time."
+      "body": "This device is getting the shop's data. It needs internet this first time.",
+      "slow": "This is taking long. Check that the internet is on.",
+      "retry": "Try again"
     },
     "readiness": {
       "title": "Offline readiness",

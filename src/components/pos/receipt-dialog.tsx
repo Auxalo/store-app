@@ -55,7 +55,17 @@ export function ReceiptDialog({
             </Button>
           </div>
         </div>
-      ) : null}
+      ) : loaded.status === "loading" ? null : (
+        <div className="flex flex-col gap-3" data-testid="receipt-unavailable">
+          <p className="text-sm text-muted-foreground">
+            {t("receiptUnavailable")}
+          </p>
+          <Button onClick={onClose} autoFocus>
+            <Plus aria-hidden />
+            {t("newSale")}
+          </Button>
+        </div>
+      )}
     </ResponsiveDialog>
   );
 }

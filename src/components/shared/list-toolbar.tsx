@@ -102,9 +102,9 @@ export function ListToolbar({
 
   return (
     <div className="flex flex-col gap-2" data-testid={testId}>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {onSearch ? (
-          <div className="relative min-w-0 flex-1">
+          <div className="relative min-w-0 basis-full sm:basis-0 sm:flex-1">
             <Search
               className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
               aria-hidden
@@ -152,7 +152,7 @@ export function ListToolbar({
         {sortOptions && sort && onSort ? (
           <Select value={sort} onValueChange={onSort}>
             <SelectTrigger
-              className="w-auto min-w-28 max-w-44"
+              className="w-auto min-w-28 max-w-44 max-sm:max-w-none max-sm:flex-1"
               aria-label={t("sort")}
               data-testid="list-sort"
             >

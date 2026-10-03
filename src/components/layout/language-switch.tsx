@@ -21,7 +21,8 @@ export function LanguageSwitch() {
       lang={other}
     >
       <Languages aria-hidden />
-      {t(`language.${other}`)}
+      {/* Only the icon on a phone, so the page title has room (the button keeps its name). */}
+      <span className="max-sm:sr-only">{t(`language.${other}`)}</span>
     </Button>
   );
 }

@@ -1,0 +1,94 @@
+name: CI
+
+# Runs on every push to main or dev and on every pull request. Nothing here touches a real
+# database: unit tests use an in-memory MongoDB, and the browser tests use their own local one.
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Only used by the test servers; never a real secret.
+  BETTER_AUTH_SECRET: ci-only-secret-for-tests-0123456789abcdef
+  # The app is built and served by the tests themselves.
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  checks:
+    name: Lint, types, messages, unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4 # the version comes from "packageManager" in package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Remember the test database program between runs
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm check:i18n
+      - run: pnpm test
+      # A timing check: shared CI machines are too uneven to fail the build on it.
+      - run: pnpm test:perf
+        continue-on-error: true
+
+  build:
+    name: The app builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+  e2e:
+    name: Browser tests (${{ matrix.mode }} mode)
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [offline, online]
+    env:
+      E2E_MODE: ${{ matrix.mode }}
+      PW_CHANNEL: chrome # the browser that is already on the runner
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Remember the test database program between runs
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - run: pnpm install --frozen-lockfile
+      # The tests build the app and start it (see playwright.config.ts).
+      - run: pnpm exec playwright test
+      - name: Keep the traces of failed tests
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces-${{ matrix.mode }}
+          path: test-results/
+          retention-days: 7
