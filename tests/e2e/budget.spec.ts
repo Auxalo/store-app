@@ -10,11 +10,12 @@ test.afterEach(async ({ page }) => {
  * first time (compressed, as sent over the network). If a change pushes a page past its budget, this
  * fails, so the app does not quietly get heavier on cheap phones and slow connections.
  */
-// Measured at the end of Sprint 2 (data layer, mode switch and KPI cards included): login 349, app
-// pages 494-504 on a phone and up to 531 on a desktop (the sidebar loads too). Each budget is the
-// largest measurement plus about 20 KB.
+// Measured at the end of Sprint 3: login 373, app pages 503-527 on a phone and up to 540 on a desktop
+// (the sidebar loads too). Each budget is the largest measurement plus about 20 KB. The sign-in
+// page grew by about 24 KB during Sprint 2 and 3 (more strings, the data layer's small shared
+// pieces); worth trimming later.
 const BUDGET_KB: Record<string, number> = {
-  "/login": 370,
+  "/login": 395,
   "/pos": 545,
   "/dashboard": 550,
   "/reports": 550,
