@@ -70,6 +70,8 @@ pnpm check                 # lint, types, translations, unit + integration + per
 npx playwright test        # browser tests: offline, sync, POS, staff, reports, security, size budgets
 ```
 
+The same gates run on every push to `main` or `dev` and on every pull request (`.github/workflows/ci.yml`): lint, types, messages, unit tests, a production build, and the browser suites in both offline and online mode. Make that check required for merging into `main` (GitHub: Settings, Branches, branch protection). The browser jobs keep their traces for a week when they fail.
+
 `pnpm check` includes a simulated shop day (3 devices, 200 random actions, flapping network) that must end with no duplicates and books that balance. Set `SEED=<number>` to replay a particular day.
 
 ## 9. Not included (ideas for later)

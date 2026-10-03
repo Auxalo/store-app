@@ -56,6 +56,17 @@ test("owner adds a cashier with a PIN; the cashier unlocks offline and is limite
   await expect(page.getByText("শুধু মালিক সেটিংস খুলতে পারেন।")).toBeVisible();
   await expect(page.locator('a[href="/purchases"]')).toHaveCount(0);
   await expect(page.locator('a[href="/pos"]').first()).toBeVisible();
+
+  // Typing the address of a screen the role may not use shows "no access", not the shop's numbers.
+  for (const path of ["/reports", "/dashboard", "/returns"]) {
+    await page.goto(path);
+    // A fresh page load locks the counter again.
+    await page.getByTestId("lock-user").filter({ hasText: "সাবিনা" }).click();
+    await tapPin(page, "1234");
+    await expect(page.getByTestId("no-access")).toBeVisible({
+      timeout: 15_000,
+    });
+  }
 });
 
 test("wrong PINs are counted, then the counter makes you wait", async ({

@@ -174,5 +174,31 @@ Not part of this round, by your choice: the screens and forms findings (barcode 
 
 ## Not done
 
-- The screens and forms findings (skipped by your choice).
+- The screens and forms findings were done in part 4 below.
 - The four product decisions and the two security design limits (H2, H3) are unchanged.
+
+# Part 4: phone and usability pass (no business logic changed)
+
+Checked every screen at 360 px and desktop, in light mode, against a demo shop in Bangla: sideways scrolling, text cut off, small tap targets, console errors, failed requests. No page scrolled sideways and there were no console errors or failed requests. What was found and fixed:
+
+| Area | Problem | Fix |
+|---|---|---|
+| List toolbars | Search box, filters and sort squeezed into one row at 360 px | Search gets its own row on a phone |
+| Header | The language button took the room of the page title | Icon only on a phone (name kept for screen readers) |
+| Customers, suppliers | Long names cut to one line; chevron wasted room | Two lines, chevron hidden on a phone |
+| Reports | The data-source switch ran off the screen | It wraps |
+| Tabs and chips | 25 px high on a touch screen | 40 px on touch screens |
+| POS barcode box | Enter added the previous search's result when the code was unknown; Bangla digits not understood; Esc did not clear | Looks the code up (also in Latin digits), says "no product with this code", Esc clears |
+| Settings | Idle-lock minutes typed in Bangla saved as 0 (lock off); failed saves showed nothing | Bangla digits are read, bad numbers are refused, failures show an error |
+| Typed addresses | A cashier opening /dashboard, /reports or /returns saw the screen | "You do not have permission" (the server already refused the data) |
+| Receipt after a sale | Blank if the sale could not be loaded | Says the sale is saved and offers "new sale" |
+| First offline start | Spinner forever with no internet | After 20 s: "taking long, check the internet" and a retry button |
+| CSV exports | Sales by day and the settings CSVs were in poisha and thousandths, the report CSVs in taka | All in taka and units |
+| Backup in online mode | Downloaded an empty file (the device holds no data) | Buttons off, with an explanation |
+| Quantity "−" | A 0.5 kg line went to 0.001 kg | Steps a whole unit and stops |
+| Customer and supplier page | "This product was not found" | "This person was not found" |
+| Devices | Revoking this very device gave no warning | An extra line says it will stop syncing too |
+
+Also added: the GitHub Actions workflow (see DEPLOY.md section 8).
+
+Seen and left alone: the customer picker in the POS lists the first 30 (search finds the rest); the sync pill and the small switches are 28 px / 18 px high.
