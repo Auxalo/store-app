@@ -6,6 +6,7 @@ import type { StoreDB } from "@/db/local/db";
 import { setMeta } from "@/db/local/meta";
 import type { WireDoc } from "@/schemas/sync";
 import { type EngineOptions, pushAll } from "./engine";
+import { useSyncStore } from "./store";
 import { type SyncTransport, TransportError } from "./transport";
 
 /** The change counter the settings on this device were fetched at. */
@@ -24,9 +25,12 @@ export async function syncOnlineOnce(
 ): Promise<{ pushed: number }> {
   const { sent } = await pushAll(db, transport, options);
   // Settings are saved records, so they move the shop's change counter: they are fetched only when
-  // that has moved since the last time (a quiet minute costs no request at all).
+  // that has moved since the last time (a quiet minute costs no request at all). While something is
+  // wrong (the shop is paused, the server was unreachable...) the server is asked every time: a
+  // cycle that asked nobody must not be what clears the problem.
   const head = getLastHead();
-  if (head !== null && head === lastSettingsHead) {
+  const quiet = useSyncStore.getState().problem === null;
+  if (quiet && head !== null && head === lastSettingsHead) {
     await setMeta(db, "lastSyncAt", (options.now ?? Date.now)());
     return { pushed: sent };
   }
@@ -41,9 +45,11 @@ export async function syncOnlineOnce(
     throw new TransportError(
       error.status === 0
         ? "network"
-        : error.status === 401 || error.status === 403
-          ? "auth"
-          : "server",
+        : error.code === "SHOP_SUSPENDED"
+          ? "suspended"
+          : error.status === 401 || error.status === 403
+            ? "auth"
+            : "server",
       error.code,
       error.status,
     );
