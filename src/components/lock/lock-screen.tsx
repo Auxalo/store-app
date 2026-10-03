@@ -86,6 +86,10 @@ export function LockScreen({ users, storeName, onUnlock }: LockScreenProps) {
         salt: current.pinSalt,
         hash: current.pinHash,
       });
+      // With a connection, also tell the server who is working (best effort, never in the way):
+      // then the server's own numbers and switching to online mode need no second PIN.
+      if (ok && navigator.onLine)
+        void postUnlock(current.userId, pin).catch(() => undefined);
     }
     const db = getLocalDb();
     if (ok) {

@@ -218,3 +218,23 @@ test("the cart survives a reload", async ({ page }, testInfo) => {
   await expect(page.getByTestId("cart-line")).toHaveCount(1);
   await expect(page.getByTestId("cart-total")).toHaveText("৳৬০");
 });
+
+test("tapping a product opens no keyboard on a phone, and keeps the search ready on a computer", async ({
+  page,
+}, testInfo) => {
+  await signUp(page, `kbd${Date.now()}${testInfo.project.name}`);
+  await createProduct(page, {
+    name: "Fresh Milk",
+    nameBn: "ফ্রেশ দুধ",
+    price: "50",
+    stock: "10",
+  });
+  await page.goto("/pos");
+  await tapProduct(page, "ফ্রেশ দুধ");
+  const searchHasFocus = await search(page).evaluate(
+    (el) => el === document.activeElement,
+  );
+  // A phone (touch) must not get the on-screen keyboard over the list; a computer keeps the search
+  // box ready for the next barcode scan.
+  expect(searchHasFocus).toBe(testInfo.project.name === "desktop");
+});

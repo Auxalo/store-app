@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useDataMode } from "@/data/mode-store";
 import { getLocalDb } from "@/db/local/db";
+import { useActiveUser } from "@/stores/active-user";
 import { usePreferences } from "@/stores/preferences";
 import { type DayRange, dayKey, type Summary } from "./compute";
 import { loadSummary } from "./local";
@@ -72,6 +73,16 @@ export function useSummary(
       const response = await fetch(
         `/api/reports/summary?from=${range.from}&to=${range.to}`,
       );
+      if (response.status === 401) {
+        const body = (await response.json().catch(() => ({}))) as {
+          code?: string;
+        };
+        // The server does not know who is working on this device yet (a PIN was only checked on
+        // the device): ask for the PIN again, which also tells the server.
+        if (body.code === "PIN_REQUIRED" && !useActiveUser.getState().locked)
+          useActiveUser.getState().lock();
+        throw new Error(body.code ?? "401");
+      }
       if (!response.ok) throw new Error(String(response.status));
       return ((await response.json()) as { summary: Summary }).summary;
     },

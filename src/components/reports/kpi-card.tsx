@@ -102,8 +102,12 @@ export interface KpiCardProps {
   change?: Change;
   goodWhen?: "up" | "down";
   changeLabel?: string;
+  /** One plain line saying what the number means, right under its name. */
+  hint?: string;
   /** A line under the value (an average, a margin, ...). */
   sub?: string;
+  /** The value is a name, not a number: smaller type, may wrap. */
+  compactValue?: boolean;
   spark?: number[];
   testId?: string;
 }
@@ -117,6 +121,8 @@ export function KpiCard({
   change,
   goodWhen,
   changeLabel = "",
+  hint,
+  compactValue,
   sub,
   spark,
   testId,
@@ -124,15 +130,23 @@ export function KpiCard({
   return (
     <Card size="sm" data-testid={testId}>
       <CardContent className="flex flex-col gap-1">
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5 text-sm font-medium">
           {icon}
           {label}
         </span>
+        {hint ? (
+          <span className="text-xs text-muted-foreground">{hint}</span>
+        ) : null}
         {value === undefined ? (
           <Skeleton className="h-7 w-24" />
         ) : (
           <span
-            className="text-xl font-semibold tabular-nums md:text-2xl"
+            className={cn(
+              "font-semibold tabular-nums",
+              compactValue
+                ? "break-words text-lg leading-snug"
+                : "text-xl md:text-2xl",
+            )}
             data-testid={valueTestId}
           >
             {value}

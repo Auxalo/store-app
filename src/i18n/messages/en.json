@@ -855,7 +855,28 @@
       "topProducts": "Top products",
       "paymentSplit": "How people paid",
       "netSales": "Net sales",
-      "creditGiven": "Credit given"
+      "creditGiven": "Credit given",
+      "totalSales": "Total sales",
+      "numberOfSales": "Number of sales",
+      "soldOnCredit": "Sold on credit",
+      "bestSeller": "Best seller",
+      "productsSold": "Kinds of items sold",
+      "keep": "What you really keep",
+      "none": "Nothing sold yet",
+      "soldQty": "{qty} sold",
+      "marginPlain": "About ৳{n} profit on every ৳100 sold",
+      "hint": {
+        "totalSales": "Money from selling, after returns",
+        "numberOfSales": "How many bills you made",
+        "soldOnCredit": "Sold, but the customer has not paid yet",
+        "bestSeller": "The item that brought in the most money",
+        "productsSold": "How many different items were sold",
+        "profit": "What is left after the cost of the goods you sold",
+        "expenses": "Rent, salary, bills and other costs",
+        "keep": "Profit minus expenses",
+        "paymentSplit": "How the customers paid",
+        "topProducts": "The five items that brought in the most money"
+      }
     }
   },
   "developer": {

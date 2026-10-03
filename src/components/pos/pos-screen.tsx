@@ -14,6 +14,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { useFormat } from "@/i18n/use-format";
+import { refocusOnComputer } from "@/lib/focus";
 import { useCart } from "@/stores/cart";
 import { CartPanel } from "./cart-panel";
 import { ProductPicker } from "./product-picker";
@@ -50,7 +51,7 @@ export function PosScreen() {
 
   const closeReceipt = () => {
     setReceiptId(null);
-    searchRef.current?.focus();
+    refocusOnComputer(searchRef.current);
   };
 
   const opts = { enableOnFormTags: true, preventDefault: true } as const;

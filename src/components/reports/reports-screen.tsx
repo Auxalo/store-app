@@ -428,6 +428,7 @@ export function ReportsScreen() {
 
       {needsSummary && summary ? (
         <ReportOverview
+          tab={tab as "sales" | "products" | "profit"}
           summary={summary}
           previous={previous}
           showProfit={showProfit}

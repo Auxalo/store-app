@@ -20,6 +20,7 @@ import { useDataMode } from "@/data/mode-store";
 import { stockStatus } from "@/db/local/queries/products";
 import type { Product } from "@/db/local/types";
 import { useFormat } from "@/i18n/use-format";
+import { refocusOnComputer } from "@/lib/focus";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/stores/cart";
 import { usePreferences } from "@/stores/preferences";
@@ -197,7 +198,7 @@ export function ProductPicker({
                     type="button"
                     onClick={() => {
                       addProduct(p);
-                      searchRef.current?.focus();
+                      refocusOnComputer(searchRef.current);
                     }}
                     className="flex h-full w-full items-center gap-3 rounded-xl border bg-card px-3 text-start transition-colors hover:bg-muted/50 active:bg-muted"
                     data-testid="picker-row"
