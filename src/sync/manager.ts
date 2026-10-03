@@ -81,6 +81,8 @@ class SyncManager {
     await setMeta(db, "storeId", this.session.storeId);
     await loadSavedBilling();
     await recoverInterrupted(db);
+    // The app was just opened: whatever was waiting out a delay is tried now.
+    await resetBackoff(db);
     useDataModeStore.getState().set(await resolveDataMode(db));
     // Ask the browser not to evict our data under storage pressure.
     void navigator.storage?.persist?.();
@@ -184,6 +186,8 @@ class SyncManager {
           error.status === 401
         ) {
           await this.registerDevice();
+          // The failed try put the queue on hold; now that the device is registered, ask again.
+          await resetBackoff(db);
           await sync();
         } else {
           throw error;

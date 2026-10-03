@@ -1,5 +1,7 @@
 import type { CommandPayload } from "@/commands/definitions";
+import { divRound } from "@/lib/money";
 import { lineTotal } from "@/lib/qty";
+import { refundAmounts } from "@/lib/refund";
 import { qtyByProduct } from "@/lib/sale-math";
 import { derivedSearchFields } from "@/lib/search-fields";
 import { purchaseTotals } from "@/schemas/purchase";
@@ -436,14 +438,17 @@ export async function expenseVoid(
   return { status: "applied", docs: [wire("expenses", updated ?? expense)] };
 }
 
-/** Rejects a return that would send back more than was sold/bought, counting earlier returns too. */
+/**
+ * Rejects a return that would send back more than was sold/bought, counting earlier returns too.
+ * Also says how much of each line had come back before (the refund depends on it).
+ */
 async function returnProblem(
   ctx: ServerCtx,
   kind: "sale" | "purchase",
   refId: string,
   original: Array<{ productId: string; qty: number }>,
   lines: Array<{ itemIndex: number; productId: string; qty: number }>,
-): Promise<string | null> {
+): Promise<{ problem: string | null; returned: Map<number, number> }> {
   const prior = await ctx.db
     .collection<{ lines: Array<{ itemIndex: number; qty: number }> }>("returns")
     .find({ storeId: ctx.storeId, kind, refId }, { session: ctx.session })
@@ -456,23 +461,24 @@ async function returnProblem(
   const asked = new Map<number, number>();
   for (const line of lines) {
     const item = original[line.itemIndex];
-    if (!item || item.productId !== line.productId) return "INVALID_LINE";
+    if (!item || item.productId !== line.productId)
+      return { problem: "INVALID_LINE", returned };
     asked.set(line.itemIndex, (asked.get(line.itemIndex) ?? 0) + line.qty);
   }
   for (const [index, qty] of asked) {
     if (qty > original[index].qty - (returned.get(index) ?? 0))
-      return "RETURN_TOO_MUCH";
+      return { problem: "RETURN_TOO_MUCH", returned };
   }
-  return null;
+  return { problem: null, returned };
 }
 
 export async function saleReturnCreate(
   ctx: ServerCtx,
-  p: CommandPayload<"saleReturn.create">,
+  payload: CommandPayload<"saleReturn.create">,
 ): Promise<ApplyResult> {
   const returns = ctx.db.collection<Doc & { storeId: string }>("returns");
   const existing = await returns.findOne(
-    { _id: p.id },
+    { _id: payload.id },
     { session: ctx.session },
   );
   if (existing) {
@@ -488,22 +494,49 @@ export async function saleReturnCreate(
       status: string;
       customerId: string | null;
       customerName: string;
-      items: Array<{ productId: string; qty: number }>;
+      discount?: number;
+      items: Array<{
+        productId: string;
+        qty: number;
+        unitPrice: number;
+        discount?: number;
+      }>;
     }>("sales")
-    .findOne({ _id: p.saleId, storeId: ctx.storeId }, { session: ctx.session });
+    .findOne(
+      { _id: payload.saleId, storeId: ctx.storeId },
+      { session: ctx.session },
+    );
   if (!sale) return { status: "rejected", error: "NOT_FOUND" };
   if (sale.status === "voided")
     return { status: "rejected", error: "SALE_VOIDED" };
-  if (p.settlement === "credit" && !sale.customerId)
+  if (payload.settlement === "credit" && !sale.customerId)
     return { status: "rejected", error: "NO_CUSTOMER" };
-  const problem = await returnProblem(
+  const { problem, returned } = await returnProblem(
     ctx,
     "sale",
     sale._id,
     sale.items,
-    p.lines,
+    payload.lines,
   );
   if (problem) return { status: "rejected", error: problem };
+
+  // What goes back is what the customer really paid for the goods (the line's price less its
+  // discount and its share of the bill discount), worked out here from the sale itself and never
+  // taken from the device.
+  const amounts = refundAmounts(
+    sale.items,
+    sale.discount ?? 0,
+    returned,
+    payload.lines,
+  );
+  const p = {
+    ...payload,
+    lines: payload.lines.map((l, i) => ({
+      ...l,
+      amount: amounts[i],
+      unitPrice: divRound(amounts[i] * 1000, l.qty),
+    })),
+  };
 
   const total = returnTotal(p.lines);
   const products = p.restock
@@ -544,6 +577,7 @@ export async function saleReturnCreate(
       unit: l.unit,
       qty: l.qty,
       unitAmount: l.unitPrice,
+      amount: l.amount,
     })),
     total,
     settlement: p.settlement,
@@ -623,7 +657,7 @@ export async function purchaseReturnCreate(
   if (!purchase) return { status: "rejected", error: "NOT_FOUND" };
   if (p.settlement === "credit" && !purchase.supplierId)
     return { status: "rejected", error: "NO_SUPPLIER" };
-  const problem = await returnProblem(
+  const { problem } = await returnProblem(
     ctx,
     "purchase",
     purchase._id,

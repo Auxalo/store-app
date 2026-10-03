@@ -167,6 +167,12 @@ export async function masterDelete(
   );
   if (!doc) return { status: "rejected", error: "NOT_FOUND" };
   if (doc.deletedAt) return applied(cfg, doc); // already deleted: idempotent
+  // Money still owed (or owed back) would drop out of every list and could no longer be settled.
+  if (
+    (cfg.collection === "customers" || cfg.collection === "suppliers") &&
+    Number(doc.balance ?? 0) !== 0
+  )
+    return { status: "rejected", error: "HAS_BALANCE" };
 
   const version = doc.version + 1;
   const syncSeq = await allocSeq(ctx.db, ctx.session, ctx.storeId);

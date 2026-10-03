@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { toast } from "sonner";
 import { isOffline } from "@/data/errors";
 import { useCommand } from "@/data/hooks";
@@ -19,7 +19,7 @@ export function useCompleteSale(onSold: (saleId: string) => void) {
   const t = useTranslations();
   const run = useCommand();
   const cart = useCart();
-  const [saving, setSaving] = useState(false);
+  const saving = cart.saving;
 
   const totals = cartTotals(cart);
   const needsCustomer = totals.due > 0 && !cart.customerId;
@@ -27,7 +27,9 @@ export function useCompleteSale(onSold: (saleId: string) => void) {
 
   const complete = useCallback(async () => {
     const state = useCart.getState();
-    if (state.lines.length === 0 || saving) return;
+    // Read from the store, not from this render: a second press in the same moment (a double tap,
+    // the shortcut held down) must see that a sale is already on its way.
+    if (state.lines.length === 0 || state.saving) return;
     const { total, due } = computeTotals(
       state.lines,
       state.discount,
@@ -52,13 +54,14 @@ export function useCompleteSale(onSold: (saleId: string) => void) {
         : { saleId: newId(), operationId: newId(), fingerprint };
     state.setAttempt(attempt);
 
-    setSaving(true);
+    state.setSaving(true);
     try {
       await run(
         "sale.create",
         { id: attempt.saleId, ...input },
         { operationId: attempt.operationId },
       );
+      state.setSaving(false);
       state.clear();
       onSold(attempt.saleId);
     } catch (error) {
@@ -68,9 +71,9 @@ export function useCompleteSale(onSold: (saleId: string) => void) {
           : t("common.somethingWrong"),
       );
     } finally {
-      setSaving(false);
+      state.setSaving(false);
     }
-  }, [run, onSold, saving, t]);
+  }, [run, onSold, t]);
 
   return { complete, canComplete, saving, needsCustomer, totals };
 }

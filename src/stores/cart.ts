@@ -51,6 +51,13 @@ export interface SaleAttempt {
 interface CartState extends CartContents {
   held: HeldCart[];
   attempt: SaleAttempt | null;
+  /**
+   * A sale is on its way to the server or the database. Until it is done the cart cannot change
+   * (hold, remove, edit...): a change in that moment would be wiped, or leave a copy of the sold
+   * items on hold. Not saved with the cart.
+   */
+  saving: boolean;
+  setSaving: (saving: boolean) => void;
   setAttempt: (attempt: SaleAttempt | null) => void;
   addProduct: (product: Product, qty?: number) => void;
   setQty: (key: string, qty: number) => void;
@@ -107,10 +114,13 @@ export const useCart = create<CartState>()(
       ...empty,
       held: [],
       attempt: null,
+      saving: false,
+      setSaving: (saving) => set({ saving }),
       setAttempt: (attempt) => set({ attempt }),
 
       addProduct: (product, qty = 1000) =>
         set((s) => {
+          if (s.saving) return {};
           // Tapping the same product again adds to its line (unless that line was repriced).
           const same = s.lines.find(
             (l) =>
@@ -133,33 +143,47 @@ export const useCart = create<CartState>()(
             qty,
             listPrice: product.sellingPrice,
             unitPrice: product.sellingPrice,
-            unitCost: product.purchasePrice,
+            // A cashier is not sent purchase prices; the server fills the cost in from its own records.
+            unitCost: product.purchasePrice ?? 0,
             discount: 0,
           };
           return { lines: [...s.lines, line] };
         }),
 
       setQty: (key, qty) =>
-        set((s) => ({
-          lines: s.lines.map((l) => (l.key === key ? { ...l, qty } : l)),
-        })),
+        set((s) =>
+          s.saving
+            ? {}
+            : {
+                lines: s.lines.map((l) => (l.key === key ? { ...l, qty } : l)),
+              },
+        ),
       setUnitPrice: (key, unitPrice) =>
-        set((s) => ({
-          lines: s.lines.map((l) => (l.key === key ? { ...l, unitPrice } : l)),
-        })),
+        set((s) =>
+          s.saving
+            ? {}
+            : {
+                lines: s.lines.map((l) =>
+                  l.key === key ? { ...l, unitPrice } : l,
+                ),
+              },
+        ),
       removeLine: (key) =>
-        set((s) => ({ lines: s.lines.filter((l) => l.key !== key) })),
+        set((s) =>
+          s.saving ? {} : { lines: s.lines.filter((l) => l.key !== key) },
+        ),
       setCustomer: (customerId, customerName) =>
-        set({ customerId, customerName }),
-      setDiscount: (discount) => set({ discount }),
-      setTendered: (tendered) => set({ tendered }),
-      setPaymentMethod: (paymentMethod) => set({ paymentMethod }),
-      setNotes: (notes) => set({ notes }),
-      clear: () => set({ ...empty, attempt: null }),
+        set((s) => (s.saving ? {} : { customerId, customerName })),
+      setDiscount: (discount) => set((s) => (s.saving ? {} : { discount })),
+      setTendered: (tendered) => set((s) => (s.saving ? {} : { tendered })),
+      setPaymentMethod: (paymentMethod) =>
+        set((s) => (s.saving ? {} : { paymentMethod })),
+      setNotes: (notes) => set((s) => (s.saving ? {} : { notes })),
+      clear: () => set((s) => (s.saving ? {} : { ...empty, attempt: null })),
 
       hold: () => {
         const s = get();
-        if (s.lines.length === 0) return;
+        if (s.saving || s.lines.length === 0) return;
         set({
           held: [
             ...s.held,
@@ -171,7 +195,7 @@ export const useCart = create<CartState>()(
       resume: (id) =>
         set((s) => {
           const target = s.held.find((h) => h.id === id);
-          if (!target) return {};
+          if (!target || s.saving) return {};
           // The cart being replaced goes on hold rather than being lost.
           const parked =
             s.lines.length > 0

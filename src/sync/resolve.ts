@@ -1,6 +1,7 @@
 import { applyServerDocs } from "@/db/local/apply-server";
 import type { StoreDB } from "@/db/local/db";
 import { setMeta } from "@/db/local/meta";
+import { undoLocalEffects } from "./undo";
 
 /**
  * Settles an operation the server flagged as a conflict (both devices changed an important field).
@@ -69,6 +70,7 @@ export async function discardOperation(
     const op = await db.outbox.where("operationId").equals(operationId).first();
     if (op?.status !== "failed") return;
     await db.outbox.delete(op.seq as number);
+    await undoLocalEffects(db, op);
 
     if (op.serverDoc) await applyServerDocs(db, op.collection, [op.serverDoc]);
     else if (op.type.endsWith(".create"))

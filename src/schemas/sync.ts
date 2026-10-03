@@ -17,12 +17,20 @@ export type OpEnvelope = z.infer<typeof opEnvelopeSchema>;
 
 export const MAX_OPS_PER_PUSH = 50;
 
+/**
+ * What a device sends. Each operation is checked on its own when it is applied (see handlePush), so
+ * one malformed operation is refused by itself and never stops the good ones behind it.
+ */
 export const pushRequestSchema = z.object({
   deviceId: z.uuid(),
   appVersion: z.string().max(32),
-  ops: z.array(opEnvelopeSchema).min(1).max(MAX_OPS_PER_PUSH),
+  ops: z.array(z.unknown()).min(1).max(MAX_OPS_PER_PUSH),
 });
-export type PushRequest = z.infer<typeof pushRequestSchema>;
+export interface PushRequest {
+  deviceId: string;
+  appVersion: string;
+  ops: OpEnvelope[];
+}
 
 /** A synced record as it travels over the wire (Mongo `_id` becomes `id`). */
 export interface WireDoc {

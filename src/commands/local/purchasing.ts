@@ -1,5 +1,7 @@
 import type { StoreDB } from "@/db/local/db";
+import { divRound } from "@/lib/money";
 import { lineTotal } from "@/lib/qty";
+import { refundAmounts } from "@/lib/refund";
 import { qtyByProduct } from "@/lib/sale-math";
 import { derivedSearchFields } from "@/lib/search-fields";
 import { purchaseTotals } from "@/schemas/purchase";
@@ -58,6 +60,7 @@ export async function supplierDelete(
 ) {
   const doc = await db.suppliers.get(input.id);
   if (!doc || doc.deletedAt) throw new NotFoundError("supplier");
+  if (doc.balance !== 0) throw new Error("HAS_BALANCE");
   await db.suppliers.update(input.id, {
     deletedAt: now,
     version: doc.version + 1,
@@ -371,19 +374,36 @@ async function checkReturnLines(
 export async function saleReturnCreate(
   db: StoreDB,
   ctx: LocalContext,
-  input: CommandInput<"saleReturn.create">,
+  rawInput: CommandInput<"saleReturn.create">,
   now: string,
 ): Promise<CommandPayload<"saleReturn.create">> {
-  if (await db.returns.get(input.id)) throw new AlreadyExistsError("return");
-  const sale = await db.sales.get(input.saleId);
+  if (await db.returns.get(rawInput.id)) throw new AlreadyExistsError("return");
+  const sale = await db.sales.get(rawInput.saleId);
   if (!sale || sale.status === "voided") throw new NotFoundError("sale");
-  if (input.settlement === "credit" && !sale.customerId)
+  if (rawInput.settlement === "credit" && !sale.customerId)
     throw new Error("NO_CUSTOMER");
 
   const items = (
     await db.saleItems.where("saleId").equals(sale.id).toArray()
   ).sort((a, b) => Number(a.id.split(":i")[1]) - Number(b.id.split(":i")[1]));
-  await checkReturnLines(db, "sale", sale.id, items, input.lines);
+  await checkReturnLines(db, "sale", sale.id, items, rawInput.lines);
+
+  // What goes back is what the customer really paid for the goods (see src/lib/refund.ts): the
+  // same rule the server applies, so both show the same amount.
+  const amounts = refundAmounts(
+    items,
+    sale.discount,
+    await alreadyReturned(db, "sale", sale.id),
+    rawInput.lines,
+  );
+  const input = {
+    ...rawInput,
+    lines: rawInput.lines.map((l, i) => ({
+      ...l,
+      amount: amounts[i],
+      unitPrice: divRound(amounts[i] * 1000, l.qty),
+    })),
+  };
 
   const returnNo = await nextDocNo(db, ctx.deviceId, now, "R");
   const total = returnTotal(input.lines);
@@ -459,6 +479,7 @@ export async function saleReturnCreate(
       unit: l.unit,
       qty: l.qty,
       unitAmount: l.unitPrice,
+      amount: l.amount,
     })),
     total,
     settlement: input.settlement,

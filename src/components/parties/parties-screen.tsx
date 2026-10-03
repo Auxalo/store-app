@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { errorCode } from "@/data/errors";
 import {
   useCommand,
   useList,
@@ -332,7 +333,16 @@ export function PartiesScreen({ kind }: { kind: PartyKind }) {
                   void run(
                     `${kind}.delete` as never,
                     { id: deleting.id } as never,
-                  ).catch(() => toast.error(t("common.somethingWrong")));
+                  ).catch((error: unknown) =>
+                    toast.error(
+                      // A refusal on the device is an Error with the code as its message.
+                      errorCode(error) === "HAS_BALANCE" ||
+                        (error instanceof Error &&
+                          error.message === "HAS_BALANCE")
+                        ? tk("deleteHasBalance", { name: deleting.name })
+                        : t("common.somethingWrong"),
+                    ),
+                  );
               }}
             >
               {t("common.delete")}

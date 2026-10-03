@@ -5,12 +5,12 @@ import {
   isCommandType,
   OP_SCHEMA_VERSION,
 } from "@/commands/definitions";
-import type {
-  OpEnvelope,
-  PushRequest,
-  PushResponse,
-  PushResult,
-  WireChange,
+import {
+  type OpEnvelope,
+  opEnvelopeSchema,
+  type PushResponse,
+  type PushResult,
+  type WireChange,
 } from "@/schemas/sync";
 import { serverCommands } from "../commands/registry";
 import type { ApplyResult, ServerCtx } from "../commands/types";
@@ -225,31 +225,69 @@ async function processOp(
   };
 }
 
+/** The database or the network failed for a moment: asking again later can work. */
+function isTransient(error: unknown): boolean {
+  const e = error as {
+    name?: string;
+    hasErrorLabel?: (label: string) => boolean;
+  };
+  return (
+    (typeof e?.name === "string" && e.name.startsWith("Mongo")) ||
+    e?.hasErrorLabel?.("TransientTransactionError") === true
+  );
+}
+
+const idOf = (raw: unknown): string =>
+  typeof (raw as { operationId?: unknown } | null)?.operationId === "string"
+    ? String((raw as { operationId: string }).operationId)
+    : "";
+
 /**
  * Processes a batch in order. If one operation hits a transient problem, every later operation is
  * answered `retry` too, so a dependent change (an edit after its create) can never run ahead.
+ *
+ * An operation that is malformed, or that fails for a reason that will never change (a record it
+ * cannot read), is refused on its own: it must not hold up everything behind it for ever.
  */
 export async function handlePush(
   deps: SyncDeps,
   device: DeviceAuth,
-  request: PushRequest,
+  request: { deviceId: string; appVersion: string; ops: unknown[] },
 ): Promise<PushResponse> {
   const results: PushResult[] = [];
   let halted = false;
 
-  for (const op of request.ops) {
+  for (const raw of request.ops) {
     if (halted) {
-      results.push({ operationId: op.operationId, status: "retry" });
+      results.push({ operationId: idOf(raw), status: "retry" });
       continue;
     }
+    const parsed = opEnvelopeSchema.safeParse(raw);
+    if (!parsed.success) {
+      results.push({
+        operationId: idOf(raw),
+        status: "rejected",
+        error: "INVALID_OP",
+      });
+      continue;
+    }
+    const op = parsed.data;
     try {
       const result = await processOp(deps, device, op);
       results.push(result);
       if (result.status === "retry") halted = true;
     } catch (error) {
       console.error("sync push: operation failed", op.operationId, error);
-      results.push({ operationId: op.operationId, status: "retry" });
-      halted = true;
+      if (isTransient(error)) {
+        results.push({ operationId: op.operationId, status: "retry" });
+        halted = true;
+      } else {
+        results.push({
+          operationId: op.operationId,
+          status: "rejected",
+          error: "INTERNAL_ERROR",
+        });
+      }
     }
   }
   return { serverTime: new Date().toISOString(), results };

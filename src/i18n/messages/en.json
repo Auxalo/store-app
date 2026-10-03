@@ -466,7 +466,8 @@
     "totalDue": "Total due: {value}",
     "quickAdd": "New customer",
     "none": "None",
-    "opening": "Previous due (they owe you), ৳ (optional)"
+    "opening": "Previous due (they owe you), ৳ (optional)",
+    "deleteHasBalance": "“{name}” still has a balance (money owed, or owed back). Settle it first, then remove."
   },
   "suppliers": {
     "add": "Add supplier",
@@ -486,7 +487,8 @@
     "totalOwed": "We owe: {value}",
     "owed": "We owe",
     "advance": "Advance paid",
-    "opening": "Previous payable (you owe them), ৳ (optional)"
+    "opening": "Previous payable (you owe them), ৳ (optional)",
+    "deleteHasBalance": "“{name}” still has a balance (money owed, or owed back). Settle it first, then remove."
   },
   "party": {
     "statement": "Statement",

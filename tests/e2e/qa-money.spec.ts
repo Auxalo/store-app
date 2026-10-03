@@ -1,8 +1,7 @@
 /**
  * QA audit: money flows seen from the screen (findings C6 and POS-1).
  *
- * `test.fail(...)` pins a confirmed bug: the test passes while the bug exists and starts failing
- * when someone fixes it (then remove the `test.fail`). See docs/QA-REPORT.md.
+ * These were bugs found by the QA audit and are now fixed; the tests keep them fixed. See docs/QA-REPORT.md.
  */
 import { expect, type Page, test } from "@playwright/test";
 import {
@@ -15,10 +14,6 @@ import {
   tapProduct,
 } from "./helpers";
 import { E2E_MODE } from "./mode";
-
-/** QA_UNPIN=1 runs the pinned tests as normal tests, to see how each one really fails. */
-const pinned = (condition: boolean, reason: string) =>
-  test.fail(condition && process.env.QA_UNPIN !== "1", reason);
 
 test.afterEach(async ({ page }) => {
   await page.goto("about:blank").catch(() => undefined);
@@ -41,10 +36,6 @@ test("QA C6: a cashier (who cannot see purchase prices) can ring up a sale", asy
   test.setTimeout(240_000);
   // In online mode the cart line has no cost for a cashier (the server hides purchase prices
   // from them) and the sale input requires one: the sale is refused with INVALID_INPUT.
-  pinned(
-    E2E_MODE === "online",
-    "QA C6: online, a cashier's sale is refused (src/stores/cart.ts:136 sends no unitCost)",
-  );
   const stamp = `${Date.now()}${testInfo.project.name}`;
   await signUp(page, `qaown${stamp}`);
   await createProduct(page, {
@@ -69,12 +60,18 @@ test("QA C6: a cashier (who cannot see purchase prices) can ring up a sale", asy
   await search(page).fill("দুধ");
   await tapProduct(page, "ফ্রেশ দুধ");
   await openCart(page);
-  const answer = page.waitForResponse(
-    (r) => r.url().includes("/api/commands") && r.request().method() === "POST",
-    { timeout: 30_000 },
-  );
+  // Online, the sale is a request to the server: look at what it answers.
+  const answer =
+    E2E_MODE === "online"
+      ? page.waitForResponse(
+          (r) =>
+            r.url().includes("/api/commands") &&
+            r.request().method() === "POST",
+          { timeout: 30_000 },
+        )
+      : null;
   await page.getByTestId("complete-sale").click();
-  if (E2E_MODE === "online") {
+  if (answer) {
     const response = await answer;
     const body = await response.text();
     console.log(
@@ -97,10 +94,6 @@ test("QA POS-1: while a sale is being saved, 'hold' must not keep a copy of the 
     "offline, a sale is saved instantly: there is no moment to press hold in",
   );
   test.setTimeout(240_000);
-  pinned(
-    true,
-    "QA POS-1: the cart can be edited or held while saving (src/components/pos/use-complete-sale.ts)",
-  );
   const stamp = `${Date.now()}${testInfo.project.name}`;
   await signUp(page, `qapos${stamp}`);
   await createProduct(page, {
@@ -124,7 +117,7 @@ test("QA POS-1: while a sale is being saved, 'hold' must not keep a copy of the 
   await expect(cart.getByTestId("complete-sale")).toContainText("সংরক্ষণ");
 
   // The cashier taps "hold" while the sale is on its way.
-  await cart.getByRole("button", { name: "অপেক্ষায় রাখুন" }).click();
+  await cart.getByRole("button", { name: "অপেক্ষায় রাখুন" }).click({ force: true });
 
   // The sale goes through. The sold items must not also be waiting on hold (resuming them would
   // sell the same goods a second time).

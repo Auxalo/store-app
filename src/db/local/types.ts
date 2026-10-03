@@ -250,6 +250,8 @@ export interface ReturnLine {
   qty: number;
   /** Refund per unit (the sale price, or for purchases the cost). */
   unitAmount: number;
+  /** What went back for this whole line, after discounts (a sale return). */
+  amount?: number;
 }
 
 /** A return keeps the original invoice untouched; it is its own record. */
