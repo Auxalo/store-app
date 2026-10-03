@@ -13,7 +13,7 @@ import { ListError, LoadMore } from "@/components/shared/load-more";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useList, useTotals } from "@/data/hooks";
+import { useList, usePrefetchRecord, useTotals } from "@/data/hooks";
 import { useDataMode } from "@/data/mode-store";
 import type { ListParamsInput } from "@/data/spec";
 import { useFormat } from "@/i18n/use-format";
@@ -67,6 +67,7 @@ export function SalesScreen() {
     dueOnly: filters.dueOnly === true,
     sort,
   };
+  const prefetch = usePrefetchRecord();
   const list = useList("sales", params);
   const totals = useTotals("sales", params);
 
@@ -202,6 +203,8 @@ export function SalesScreen() {
             <li key={s.id}>
               <Link
                 href={`/sales/view?id=${s.id}`}
+                onPointerEnter={() => prefetch("sales", s.id)}
+                onFocus={() => prefetch("sales", s.id)}
                 className={cn(
                   "flex items-center gap-3 rounded-xl border bg-card p-3 hover:bg-muted/50",
                   s.status === "voided" && "opacity-60",

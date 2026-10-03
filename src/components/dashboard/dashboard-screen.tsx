@@ -20,7 +20,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useOnlineDashboard } from "@/data/dashboard";
 import { useList, useTotals } from "@/data/hooks";
+import { useDataMode } from "@/data/mode-store";
 import { useSetting } from "@/hooks/use-setting";
 import { useFormat } from "@/i18n/use-format";
 import { SETUP_SETTING } from "@/lib/constants";
@@ -44,22 +46,60 @@ export function DashboardScreen() {
   // Owners are reminded to set up until they finish or skip it (the setting is empty until then).
   const setupDone = useSetting<string>(SETUP_SETTING, "").value;
   const showSetup = can(role, "settings.manage") && !setupDone;
-  const today = useSummary(presetRange("today", timeZone)).summary;
-  const yesterday = useSummary(presetRange("yesterday", timeZone)).summary;
-  const trend = useSummary(presetRange(days, timeZone)).summary;
-  const customerDues = useTotals("customers", { balance: "owes" });
-  const supplierDues = useTotals("suppliers", { balance: "owes" });
-  const lowList = useList(
+  // Online: the whole dashboard is one request. On the device each piece is read locally (the
+  // hooks below are switched off in online mode, and the one request is switched off offline).
+  const online = useDataMode() === "online";
+  const remote = useOnlineDashboard(online, days);
+  const todayLocal = useSummary(
+    presetRange("today", timeZone),
+    "device",
+    !online,
+  ).summary;
+  const yesterdayLocal = useSummary(
+    presetRange("yesterday", timeZone),
+    "device",
+    !online,
+  ).summary;
+  const trendLocal = useSummary(
+    presetRange(days, timeZone),
+    "device",
+    !online,
+  ).summary;
+  const customerDuesLocal = useTotals(
+    "customers",
+    { balance: "owes" },
+    { enabled: !online },
+  );
+  const supplierDuesLocal = useTotals(
+    "suppliers",
+    { balance: "owes" },
+    { enabled: !online },
+  );
+  const lowLocal = useList(
     "products",
     { stock: "low", active: "active", sort: "stock" },
-    { pageSize: 6 },
+    { pageSize: 6, enabled: !online },
   );
-  const recent = useList(
+  const recentLocal = useList(
     "sales",
     { status: "active", sort: "newest" },
-    { pageSize: 6 },
+    { pageSize: 6, enabled: !online },
   );
-  const low = lowList.items;
+  const today = online ? remote.data?.today : todayLocal;
+  const yesterday = online ? remote.data?.yesterday : yesterdayLocal;
+  const trend = online ? remote.data?.trend : trendLocal;
+  const customerDues = online
+    ? remote.data && { owed: remote.data.customerOwed }
+    : customerDuesLocal;
+  const supplierDues = online
+    ? remote.data && { owed: remote.data.supplierOwed }
+    : supplierDuesLocal;
+  const lowReady = online ? !!remote.data : lowLocal.status === "ready";
+  const recent = {
+    items: online ? (remote.data?.recent ?? []) : recentLocal.items,
+    status: online ? (remote.data ? "ready" : "loading") : recentLocal.status,
+  };
+  const low = online ? (remote.data?.low ?? []) : lowLocal.items;
 
   const vs = (pick: (x: NonNullable<typeof today>) => number) =>
     today && yesterday
@@ -199,7 +239,7 @@ export function DashboardScreen() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {lowList.status === "ready" && low.length === 0 ? (
+            {lowReady && low.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 {t("lowStockEmpty")}
               </p>

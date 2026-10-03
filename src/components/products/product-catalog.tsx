@@ -17,7 +17,7 @@ import { ListError } from "@/components/shared/load-more";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useCategories, useList } from "@/data/hooks";
+import { useCategories, useList, usePrefetchRecord } from "@/data/hooks";
 import { useDataMode } from "@/data/mode-store";
 import type { Product } from "@/db/local/types";
 import { useFormat } from "@/i18n/use-format";
@@ -60,6 +60,7 @@ export function ProductCatalog({ mode }: { mode: "products" | "inventory" }) {
   const canCreate = can(role, "product.create");
   const canAdjust = can(role, "stock.adjust");
 
+  const prefetch = usePrefetchRecord();
   const categories = useCategories();
   const categoryName = new Map(
     (categories ?? []).map((c) => [
@@ -306,7 +307,12 @@ export function ProductCatalog({ mode }: { mode: "products" | "inventory" }) {
                   }}
                 >
                   {mode === "products" ? (
-                    <Link href={`/products/view?id=${p.id}`} className="block">
+                    <Link
+                      href={`/products/view?id=${p.id}`}
+                      className="block"
+                      onPointerEnter={() => prefetch("products", p.id)}
+                      onFocus={() => prefetch("products", p.id)}
+                    >
                       {body}
                     </Link>
                   ) : (

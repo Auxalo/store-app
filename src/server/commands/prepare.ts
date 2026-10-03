@@ -95,6 +95,35 @@ function rebuildLines(
   });
 }
 
+/**
+ * A SKU or barcode may belong to one product of the shop. Checked here, inside the same
+ * transaction as the save, so two people saving at once cannot both take it (the form used to ask
+ * the server first, in a separate request, and then save).
+ */
+async function ensureUniqueCodes(
+  ctx: ServerCtx,
+  codes: { sku?: string; barcode?: string },
+  ignoreId?: string,
+) {
+  for (const field of ["barcode", "sku"] as const) {
+    const value = (codes[field] ?? "").trim();
+    if (!value) continue;
+    const clash = await ctx.db.collection("products").findOne(
+      {
+        storeId: ctx.storeId,
+        deletedAt: null,
+        [field]: value,
+        ...(ignoreId ? { _id: { $ne: ignoreId } } : {}),
+      } as never,
+      { session: ctx.session, projection: { _id: 1 } },
+    );
+    if (clash)
+      throw new PrepareRejection(
+        field === "sku" ? "DUPLICATE_SKU" : "DUPLICATE_BARCODE",
+      );
+  }
+}
+
 export const preparePayload: {
   [T in CommandType]: (
     ctx: ServerCtx,
@@ -107,6 +136,7 @@ export const preparePayload: {
   "category.delete": withBase,
 
   "product.create": async (ctx, input) => {
+    await ensureUniqueCodes(ctx, input);
     if (input.sku.trim()) return input;
     // A blank SKU gets the next free short number (skipping any already typed in by hand).
     const products = ctx.db.collection("products");
@@ -120,7 +150,10 @@ export const preparePayload: {
     }
     throw new PrepareRejection("SKU_UNAVAILABLE");
   },
-  "product.update": withBase,
+  "product.update": async (ctx, input, baseVersion) => {
+    await ensureUniqueCodes(ctx, input.changes, input.id);
+    return withBase(ctx, input, baseVersion);
+  },
   "product.delete": withBase,
   "stock.adjust": passthrough,
 
@@ -130,15 +163,22 @@ export const preparePayload: {
 
   "sale.create": async (ctx, input) => {
     const ids = [...new Set(input.lines.map((l) => l.productId))];
+    // Every product of THIS shop, deleted ones too (a product deleted a moment ago still sells).
     const found = await ctx.db
       .collection<Doc>("products")
       .find(
-        { _id: { $in: ids }, storeId: ctx.storeId, deletedAt: null },
+        { _id: { $in: ids }, storeId: ctx.storeId },
         { session: ctx.session },
       )
       .toArray();
+    // An id that is not one of this shop's products at all (another shop's, or made up) is refused,
+    // so a sale can never carry a reference into someone else's records.
+    if (found.length !== ids.length) throw new PrepareRejection("NOT_FOUND");
     const products = new Map(found.map((p) => [p._id, p]));
-    ctx.scratch?.set(`products:${ids.slice().sort().join(",")}`, products);
+    ctx.scratch?.set(
+      `products:${ids.slice().sort().join(",")}`,
+      new Map(found.filter((p) => p.deletedAt == null).map((p) => [p._id, p])),
+    );
     // What an item costs and is listed at comes from the shop's records, not from the browser.
     const lines = input.lines.map((line) => {
       const product = products.get(line.productId);
@@ -153,6 +193,9 @@ export const preparePayload: {
     const customer = input.customerId
       ? await find(ctx, "customers", input.customerId)
       : null;
+    // A customer that is not in THIS shop (an id of another shop, or a made-up one) is refused, so a
+    // sale can never carry a reference into someone else's records.
+    if (input.customerId && !customer) throw new PrepareRejection("NOT_FOUND");
     if (customer) ctx.scratch?.set(`customer:${customer._id}`, customer);
     return {
       ...input,

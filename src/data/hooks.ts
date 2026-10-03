@@ -28,7 +28,9 @@ import type { WireChange } from "@/schemas/sync";
 import { usePreferences } from "@/stores/preferences";
 import { syncNow } from "@/sync/manager";
 import { useCommands } from "@/sync/use-commands";
+import { applyResultToCache } from "./cache-sync";
 import { DataError } from "./errors";
+import { noteOwnWrite } from "./head";
 import { localList, localLookup, localRecord, localTotals } from "./local";
 import { useDataModeStore } from "./mode-store";
 import {
@@ -133,8 +135,14 @@ export function useList<R extends Resource>(
     queryKey: ["data", "list", resource, paramsKey, pageSize],
     enabled: mode === "online" && enabled,
     initialPageParam: null as string | null,
-    queryFn: ({ pageParam }) =>
-      fetchPage(resource, params as ListParams<Resource>, pageParam, pageSize),
+    queryFn: ({ pageParam, signal }) =>
+      fetchPage(
+        resource,
+        params as ListParams<Resource>,
+        pageParam,
+        pageSize,
+        signal,
+      ),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     placeholderData: keepPreviousData,
   });
@@ -215,7 +223,8 @@ export function useTotals<R extends Resource>(
   const online = useQuery({
     queryKey: ["data", "totals", resource, paramsKey],
     enabled: mode === "online" && enabled,
-    queryFn: () => fetchTotals(resource, params as ListParams<Resource>),
+    queryFn: ({ signal }) =>
+      fetchTotals(resource, params as ListParams<Resource>, signal),
     placeholderData: keepPreviousData,
   });
   return mode === "online" ? online.data : local;
@@ -246,7 +255,7 @@ export function useRecord<R extends Resource, T = RecordOf[R]>(
   const online = useQuery({
     queryKey: ["data", "record", resource, id],
     enabled: mode === "online" && enabled,
-    queryFn: () => fetchRecord(resource, id as string),
+    queryFn: ({ signal }) => fetchRecord(resource, id as string, signal),
     retry: (count, error) =>
       !(error instanceof DataError && error.status === 404) && count < 2,
   });
@@ -332,7 +341,11 @@ export function useCommand() {
         input,
         baseVersion: options.baseVersion,
       });
-      await client.invalidateQueries({ queryKey: ["data"] });
+      // The returned records go into the cache and only the screens they belong to are marked
+      // out of date, without waiting for them to refetch: the save is done when the server says
+      // so, not when every list has been asked again.
+      applyResultToCache(client, result.docs);
+      noteOwnWrite(result.head, result.docs.length);
       return { operationId, docs: result.docs };
     },
     [runLocal, client],
@@ -345,7 +358,31 @@ const waiting = () =>
 async function sendLeftovers() {
   if ((await waiting()) === 0) return;
   await syncNow();
-  if ((await waiting()) > 0) throw new DataError("OFFLINE", 0);
+  // A send already under way (or in another tab) is waited for, not mistaken for "no connection".
+  const deadline = Date.now() + 10_000;
+  while ((await waiting()) > 0) {
+    if (Date.now() > deadline) throw new DataError("OFFLINE", 0);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+}
+
+/**
+ * Starts loading a record while the pointer is over its row (or the row is focused), so the detail
+ * page is already there by the time it is opened. Online only: on the device a record is instant.
+ */
+export function usePrefetchRecord() {
+  const client = useQueryClient();
+  return useCallback(
+    (resource: Resource, id: string) => {
+      if (useDataModeStore.getState().mode !== "online") return;
+      void client.prefetchQuery({
+        queryKey: ["data", "record", resource, id],
+        queryFn: ({ signal }) => fetchRecord(resource, id, signal),
+        staleTime: 60_000,
+      });
+    },
+    [client],
+  );
 }
 
 /** Categories, A-Z. A small list: it comes whole in either mode. */
@@ -363,7 +400,7 @@ export function useCategories(): Category[] | undefined {
   const online = useQuery({
     queryKey: ["data", "categories"],
     enabled: mode === "online",
-    queryFn: () => fetchAll("categories"),
+    queryFn: ({ signal }) => fetchAll("categories", signal),
   });
   const onlineList = useMemo(
     () =>

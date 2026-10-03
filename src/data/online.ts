@@ -83,21 +83,32 @@ export const fetchPage = (
   params: ListParams<Resource>,
   cursor: string | null,
   limit: number,
+  signal?: AbortSignal,
 ) =>
   request<OnlinePage>(
     `/api/data/${resource}?${toQuery(params, { cursor, limit })}`,
+    { signal },
   );
 
-export const fetchTotals = (resource: Resource, params: ListParams<Resource>) =>
+export const fetchTotals = (
+  resource: Resource,
+  params: ListParams<Resource>,
+  signal?: AbortSignal,
+) =>
   request<{ totals: Record<string, number> }>(
     `/api/data/${resource}/totals?${toQuery(params)}`,
+    { signal },
   ).then((r) => r.totals);
 
-export const fetchRecord = (resource: Resource, id: string) =>
+export const fetchRecord = (
+  resource: Resource,
+  id: string,
+  signal?: AbortSignal,
+) =>
   request<{
     record: Record<string, unknown>;
     extra: Record<string, Array<Record<string, unknown>>>;
-  }>(`/api/data/${resource}/${encodeURIComponent(id)}`);
+  }>(`/api/data/${resource}/${encodeURIComponent(id)}`, { signal });
 
 export const fetchLookup = (code: string) =>
   request<{ product: Record<string, unknown> | null }>(
@@ -105,8 +116,10 @@ export const fetchLookup = (code: string) =>
   ).then((r) => r.product);
 
 /** Small lists that come back whole: categories and settings. */
-export const fetchAll = (name: "categories" | "settings") =>
-  request<OnlinePage>(`/api/data/${name}`).then((r) => r.items);
+export const fetchAll = (
+  name: "categories" | "settings",
+  signal?: AbortSignal,
+) => request<OnlinePage>(`/api/data/${name}`, { signal }).then((r) => r.items);
 
 export const fetchHead = () =>
   request<{ syncSeq: number }>("/api/sync/head").then((r) => r.syncSeq);
@@ -114,6 +127,8 @@ export const fetchHead = () =>
 export interface CommandResult {
   status: "applied" | "duplicate";
   docs: WireChange[];
+  /** How far the shop's changes got with this save (see ./head.ts). */
+  head?: number;
 }
 
 export const postCommand = (body: {

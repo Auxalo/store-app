@@ -1,9 +1,10 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { FullScreenLoader } from "@/components/shared/full-screen-loader";
 import { DataError } from "./errors";
+import { onHeadChange, setHead } from "./head";
 import { useDataMode } from "./mode-store";
 import { onModeChangedElsewhere } from "./mode-switch";
 import { fetchHead } from "./online";
@@ -15,8 +16,10 @@ function makeClient() {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 30_000,
-        refetchOnWindowFocus: true,
+        // The head check below is what says "something changed"; with it, coming back to the
+        // tab or a minute passing is no reason to ask for everything again.
+        staleTime: 60_000,
+        refetchOnWindowFocus: false,
         // Retry a flaky connection a couple of times, but not an answer like "not allowed".
         retry: (count, error) =>
           count < 2 &&
@@ -30,17 +33,18 @@ function makeClient() {
 
 /** In online mode, refresh the screens when something changed on another device. */
 function useChangeWatcher(client: QueryClient, enabled: boolean) {
-  const last = useRef<number | null>(null);
   useEffect(() => {
     if (!enabled) return;
     let stopped = false;
+    // Someone else saved something: every screen on show asks again.
+    const stopListening = onHeadChange(() => {
+      void client.invalidateQueries({ queryKey: ["data"] });
+    });
     const check = async () => {
       try {
         const head = await fetchHead();
         if (stopped) return;
-        if (last.current !== null && head !== last.current)
-          void client.invalidateQueries({ queryKey: ["data"] });
-        last.current = head;
+        setHead(head); // listeners below hear about a change made by someone else
       } catch {
         /* no connection right now: the next check will try again */
       }
@@ -52,6 +56,7 @@ function useChangeWatcher(client: QueryClient, enabled: boolean) {
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       stopped = true;
+      stopListening();
       clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };

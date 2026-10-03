@@ -297,7 +297,9 @@
       "stock": "Lowest stock first",
       "price": "Highest price first",
       "newest": "Newest first"
-    }
+    },
+    "duplicateSkuGeneric": "This SKU is already used by another product",
+    "duplicateBarcodeGeneric": "This barcode is already used by another product"
   },
   "inventory": {
     "tabAll": "All stock",

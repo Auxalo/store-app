@@ -13,6 +13,7 @@ import { createFetchTransport, TransportError } from "./transport";
 
 const PERIODIC_MS = 60_000;
 const NUDGE_DEBOUNCE_MS = 1_000;
+const STAFF_EVERY_MS = 5 * 60_000;
 
 export interface SyncSession {
   storeId: string;
@@ -50,6 +51,7 @@ class SyncManager {
   private running = false;
   private runAgain = false;
   private ready = false;
+  private staffAt = 0;
   private stopped = false;
   private nudgeTimer?: ReturnType<typeof setTimeout>;
   private wakeTimer?: ReturnType<typeof setTimeout>;
@@ -185,7 +187,12 @@ class SyncManager {
           throw error;
         }
       }
-      void refreshStaff(db); // keep the offline "who is working?" list current
+      // Keep the offline "who is working?" list current. People and PINs change rarely, so every
+      // few minutes is plenty (this used to download every PIN hash on every minute-long cycle).
+      if (Date.now() - this.staffAt > STAFF_EVERY_MS) {
+        this.staffAt = Date.now();
+        void refreshStaff(db);
+      }
       void pruneIfDue(db).catch(() => undefined);
       this.patch({
         problem: null,

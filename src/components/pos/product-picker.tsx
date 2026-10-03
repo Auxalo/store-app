@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useDebounceValue } from "usehooks-ts";
 import { ListError } from "@/components/shared/load-more";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -48,13 +49,17 @@ export function ProductPicker({
   const [category, setCategory] = useState("all");
 
   const mode = useDataMode();
+  // Online, a search is a request: wait for a pause in typing instead of asking on every key.
+  // (On the device it is instant, so it keeps up with the typing.)
+  const [typed] = useDebounceValue(query.trim(), 150);
+  const q = mode === "online" ? typed : deferred.trim();
   const initialSyncDone = useSyncStore((s) => s.initialSyncDone);
   const lookup = useProductLookup();
   const categories = useCategories()?.filter((c) => c.isActive);
   const list = useList(
     "products",
     {
-      q: deferred.trim(),
+      q,
       categoryId: category === "all" ? undefined : category,
       active: "active",
       sort: "name",
@@ -86,7 +91,14 @@ export function ProductPicker({
   }, [lastIndex, items.length, hasMore, loadMore]);
 
   async function onEnter() {
-    const exact = await lookup(query).catch(() => null);
+    const code = query.trim();
+    if (!code) return;
+    // When the list is already about this very text, the exact match is at its top: no extra request.
+    const fromList =
+      q === code
+        ? items.find((p) => p.barcode === code || p.sku === code)
+        : undefined;
+    const exact = fromList ?? (await lookup(code).catch(() => null));
     const pick = exact ?? (items.length === 1 ? items[0] : undefined);
     if (!pick) return;
     addProduct(pick);

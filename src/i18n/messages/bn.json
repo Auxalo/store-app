@@ -297,7 +297,9 @@
       "stock": "কম স্টক আগে",
       "price": "বেশি দাম আগে",
       "newest": "নতুন আগে"
-    }
+    },
+    "duplicateSkuGeneric": "এই SKU অন্য একটি পণ্যে ব্যবহার করা হয়েছে",
+    "duplicateBarcodeGeneric": "এই বারকোড অন্য একটি পণ্যে ব্যবহার করা হয়েছে"
   },
   "inventory": {
     "tabAll": "সব স্টক",

@@ -35,7 +35,12 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCommand, useList, useTotals } from "@/data/hooks";
+import {
+  useCommand,
+  useList,
+  usePrefetchRecord,
+  useTotals,
+} from "@/data/hooks";
 import { useDataMode } from "@/data/mode-store";
 import type { Party, PartyKind } from "@/db/local/queries/customers";
 import { useFormat } from "@/i18n/use-format";
@@ -86,6 +91,7 @@ export function PartiesScreen({ kind }: { kind: PartyKind }) {
   const t = useTranslations();
   const f = useFormat();
   const run = useCommand();
+  const prefetch = usePrefetchRecord();
   const { role } = useProfile();
   const initialSyncDone = useSyncStore((s) => s.initialSyncDone);
   const dataMode = useDataMode();
@@ -240,6 +246,8 @@ export function PartiesScreen({ kind }: { kind: PartyKind }) {
             >
               <Link
                 href={`/${kind}s/view?id=${p.id}`}
+                onPointerEnter={() => prefetch(`${kind}s`, p.id)}
+                onFocus={() => prefetch(`${kind}s`, p.id)}
                 className="flex min-w-0 flex-1 items-center gap-3"
               >
                 <span className="min-w-0 flex-1">

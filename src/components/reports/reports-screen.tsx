@@ -137,7 +137,7 @@ export function ReportsScreen() {
     );
   };
   const [onlyLow, setOnlyLow] = useState(false);
-  const stock = useStockHeader();
+  const stock = useStockHeader(tab === "stock");
   const stockList = useStockProducts(onlyLow, tab === "stock");
   const dues = useDues(tab === "dues");
   const movements = useList(

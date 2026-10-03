@@ -230,6 +230,9 @@ describe("database commands per online request (warm server)", () => {
       const result = await create().result;
       expect(result.ok).toBe(true);
     });
-    expect(seen.length).toBeLessThanOrEqual(7);
+    // The "already done?" check, the code-in-use check (a typed SKU or barcode), then the
+    // transaction: the product, its opening stock movement, the shop's change counter, the "done"
+    // record, and the commit.
+    expect(seen.length).toBeLessThanOrEqual(8);
   });
 });

@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { errorCode, isOffline } from "@/data/errors";
 import {
   useCategories,
   useCommand,
@@ -184,7 +185,11 @@ function ProductForm({ product }: { product?: Product }) {
   }, [product, dataMode]);
 
   const onSubmit = handleSubmit(async (v) => {
-    for (const field of ["barcode", "sku"] as const) {
+    // Online, the server refuses a used code in the save itself (below); asking first would be two
+    // requests one after the other before the real one.
+    for (const field of dataMode === "online"
+      ? []
+      : (["barcode", "sku"] as const)) {
       const clash = await checkDuplicate(field, v[field], product?.id);
       if (clash) {
         setError(field, {
@@ -240,8 +245,25 @@ function ProductForm({ product }: { product?: Product }) {
           );
         router.push(`/products/view?id=${product.id}`);
       }
-    } catch {
-      toast.error(t("common.somethingWrong"));
+    } catch (error) {
+      const code = errorCode(error);
+      if (code === "DUPLICATE_SKU" || code === "DUPLICATE_BARCODE") {
+        const field = code === "DUPLICATE_SKU" ? "sku" : "barcode";
+        setError(field, {
+          type: "duplicate",
+          message: t(
+            field === "sku"
+              ? "products.duplicateSkuGeneric"
+              : "products.duplicateBarcodeGeneric",
+          ),
+        });
+        return;
+      }
+      toast.error(
+        isOffline(error)
+          ? t("common.noInternetSaving")
+          : t("common.somethingWrong"),
+      );
     }
   });
 
