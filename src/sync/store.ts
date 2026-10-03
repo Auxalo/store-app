@@ -10,6 +10,8 @@ export type SyncProblem =
   | "auth"
   /** The app is too old for the server: update, the queue is kept. */
   | "upgrade"
+  /** The operator has paused this shop. */
+  | "suspended"
   /** This device holds unsynced data from a different store. */
   | "storeMismatch";
 

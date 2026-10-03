@@ -213,7 +213,12 @@ describe("sales", () => {
 
   it("a product deleted a moment ago still sells, but a product that is not in the shop at all does not", async () => {
     const id = await product();
-    const removed = await run(asOwner(), "product.delete", { id }, { baseVersion: 1 });
+    const removed = await run(
+      asOwner(),
+      "product.delete",
+      { id },
+      { baseVersion: 1 },
+    );
     expect(removed.ok).toBe(true);
     expect((await sell(id, {}, asOwner(), { unitCost: 3000 })).ok).toBe(true);
     // An id of another shop, or a made-up one: refused, nothing recorded.

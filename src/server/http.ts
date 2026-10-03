@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
+import { currentRequest } from "./request-context";
+import { reportError } from "./telemetry";
 
 export class HttpError extends Error {
   constructor(
@@ -17,8 +19,30 @@ export function errorResponse(error: unknown): NextResponse {
   if (error instanceof ZodError) {
     return NextResponse.json({ code: "INVALID_INPUT" }, { status: 400 });
   }
-  console.error("unhandled route error", error);
-  return NextResponse.json({ code: "INTERNAL" }, { status: 500 });
+  // One line that can be searched in the logs, with no customer details in it, and a report to the
+  // error service (if one is set up) carrying the same facts.
+  const ctx = currentRequest();
+  console.error(
+    JSON.stringify({
+      level: "error",
+      msg: "unhandled route error",
+      requestId: ctx?.requestId,
+      route: ctx?.route,
+      method: ctx?.method,
+      storeId: ctx?.storeId,
+      deviceId: ctx?.deviceId,
+      ms: ctx ? Date.now() - ctx.startedAt : undefined,
+      error:
+        error instanceof Error
+          ? `${error.name}: ${error.message.slice(0, 300)}`
+          : String(error).slice(0, 300),
+    }),
+  );
+  reportError(error);
+  return NextResponse.json(
+    { code: "INTERNAL", requestId: ctx?.requestId },
+    { status: 500 },
+  );
 }
 
 const MAX_BODY_BYTES = 1_000_000;

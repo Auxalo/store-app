@@ -26,6 +26,19 @@ export function serverEnv(): ServerEnv {
         `Invalid server environment — ${problems}. See .env.example.`,
       );
     }
+    // In production the public address is needed (cookies and trusted origins depend on it). Preview
+    // deployments on Vercel get their own address, so they are allowed to leave it out.
+    const preview =
+      process.env.VERCEL_ENV === "preview" ||
+      process.env.VERCEL_ENV === "development";
+    if (
+      process.env.NODE_ENV === "production" &&
+      !preview &&
+      !parsed.data.BETTER_AUTH_URL
+    )
+      throw new Error(
+        "Invalid server environment — BETTER_AUTH_URL is required in production (your public https address). See .env.example.",
+      );
     cached = parsed.data;
   }
   return cached;

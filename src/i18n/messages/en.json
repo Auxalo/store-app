@@ -166,7 +166,8 @@
       "server": "The server had a problem. Will retry automatically.",
       "auth": "This device is not authorized. Sign out and sign in again. Your unsynced work is kept.",
       "upgrade": "Please update the app to keep syncing. Your unsynced work is kept.",
-      "storeMismatch": "This device has unsynced data from another store. Sign in with that store's account to sync it."
+      "storeMismatch": "This device has unsynced data from another store. Sign in with that store's account to sync it.",
+      "suspended": "This shop is paused. Contact the person who set up the app."
     },
     "ops": {
       "categoryCreate": "Add category",
@@ -211,7 +212,9 @@
       "NO_CUSTOMER": "The sale has no customer to credit.",
       "NO_SUPPLIER": "The purchase has no supplier to credit.",
       "SALE_VOIDED": "The sale was cancelled.",
-      "INVALID_LINE": "A returned line does not match the original."
+      "INVALID_LINE": "A returned line does not match the original.",
+      "DUPLICATE_SKU": "Another product already has this SKU.",
+      "DUPLICATE_BARCODE": "Another product already has this barcode."
     }
   },
   "categories": {
@@ -1030,5 +1033,17 @@
       "done": "Offline data removed.",
       "blocked": "Send the waiting changes first."
     }
+  },
+  "suspended": {
+    "title": "This shop is paused",
+    "body": "Your shop is paused for now. Please contact {name} to start it again.",
+    "safe": "Nothing is lost. Everything saved on this device is kept, and it all comes back as soon as the shop is resumed.",
+    "signOut": "Sign out"
+  },
+  "errorPage": {
+    "title": "Something went wrong",
+    "body": "This screen could not load. Your saved data is safe. Try again, or go back to the start.",
+    "retry": "Try again",
+    "home": "Go to start"
   }
 }

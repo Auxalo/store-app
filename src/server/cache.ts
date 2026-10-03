@@ -75,6 +75,7 @@ const g = globalThis as unknown as {
     users: TtlCache<unknown>;
     pins: TtlCache<boolean>;
     timeZones: TtlCache<string>;
+    status: TtlCache<string>;
   };
 };
 
@@ -83,6 +84,7 @@ g.__caches ??= {
   users: new TtlCache(10_000),
   pins: new TtlCache(10_000),
   timeZones: new TtlCache(30_000),
+  status: new TtlCache(10_000),
 };
 
 export const caches = g.__caches;
@@ -93,4 +95,5 @@ export function clearStoreCaches(): void {
   caches.users.clear();
   caches.pins.clear();
   caches.timeZones.clear();
+  caches.status.clear();
 }

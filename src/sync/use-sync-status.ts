@@ -33,6 +33,7 @@ export function useSyncStatus() {
   const blocking =
     sync.problem === "auth" ||
     sync.problem === "upgrade" ||
+    sync.problem === "suspended" ||
     sync.problem === "storeMismatch";
   // "Offline" means "cannot reach the server", whatever the browser's own online flag says.
   const unreachable = !online || sync.problem === "network";

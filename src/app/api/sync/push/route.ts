@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { MIN_APP_VERSION } from "@/lib/app-version";
 import { pushRequestSchema } from "@/schemas/sync";
 import { getSyncDeps } from "@/server/deps";
-import { checkDevice } from "@/server/devices";
+import { requireDevice } from "@/server/device-request";
 import {
   compareVersions,
   errorResponse,
@@ -17,20 +17,15 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   try {
     const deps = await getSyncDeps();
-    const check = await checkDevice(deps.db, request.headers.get("cookie"));
-    if (!check.ok)
-      throw new HttpError(
-        check.reason === "revoked" ? 403 : 401,
-        `DEVICE_${check.reason.toUpperCase()}`,
-      );
+    const device = await requireDevice(request, deps.db, "write");
 
     const body = pushRequestSchema.parse(await readJson(request));
-    if (body.deviceId !== check.device.deviceId)
+    if (body.deviceId !== device.deviceId)
       throw new HttpError(403, "DEVICE_MISMATCH");
     if (compareVersions(body.appVersion, MIN_APP_VERSION) < 0)
       throw new HttpError(426, "UPGRADE_REQUIRED");
 
-    return NextResponse.json(await handlePush(deps, check.device, body));
+    return NextResponse.json(await handlePush(deps, device, body));
   } catch (error) {
     return errorResponse(error);
   }

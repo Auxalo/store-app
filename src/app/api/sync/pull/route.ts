@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSyncDeps } from "@/server/deps";
-import { checkDevice } from "@/server/devices";
-import { errorResponse, HttpError } from "@/server/http";
+import { requireDevice } from "@/server/device-request";
+import { errorResponse } from "@/server/http";
 import { handlePull } from "@/server/sync/pull";
 
 export const dynamic = "force-dynamic";
@@ -16,18 +16,13 @@ const querySchema = z.object({
 export async function GET(request: Request) {
   try {
     const { db } = await getSyncDeps();
-    const check = await checkDevice(db, request.headers.get("cookie"));
-    if (!check.ok)
-      throw new HttpError(
-        check.reason === "revoked" ? 403 : 401,
-        `DEVICE_${check.reason.toUpperCase()}`,
-      );
+    const device = await requireDevice(request, db, "read");
 
     const query = querySchema.parse(
       Object.fromEntries(new URL(request.url).searchParams),
     );
     return NextResponse.json(
-      await handlePull(db, check.device.storeId, query.cursor, query.limit),
+      await handlePull(db, device.storeId, query.cursor, query.limit),
     );
   } catch (error) {
     return errorResponse(error);

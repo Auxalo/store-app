@@ -11,5 +11,9 @@ export default defineConfig({
     exclude: ["**/node_modules/**", "**/*.perf.test.{ts,tsx}"],
     environment: "node",
     testTimeout: 20_000,
+    // Many test files each start their own in-memory MongoDB; starting a dozen at the same moment
+    // makes some of them time out before they begin. A few at a time is just as fast overall.
+    maxWorkers: 6,
+    hookTimeout: 120_000,
   },
 });

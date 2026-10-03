@@ -155,8 +155,22 @@ export async function applyOperation(
       });
     } catch (error) {
       if (error instanceof AbortWith) return error.result;
-      // A concurrent retry of the same operation committed first: loop and report it as a duplicate.
-      if (isDuplicateKey(error)) continue;
+      if (isDuplicateKey(error)) {
+        // The database's own backstop for codes: another live product of this shop already has this
+        // SKU or barcode. A real answer for the person (the sync screen explains it), not a retry.
+        const pattern =
+          (error as { keyPattern?: Record<string, unknown> }).keyPattern ?? {};
+        if (pattern.sku)
+          return { status: "rejected", error: "DUPLICATE_SKU" } as ApplyResult;
+        if (pattern.barcode)
+          return {
+            status: "rejected",
+            error: "DUPLICATE_BARCODE",
+          } as ApplyResult;
+        // Otherwise a concurrent retry of the same operation committed first: loop and report it
+        // as a duplicate.
+        continue;
+      }
       throw error;
     }
   }

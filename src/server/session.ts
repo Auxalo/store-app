@@ -5,6 +5,8 @@ import { getAuth } from "@/auth/server";
 import { getMongoClient } from "@/db/server/mongo";
 import { serverEnv } from "@/lib/env";
 import { HttpError } from "./http";
+import { noteRequest } from "./request-context";
+import { shopIsSuspended } from "./shop-status";
 
 export interface SessionUser {
   id: string;
@@ -21,6 +23,7 @@ export async function requireUser(
   request: Request,
   permission?: Permission,
 ): Promise<SessionUser> {
+  noteRequest(request);
   const auth = await getAuth();
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session) throw new HttpError(401, "UNAUTHORIZED");
@@ -35,6 +38,9 @@ export async function requireUser(
     throw new HttpError(403, "USER_INACTIVE");
   if (permission && !can(doc.role, permission))
     throw new HttpError(403, "FORBIDDEN");
+  if (await shopIsSuspended(db, doc.storeId as string))
+    throw new HttpError(403, "SHOP_SUSPENDED");
+  noteRequest(request, { storeId: doc.storeId as string });
   return {
     id: session.user.id,
     name: doc.name as string,

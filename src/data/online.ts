@@ -2,6 +2,7 @@ import { getLocalDb } from "@/db/local/db";
 import type { WireChange } from "@/schemas/sync";
 import { useActiveUser } from "@/stores/active-user";
 import { registerDevice } from "@/sync/register-device";
+import { useSyncStore } from "@/sync/store";
 import { DataError } from "./errors";
 import type { ListParams, Resource } from "./spec";
 
@@ -41,6 +42,9 @@ async function request<T>(
     freeLeft?: number;
   };
   if (!response.ok) {
+    // The operator has paused this shop: the app shows who to contact instead of its screens.
+    if (body.code === "SHOP_SUSPENDED")
+      useSyncStore.getState().patch({ problem: "suspended" });
     // The server does not know who is working (no PIN entered on this device): ask for the PIN.
     if (body.code === "PIN_REQUIRED" && !useActiveUser.getState().locked)
       useActiveUser.getState().lock();

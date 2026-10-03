@@ -7,6 +7,8 @@ export type TransportErrorKind =
   | "auth"
   /** The server no longer accepts this app version. Keep the queue and ask to update. */
   | "upgrade"
+  /** The operator has paused this shop (403 SHOP_SUSPENDED). Nothing is lost; it resumes when they resume it. */
+  | "suspended"
   /** The server answered with an error. Retry later. */
   | "server";
 
@@ -44,6 +46,8 @@ async function request<T>(
     .json()
     .then((body: { code?: string }) => body.code)
     .catch(() => undefined);
+  if (code === "SHOP_SUSPENDED")
+    throw new TransportError("suspended", code, response.status);
   if (response.status === 401 || response.status === 403)
     throw new TransportError("auth", code, response.status);
   if (response.status === 426)

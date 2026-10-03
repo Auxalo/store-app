@@ -4,6 +4,7 @@ import { getAuth } from "@/auth/server";
 import { getSyncDeps } from "@/server/deps";
 import { checkDevice, DEVICE_COOKIE, registerDevice } from "@/server/devices";
 import { errorResponse, HttpError, readJson } from "@/server/http";
+import { shopIsSuspended } from "@/server/shop-status";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,9 @@ export async function POST(request: Request) {
 
     const body = bodySchema.parse(await readJson(request));
     const { db } = await getSyncDeps();
+    // A paused shop cannot add devices (the app then shows who to contact).
+    if (await shopIsSuspended(db, user.storeId))
+      throw new HttpError(403, "SHOP_SUSPENDED");
     const existing = await checkDevice(db, request.headers.get("cookie"));
     const registration = await registerDevice(db, {
       storeId: user.storeId,

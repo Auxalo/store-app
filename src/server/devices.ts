@@ -1,6 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { Db } from "mongodb";
 import { caches } from "./cache";
+import { shopIsSuspended } from "./shop-status";
 import { COL } from "./sync/collections";
 import type { DeviceAuth } from "./sync/push";
 
@@ -48,7 +49,7 @@ export function parseDeviceCookie(
 
 export type DeviceCheck =
   | { ok: true; device: DeviceAuth & { code: string } }
-  | { ok: false; reason: "missing" | "invalid" | "revoked" };
+  | { ok: false; reason: "missing" | "invalid" | "revoked" | "suspended" };
 
 /** Verifies the device cookie. Sync endpoints trust a device, then check each operation's actor. */
 export async function checkDevice(
@@ -71,6 +72,8 @@ export async function checkDevice(
   if (expected.length !== actual.length || !timingSafeEqual(expected, actual))
     return { ok: false, reason: "invalid" };
   if (doc.revokedAt) return { ok: false, reason: "revoked" };
+  if (await shopIsSuspended(db, doc.storeId))
+    return { ok: false, reason: "suspended" };
   // "Last seen" only needs minute-level accuracy, so it is written at most every 5 minutes (it was a
   // database write on every request), and a failed write never fails the request.
   const now = Date.now();
