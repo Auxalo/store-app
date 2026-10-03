@@ -7,6 +7,8 @@ export class HttpError extends Error {
   constructor(
     public readonly status: number,
     public readonly code: string,
+    /** More for the client to act on (for example the shop's billing with BILLING_DUE). */
+    public readonly extra?: Record<string, unknown>,
   ) {
     super(code);
   }
@@ -14,7 +16,10 @@ export class HttpError extends Error {
 
 export function errorResponse(error: unknown): NextResponse {
   if (error instanceof HttpError) {
-    return NextResponse.json({ code: error.code }, { status: error.status });
+    return NextResponse.json(
+      { ...error.extra, code: error.code },
+      { status: error.status },
+    );
   }
   if (error instanceof ZodError) {
     return NextResponse.json({ code: "INVALID_INPUT" }, { status: 400 });

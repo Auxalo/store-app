@@ -719,7 +719,9 @@
       "report_view": "See reports and the audit log",
       "user_manage": "Manage staff",
       "settings_manage": "Change settings and devices",
-      "opening_manage": "Enter previous balances"
+      "opening_manage": "Enter previous balances",
+      "mode_switch": "Switch this device online or offline",
+      "billing_manage": "See billing and send payments"
     },
     "ownerNeedsPin": "Other people have PINs but you do not. Set your own PIN (top-right menu) or you will need your password to unlock."
   },

@@ -198,9 +198,21 @@ describe("backing up and restoring one shop", () => {
       });
     const before = await snapshot(shopA);
     expect(before).toContain("changed later");
+    // What the operator decided since the backup (billing, a pause) is kept by the restore.
+    const billing = { mode: "paid", paidOnce: true, planId: "m12" };
+    await mongo.db
+      .collection<{ _id: string }>("stores")
+      .updateOne({ _id: shopA }, { $set: { billing, status: "suspended" } });
     await restoreShop(mongo.db, () => iter(lines), { replace: true });
     expect(await snapshot(shopA)).not.toContain("changed later");
     expect(await snapshot(shopB)).toBe(otherBefore);
+    const store = await mongo.db
+      .collection<{ _id: string }>("stores")
+      .findOne({ _id: shopA });
+    expect(store).toMatchObject({ billing, status: "suspended" });
+    await mongo.db
+      .collection<{ _id: string }>("stores")
+      .updateOne({ _id: shopA }, { $unset: { status: "" } });
   }, 60_000);
 
   it("a dry run checks the file and writes nothing", async () => {

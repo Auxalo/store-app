@@ -227,6 +227,9 @@ export async function verifyExport(
   return { header, counts };
 }
 
+/** Fields of the shop record that belong to the operator, kept as they are by a restore. */
+const OPERATOR_FIELDS = ["billing", "status", "contactPhone", "adminNote"];
+
 /** Deletes every record of ONE shop (scoped by the shop in every collection). */
 export async function wipeShop(db: Db, storeId: string): Promise<void> {
   const ids = await userIds(db, storeId);
@@ -278,6 +281,13 @@ export async function restoreShop(
       throw new RestoreError("USERNAME_TAKEN", String(taken[0].username));
   }
 
+  // What the operator decided about the shop (billing, a pause, their notes) is not part of the
+  // shop's data: restoring an old backup must not bring back an old end date or undo a pause.
+  const keep: Document = {};
+  if (exists)
+    for (const field of OPERATOR_FIELDS)
+      if (exists[field] !== undefined) keep[field] = exists[field];
+
   if (options.replace) await wipeShop(db, storeId);
 
   const batches = new Map<string, Document[]>();
@@ -302,6 +312,7 @@ export async function restoreShop(
     if (batch.length >= 500) await flush(entry.c);
   }
   for (const name of [...batches.keys()]) await flush(name);
-  if (storeDoc) await db.collection("stores").insertOne(storeDoc);
+  if (storeDoc)
+    await db.collection("stores").insertOne({ ...storeDoc, ...keep });
   return verified;
 }

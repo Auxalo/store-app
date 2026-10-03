@@ -163,6 +163,21 @@ export async function ensureSyncIndexes(db: Db): Promise<void> {
     ["session", { expiresAt: 1 }, { expireAfterSeconds: 0 }],
     ["account", { userId: 1 }],
     ["rateLimit", { key: 1 }],
+    // Billing and the operator's log (src/server/billing.ts, src/server/admin-shops.ts).
+    ["billingPayments", { storeId: 1, submittedAt: -1 }],
+    ["billingPayments", { status: 1, submittedAt: 1 }],
+    // A transaction id is used once, by any shop (a rejected payment frees it: trxKey is removed).
+    [
+      "billingPayments",
+      { trxKey: 1 },
+      {
+        unique: true,
+        name: "uniq_trx",
+        partialFilterExpression: { trxKey: { $type: "string" } },
+      },
+    ],
+    ["platformAudit", { at: -1 }],
+    ["platformAudit", { storeId: 1, at: -1 }],
   ];
   await Promise.all(
     authIndexes.map(([name, keys, options]) =>
