@@ -40,22 +40,37 @@ interface AppliedOp {
 }
 
 /** Looks the actor up in the database: the role is never taken from the device. */
+/** How far ahead of the server's clock an operation may be dated (honest clock differences). */
+const CLOCK_SLACK_MS = 5 * 60_000;
+
+/** How long after being deactivated a person's earlier offline work is still accepted. */
+const DEACTIVATED_GRACE_MS = 14 * 24 * 3_600_000;
+
 async function loadActor(
   db: Db,
   storeId: string,
   userId: string,
+  madeAt: string,
 ): Promise<Actor | null> {
   if (!ObjectId.isValid(userId)) return null;
   const user = await db
     .collection(COL.users)
     .findOne({ _id: new ObjectId(userId) });
-  if (
-    !user ||
-    user.storeId !== storeId ||
-    user.isActive === false ||
-    !isRole(user.role)
-  )
-    return null;
+  if (!user || user.storeId !== storeId || !isRole(user.role)) return null;
+  if (user.isActive === false) {
+    // Sales rung up before the person was let go, on a phone that had no internet, are real: the
+    // goods left and the cash was taken. They are accepted when sent soon enough; anything made
+    // after the person was deactivated is not.
+    const since =
+      user.deactivatedAt instanceof Date ? user.deactivatedAt.getTime() : null;
+    const made = Date.parse(madeAt);
+    if (
+      since === null ||
+      !(made <= since) ||
+      Date.now() - since > DEACTIVATED_GRACE_MS
+    )
+      return null;
+  }
   return { role: user.role };
 }
 
@@ -197,7 +212,12 @@ async function processOp(
   const parsed = def.payload.safeParse(op.payload);
   if (!parsed.success) return reject("INVALID_PAYLOAD");
 
-  const actor = await loadActor(deps.db, device.storeId, op.actorUserId);
+  const actor = await loadActor(
+    deps.db,
+    device.storeId,
+    op.actorUserId,
+    op.createdAt,
+  );
   if (!actor) return reject("ACTOR_NOT_ALLOWED");
   if (!can(actor.role, def.permission)) return reject("FORBIDDEN");
 
@@ -271,7 +291,12 @@ export async function handlePush(
       });
       continue;
     }
-    const op = parsed.data;
+    // A device whose clock is ahead must not date records in the future: that would make its
+    // edits win over everybody else's for as long as the clock is wrong.
+    const op =
+      Date.parse(parsed.data.createdAt) > Date.now() + CLOCK_SLACK_MS
+        ? { ...parsed.data, createdAt: new Date().toISOString() }
+        : parsed.data;
     try {
       const result = await processOp(deps, device, op);
       results.push(result);

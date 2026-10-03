@@ -1,7 +1,7 @@
 import { SYNC_COLLECTIONS } from "@/commands/definitions";
 import type { StoreDB } from "@/db/local/db";
 import { getMeta } from "@/db/local/meta";
-import { pullAll, pushAll } from "@/sync/engine";
+import { pullAll, pushAll, resetBackoff } from "@/sync/engine";
 import { type SyncTransport, TransportError } from "@/sync/transport";
 import { type DataMode, setDataMode } from "./mode";
 import { fetchHead } from "./online";
@@ -175,6 +175,9 @@ export async function drainForOnline(
   transport: SyncTransport,
   options: { deviceId: string; appVersion: string },
 ): Promise<void> {
+  // Operations waiting out a retry delay are sent now: the person asked to go online, and a
+  // delay meant for a bad connection is no reason to refuse for minutes.
+  await resetBackoff(db);
   try {
     await pushAll(db, transport, options);
   } catch (error) {
@@ -192,11 +195,16 @@ export async function drainForOnline(
  * (its id and code) and the PIN list stay.
  */
 export async function removeOfflineData(db: StoreDB): Promise<void> {
-  if ((await unsentCount(db)) > 0 || (await needsAttentionCount(db)) > 0)
-    throw new SwitchError("UNSENT");
+  // The check and the clearing are one step: something saved in another tab in between would
+  // otherwise be cleared with the rest and lost.
   await db.transaction("rw", db.tables, async () => {
+    if ((await unsentCount(db)) > 0 || (await needsAttentionCount(db)) > 0)
+      throw new SwitchError("UNSENT");
     for (const collection of SYNC_COLLECTIONS)
       await db.table(collection).clear();
+    // The lines of sales and purchases are tables of their own and the biggest part of the copy.
+    await db.saleItems.clear();
+    await db.purchaseItems.clear();
     await db.outbox.clear();
     await db.syncMeta.delete("cursor");
   });

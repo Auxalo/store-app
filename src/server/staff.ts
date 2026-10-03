@@ -75,7 +75,14 @@ export async function updateStaff(
   if (patch.name !== undefined) set.name = patch.name;
   if (patch.role !== undefined) set.role = patch.role;
   if (patch.isActive !== undefined) set.isActive = patch.isActive;
-  await users(db).updateOne({ _id }, { $set: set });
+  // Remember when, so work the person did before then (offline, not yet sent) is still accepted.
+  const stamp =
+    patch.isActive === false && user.isActive !== false
+      ? { $set: { ...set, deactivatedAt: new Date() } }
+      : patch.isActive === true
+        ? { $set: set, $unset: { deactivatedAt: "" } }
+        : { $set: set };
+  await users(db).updateOne({ _id }, stamp as never);
   clearStoreCaches();
   const updated = await users(db).findOne({ _id });
   return { ok: true, member: toMember(updated as UserDoc) };

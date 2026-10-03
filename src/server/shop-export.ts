@@ -288,8 +288,29 @@ export async function restoreShop(
     for (const field of OPERATOR_FIELDS)
       if (exists[field] !== undefined) keep[field] = exists[field];
 
+  // Devices that were revoked and people who were deactivated stay that way: a backup older than
+  // the revocation would otherwise give a lost phone its access back.
+  const revokedDevices = exists
+    ? await db
+        .collection("devices")
+        .find({ storeId, revokedAt: { $ne: null } } as never)
+        .project({ revokedAt: 1 })
+        .toArray()
+    : [];
+  const inactiveUsers = exists
+    ? await db
+        .collection("user")
+        .find({ storeId, isActive: false } as never)
+        .project({ deactivatedAt: 1 })
+        .toArray()
+    : [];
+  const liveSeq = Number(exists?.syncSeq ?? 0);
+
   if (options.replace) await wipeShop(db, storeId);
 
+  // Every restored record gets a new, higher change number, so a device that was up to date before
+  // the restore downloads it again (its cursor is past the old numbers) and the counter never goes back.
+  let seq = liveSeq;
   const batches = new Map<string, Document[]>();
   const flush = async (name: string) => {
     const docs = batches.get(name);
@@ -304,8 +325,10 @@ export async function restoreShop(
     const doc = EJSON.deserialize(entry.d as never) as Document;
     if (entry.c === "stores") {
       storeDoc = doc;
+      seq = Math.max(liveSeq, Number(doc.syncSeq ?? 0));
       continue;
     }
+    if (typeof doc.syncSeq === "number") doc.syncSeq = ++seq;
     const batch = batches.get(entry.c) ?? [];
     batch.push(doc);
     batches.set(entry.c, batch);
@@ -313,6 +336,25 @@ export async function restoreShop(
   }
   for (const name of [...batches.keys()]) await flush(name);
   if (storeDoc)
-    await db.collection("stores").insertOne({ ...storeDoc, ...keep });
+    await db
+      .collection("stores")
+      .insertOne({ ...storeDoc, ...keep, syncSeq: seq });
+  for (const d of revokedDevices)
+    await db
+      .collection("devices")
+      .updateOne(
+        { _id: d._id, revokedAt: null } as never,
+        { $set: { revokedAt: d.revokedAt ?? new Date() } } as never,
+      );
+  for (const u of inactiveUsers)
+    await db.collection("user").updateOne(
+      { _id: u._id },
+      {
+        $set: {
+          isActive: false,
+          deactivatedAt: u.deactivatedAt ?? new Date(),
+        },
+      },
+    );
   return verified;
 }

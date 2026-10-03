@@ -32,12 +32,14 @@ async function exclusively(job: () => Promise<void>): Promise<void> {
   );
 }
 
-/** Wipes everything on this device except its identity. Used when a different store signs in. */
+/**
+ * Wipes everything on this device, its identity included. Used when a different store signs in.
+ * The server ties a device to the shop it was registered for, so the new shop gets a new device
+ * (otherwise it could never sync, and the old shop's invoice numbers could be issued again).
+ */
 async function resetForNewStore(db: StoreDB): Promise<void> {
-  const deviceId = await getDeviceId(db);
   await db.transaction("rw", db.tables, async () => {
     await Promise.all(db.tables.map((table) => table.clear()));
-    await setMeta(db, "deviceId", deviceId);
   });
 }
 
@@ -63,7 +65,7 @@ class SyncManager {
 
   async start(): Promise<void> {
     const db = this.db;
-    const deviceId = await getDeviceId(db);
+    let deviceId = await getDeviceId(db);
 
     const storedStore = await getMeta(db, "storeId");
     if (storedStore && storedStore !== this.session.storeId) {
@@ -77,6 +79,7 @@ class SyncManager {
         return;
       }
       await resetForNewStore(db);
+      deviceId = await getDeviceId(db); // a new one: this is another shop's device
     }
     await setMeta(db, "storeId", this.session.storeId);
     await loadSavedBilling();

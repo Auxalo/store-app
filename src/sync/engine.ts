@@ -269,6 +269,14 @@ export async function syncOnce(
   options: EngineOptions,
 ): Promise<SyncOutcome> {
   const { sent } = await pushAll(db, transport, options);
+  // An operation still waiting out a retry delay may already have been saved by the server (its
+  // answer was lost). A download now would bring the shop's record, which includes it, and the
+  // device would count it a second time on screen. Wait until it has been confirmed.
+  const waiting = await db.outbox
+    .where("status")
+    .anyOf("pending", "syncing")
+    .count();
+  if (waiting > 0) return { pushed: sent, pages: 0, pulled: 0 };
   const { pages, docs } = await pullAll(db, transport, {
     onProgress: options.onPullProgress,
   });

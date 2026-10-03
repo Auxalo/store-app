@@ -112,7 +112,10 @@ async function fill(shop: string, owner: string, tag: string) {
   );
 }
 
-/** Everything a shop holds, as text, to compare before and after. */
+/**
+ * Everything a shop holds, as text, to compare before and after. The change numbers are left out:
+ * a restore gives every record a new, higher one on purpose (so devices download them again).
+ */
 async function snapshot(shop: string): Promise<string> {
   const out: Record<string, unknown[]> = {};
   const users = await mongo.db
@@ -141,7 +144,9 @@ async function snapshot(shop: string): Promise<string> {
     .collection("stores")
     .find({ _id: shop as never })
     .toArray();
-  return JSON.stringify(out);
+  return JSON.stringify(out, (key, value) =>
+    key === "syncSeq" ? undefined : value,
+  );
 }
 
 async function exportLines(shop: string): Promise<string[]> {
