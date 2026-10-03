@@ -48,6 +48,8 @@ export interface BillingDoc {
 /** What a device is told (head, pull and the billing endpoint carry it). Dates as ISO strings. */
 export interface BillingStamp {
   mode: BillingMode;
+  /** The plan's name, for the sidebar (none for a shop without a plan). */
+  plan: { name: string; nameBn: string } | null;
   paidOnce: boolean;
   paidUntil: string | null;
   warnFrom: string | null;
@@ -247,10 +249,12 @@ export function effectiveNow(
 export function stampOf(
   billing: BillingDoc | null | undefined,
   serverTime: Date,
+  plan: BillingStamp["plan"] = null,
 ): BillingStamp {
   const iso = (d: Date | null | undefined) => toDate(d)?.toISOString() ?? null;
   return {
     mode: billing?.mode ?? "off",
+    plan,
     paidOnce: !!billing?.paidOnce,
     paidUntil: iso(billing?.paidUntil),
     warnFrom: iso(billing?.warnFrom),

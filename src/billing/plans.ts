@@ -1,4 +1,4 @@
-import type { BillingMode } from "./state";
+import type { BillingMode, BillingStamp } from "./state";
 
 /** One plan the operator offers: pay `price` (poisha) for `months` months. */
 export interface BillingPlan {
@@ -73,4 +73,34 @@ export function plansFor(
   if (own && typeof shop.price === "number")
     return [{ ...own, price: shop.price }];
   return settings.plans.filter((p) => p.active);
+}
+
+export type PaymentMethod = PayMethod | "cash" | "other";
+export type PaymentStatus = "pending" | "approved" | "rejected";
+
+/** A payment as the shop sees it on its billing page. */
+export interface PaymentView {
+  id: string;
+  amount: number;
+  method: PaymentMethod;
+  trxId: string;
+  sender: string;
+  months: number;
+  status: PaymentStatus;
+  reason: string;
+  submittedAt: string;
+  reviewedAt: string | null;
+  periodEnd: string | null;
+}
+
+/** GET /api/billing. Someone who cannot pay (a cashier) only gets `billing`. */
+export interface BillingView {
+  billing: BillingStamp;
+  planId?: string | null;
+  plans?: BillingPlan[];
+  payTo?: Record<PayMethod, string>;
+  provisionalHours?: number;
+  /** Sending a payment now would open the locked shop while it is checked. */
+  canOpenNow?: boolean;
+  payments?: PaymentView[];
 }

@@ -56,7 +56,7 @@ test("an operator pauses, backs up and resets a shop; the shop cannot reach the 
     locale: "en-US",
   });
   const admin = await adminContext.newPage();
-  await admin.goto("/admin");
+  await admin.goto("/admin?tab=shops");
   await admin.getByPlaceholder("Username").fill(operator);
   await admin.getByPlaceholder("Password").fill("operator-pass-1");
   await admin.getByRole("button", { name: "Sign in" }).click();
@@ -129,7 +129,7 @@ test("an operator pauses, backs up and resets a shop; the shop cannot reach the 
 
   // What the operator did is on record.
   await admin.goto("/admin");
-  await admin.getByRole("button", { name: "Activity" }).click();
+  await admin.getByRole("tab", { name: "Activity" }).click();
   await expect(admin.getByTestId("admin-activity")).toContainText(
     "shop.suspend",
   );

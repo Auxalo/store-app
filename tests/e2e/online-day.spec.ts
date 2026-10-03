@@ -127,6 +127,6 @@ test("an online shop day: buy stock, sell for cash and on credit, collect, retur
   await expect(page.getByTestId("r-returns")).toHaveText("৳৫০");
   await expect(page.getByTestId("r-net")).toHaveText("৳১০০");
   await page.getByTestId("tab-dues").click();
-  await expect(page.getByText("রহিম")).toBeVisible();
+  await expect(page.getByText("রহিম", { exact: true })).toBeVisible();
   await expect(page.getByText("করিম ট্রেডার্স")).toBeVisible();
 });

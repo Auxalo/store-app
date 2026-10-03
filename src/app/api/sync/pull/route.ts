@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getSyncDeps } from "@/server/deps";
 import { requireDevice } from "@/server/device-request";
 import { errorResponse } from "@/server/http";
+import { billingStamp } from "@/server/shop-status";
 import { handlePull } from "@/server/sync/pull";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ const querySchema = z.object({
   limit: z.coerce.number().int().min(1).max(1000).optional(),
 });
 
-/** Returns changes made by any device after `cursor`. */
+/** Returns changes made by any device after `cursor`, and the shop's billing. */
 export async function GET(request: Request) {
   try {
     const { db } = await getSyncDeps();
@@ -21,9 +22,11 @@ export async function GET(request: Request) {
     const query = querySchema.parse(
       Object.fromEntries(new URL(request.url).searchParams),
     );
-    return NextResponse.json(
-      await handlePull(db, device.storeId, query.cursor, query.limit),
-    );
+    const [page, billing] = await Promise.all([
+      handlePull(db, device.storeId, query.cursor, query.limit),
+      billingStamp(db, device.storeId),
+    ]);
+    return NextResponse.json({ ...page, billing });
   } catch (error) {
     return errorResponse(error);
   }

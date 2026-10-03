@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { assertBillingOpen } from "@/server/billing-gate";
 import { getSyncDeps } from "@/server/deps";
 import { errorResponse } from "@/server/http";
 import { requireUser } from "@/server/session";
@@ -20,6 +21,7 @@ export async function GET(request: Request) {
       Object.fromEntries(new URL(request.url).searchParams),
     );
     const { db } = await getSyncDeps();
+    await assertBillingOpen(db, user.storeId);
     return NextResponse.json({
       logs: await listAudit(db, user.storeId, query.limit, query.before),
     });

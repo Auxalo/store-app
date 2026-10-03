@@ -1,4 +1,5 @@
 import { refreshStaff } from "@/auth/staff-cache";
+import { loadSavedBilling } from "@/billing/client";
 import { resolveDataMode } from "@/data/mode";
 import { useDataModeStore } from "@/data/mode-store";
 import { getLocalDb, type StoreDB } from "@/db/local/db";
@@ -78,6 +79,7 @@ class SyncManager {
       await resetForNewStore(db);
     }
     await setMeta(db, "storeId", this.session.storeId);
+    await loadSavedBilling();
     await recoverInterrupted(db);
     useDataModeStore.getState().set(await resolveDataMode(db));
     // Ask the browser not to evict our data under storage pressure.

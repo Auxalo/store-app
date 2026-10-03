@@ -2,6 +2,7 @@ import "server-only";
 import { can, type Permission } from "@/auth/permissions";
 import { serverEnv } from "@/lib/env";
 import { type ActorUser, chooseActor } from "./actor";
+import { assertBillingOpen } from "./billing-gate";
 import { getSyncDeps } from "./deps";
 import { checkDevice } from "./devices";
 import { HttpError } from "./http";
@@ -19,11 +20,13 @@ export interface RequestActor extends ActorUser {
  * The device cookie says which shop and device this is. If the shop uses PINs, the person must have
  * unlocked with their PIN on this device (the signed `sa_actor` cookie); the browser's say-so is
  * never enough. In a shop with no PINs, the signed-in account is the person working.
- * Their role is read fresh from the database, and `permission` is checked against it.
+ * Their role is read fresh from the database, and `permission` is checked against it. A shop whose
+ * subscription is overdue past its grace days is refused (402 BILLING_DUE).
  */
 export async function requireActor(
   request: Request,
   permission?: Permission,
+  options: { allowLocked?: boolean } = {},
 ): Promise<RequestActor> {
   noteRequest(request);
   const { db } = await getSyncDeps();
@@ -37,6 +40,8 @@ export async function requireActor(
     device.device.deviceId,
     request.method === "GET" ? "read" : "write",
   );
+  // An overdue subscription closes the shop's screens (402); syncing and paying stay open.
+  if (!options.allowLocked) await assertBillingOpen(db, device.device.storeId);
 
   const choice = await chooseActor(db, {
     storeId: device.device.storeId,

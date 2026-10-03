@@ -37,6 +37,10 @@ export function reasonOf(result: AdminResult<unknown>): string {
     FORBIDDEN: "This account is not an operator.",
     UNAUTHORIZED: "Sign in first.",
     RATE_LIMITED: "Too many requests. Wait a moment.",
+    ALREADY_REVIEWED: "This payment was already approved or rejected.",
+    TRX_USED: "That transaction id is already on another payment.",
+    BILLING_NOT_PAID: "This shop is not on paid billing.",
+    INVALID_PLAN: "Choose a plan from your plan list.",
   };
   return (
     known[code ?? ""] ?? `Something went wrong (${code ?? result.status}).`

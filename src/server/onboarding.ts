@@ -5,7 +5,7 @@ import { getDb } from "@/db/server/mongo";
 import { DEFAULT_CURRENCY, DEFAULT_TIME_ZONE } from "@/lib/constants";
 import { newId } from "@/lib/ids";
 import type { OwnerSignupInput } from "@/schemas/auth";
-import { getPlatformBilling, initialBilling } from "./billing";
+import { getPlatformBilling, initialBilling } from "./billing-settings";
 
 export class UsernameTakenError extends Error {
   constructor() {

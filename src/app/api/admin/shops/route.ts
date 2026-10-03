@@ -5,7 +5,10 @@ import { requirePlatformAdmin } from "@/server/platform-admin";
 
 export const dynamic = "force-dynamic";
 
+import { z } from "zod";
+import { endOfDhakaDay } from "@/billing/state";
 import { ownerSignupSchema } from "@/schemas/auth";
+import { dayKeySchema } from "@/schemas/billing";
 import { listShops, logAdminAction } from "@/server/admin-shops";
 import { createStoreWithOwner, UsernameTakenError } from "@/server/onboarding";
 
@@ -22,12 +25,30 @@ export async function GET(request: Request) {
   }
 }
 
-/** Creates a shop and its owner (the same as `pnpm shop:create`). */
+const createSchema = ownerSignupSchema.extend({
+  billing: z
+    .object({
+      mode: z.enum(["off", "free", "paid"]),
+      trialDays: z.number().int().min(0).max(365).optional(),
+      paidUntil: dayKeySchema.optional(),
+    })
+    .optional(),
+});
+
+/** Creates a shop and its owner (the same as `pnpm shop:create`), and how its billing starts. */
 export async function POST(request: Request) {
   try {
     const admin = await requirePlatformAdmin(request);
-    const body = ownerSignupSchema.parse(await readJson(request));
-    const result = await createStoreWithOwner(body);
+    const body = createSchema.parse(await readJson(request));
+    const start = body.billing;
+    const until = start?.paidUntil?.split("-").map(Number);
+    const result = await createStoreWithOwner(body, {
+      mode: start?.mode,
+      trialDays: start?.trialDays,
+      paidUntil: until
+        ? endOfDhakaDay(until[0], until[1] - 1, until[2])
+        : undefined,
+    });
     await logAdminAction(
       await getDb(),
       admin,

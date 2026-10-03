@@ -68,6 +68,7 @@
       "includes": [
         "src/components/lock/**",
         "src/components/sync/**",
+        "src/components/billing/**",
         "src/components/settings/**",
         "src/components/layout/user-menu.tsx",
         "src/components/setup/setup-table.tsx",

@@ -123,3 +123,13 @@ export const shopProfileSchema = z
   })
   .partial()
   .refine((patch) => Object.keys(patch).length > 0, { error: "required" });
+
+/** The operator's payment list: by status, by month ("2026-10"), for one shop. */
+export const paymentsQuery = z.object({
+  status: z.enum(["pending", "approved", "rejected"]).optional(),
+  month: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/)
+    .optional(),
+  storeId: z.string().max(64).optional(),
+});

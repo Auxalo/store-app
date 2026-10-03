@@ -1,24 +1,38 @@
 import { randomUUID } from "node:crypto";
 import type { ClientSession, Db, MongoClient } from "mongodb";
 import {
-  DEFAULT_PLATFORM_BILLING,
+  type PaymentMethod,
+  type PaymentStatus,
+  type PaymentView,
   type PlatformBilling,
   plansFor,
 } from "@/billing/plans";
+
+export type { PaymentMethod, PaymentStatus, PaymentView };
+
 import {
   type BillingDoc,
   type BillingMode,
   billingStateOf,
   endOfDayPlus,
   endOfDhakaDay,
-  marksFor,
   nextPeriod,
   normalizeTrxId,
-  stampOf,
 } from "@/billing/state";
 import type { SubmitPaymentInput } from "@/schemas/billing";
 import { type AdminActor, logAdminAction } from "./admin-shops";
-import { clearStoreCaches, TtlCache } from "./cache";
+import {
+  forgetPlatformBilling,
+  getPlatformBilling,
+  initialBilling,
+  SETTINGS_ID,
+  stampWithPlan,
+  withMarks,
+} from "./billing-settings";
+import { clearStoreCaches } from "./cache";
+
+export { forgetPlatformBilling, getPlatformBilling, initialBilling };
+
 import { HttpError } from "./http";
 import { shopGate } from "./shop-status";
 
@@ -29,9 +43,6 @@ import { shopGate } from "./shop-status";
  * (never in the shop's settings, which the shop can write). Payments are kept in `billingPayments`;
  * a shop sees its own, the operator sees all. Every change the operator makes is logged.
  */
-
-export type PaymentMethod = "bkash" | "nagad" | "cash" | "other";
-export type PaymentStatus = "pending" | "approved" | "rejected";
 
 export interface PaymentDoc {
   _id: string;
@@ -66,67 +77,10 @@ type StoreDoc = {
   billing?: BillingDoc;
 };
 
-const SETTINGS_ID = "billing";
 const MAX_PENDING = 3;
-const settingsCache = new TtlCache<PlatformBilling>(60_000, 1);
 
 const stores = (db: Db) => db.collection<StoreDoc>("stores");
 const payments = (db: Db) => db.collection<PaymentDoc>("billingPayments");
-
-/** The operator's billing settings (their saved values over the defaults). Cached for a minute. */
-export async function getPlatformBilling(db: Db): Promise<PlatformBilling> {
-  return (await settingsCache.load(SETTINGS_ID, async () => {
-    const saved = await db
-      .collection<{ _id: string } & Partial<PlatformBilling>>(
-        "platformSettings",
-      )
-      .findOne({ _id: SETTINGS_ID });
-    const { _id, ...rest } = saved ?? { _id: SETTINGS_ID };
-    return { ...DEFAULT_PLATFORM_BILLING, ...rest };
-  })) as PlatformBilling;
-}
-
-export function forgetPlatformBilling(): void {
-  settingsCache.clear();
-}
-
-/** The warning and lock dates for this billing under these settings. */
-function withMarks(billing: BillingDoc, settings: PlatformBilling): BillingDoc {
-  return {
-    ...billing,
-    ...marksFor(
-      billing.paidUntil ?? null,
-      billing.graceDays ?? settings.graceDays,
-      settings.reminderDays,
-    ),
-  };
-}
-
-/** How a new shop starts: the operator's default, or what they chose when creating it. */
-export function initialBilling(
-  settings: PlatformBilling,
-  now: Date,
-  choice: { mode?: BillingMode; trialDays?: number; paidUntil?: Date } = {},
-): BillingDoc {
-  const mode = choice.mode ?? settings.newShop.mode;
-  if (mode !== "paid") return { mode };
-  const paidUntil =
-    choice.paidUntil ??
-    endOfDayPlus(now, choice.trialDays ?? settings.newShop.trialDays);
-  const firstPlan = settings.plans.find((p) => p.active) ?? settings.plans[0];
-  return withMarks(
-    {
-      mode,
-      planId: firstPlan?.id ?? null,
-      price: null,
-      paidUntil,
-      paidOnce: false,
-      graceDays: null,
-      anchorDay: null,
-    },
-    settings,
-  );
-}
 
 /** Writes the billing fields one by one (the shop record is also updated by every sale). */
 function billingSet(billing: BillingDoc): Record<string, unknown> {
@@ -147,20 +101,6 @@ function samePeriod(a?: Date | null, b?: Date | null): boolean {
 // ---------------------------------------------------------------------------------------------
 // What the shop sees and does
 // ---------------------------------------------------------------------------------------------
-
-export interface PaymentView {
-  id: string;
-  amount: number;
-  method: PaymentMethod;
-  trxId: string;
-  sender: string;
-  months: number;
-  status: PaymentStatus;
-  reason: string;
-  submittedAt: string;
-  reviewedAt: string | null;
-  periodEnd: string | null;
-}
 
 const viewOf = (p: PaymentDoc): PaymentView => ({
   id: p._id,
@@ -184,7 +124,7 @@ export async function shopBillingView(
   now = new Date(),
 ) {
   const { billing } = await shopGate(db, storeId);
-  const stamp = stampOf(billing, now);
+  const stamp = await stampWithPlan(db, billing, now);
   if (!full) return { billing: stamp };
   const [settings, rows] = await Promise.all([
     getPlatformBilling(db),

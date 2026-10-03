@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { BillingStamp } from "@/billing/state";
 import type { SyncCollection } from "@/commands/definitions";
 import { idSchema, isoDateSchema } from "./common";
 
@@ -71,4 +72,6 @@ export interface PullResponse {
   cursor: number;
   hasMore: boolean;
   changes: PullChanges;
+  /** The shop's billing (the endpoint adds it; older servers did not send it). */
+  billing?: BillingStamp;
 }

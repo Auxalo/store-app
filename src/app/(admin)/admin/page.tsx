@@ -1,10 +1,10 @@
 import { AdminGate } from "@/components/admin/admin-gate";
-import { ShopsScreen } from "@/components/admin/shops-screen";
+import { AdminHome } from "@/components/admin/admin-home";
 
 export default function AdminPage() {
   return (
     <AdminGate>
-      <ShopsScreen />
+      <AdminHome />
     </AdminGate>
   );
 }

@@ -1,10 +1,11 @@
 "use client";
 
-import { Store } from "lucide-react";
+import { Lock, Store } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useProfile } from "@/auth/use-auth";
+import { useBillingStatus, useBillingStore } from "@/billing/client";
 import {
   Sidebar,
   SidebarContent,
@@ -27,6 +28,9 @@ export function AppSidebar() {
   const pathname = usePathname();
   const profile = useProfile();
   const { setOpenMobile } = useSidebar();
+  // Billing shows only for a shop that has it; while locked, every other entry leads to it.
+  const billingMode = useBillingStore((s) => s.stamp?.mode ?? "off");
+  const { locked } = useBillingStatus();
 
   return (
     <Sidebar collapsible="icon">
@@ -64,6 +68,9 @@ export function AppSidebar() {
               <SidebarMenu>
                 {navItemsFor(profile.role)
                   .filter((item) => item.group === group)
+                  .filter(
+                    (item) => item.key !== "billing" || billingMode !== "off",
+                  )
                   .map((item) => (
                     <SidebarMenuItem key={item.key}>
                       <SidebarMenuButton
@@ -80,6 +87,12 @@ export function AppSidebar() {
                         >
                           <item.icon aria-hidden />
                           <span>{t(`nav.${item.key}`)}</span>
+                          {locked && item.key !== "billing" ? (
+                            <Lock
+                              className="ms-auto size-3.5 opacity-60"
+                              aria-hidden
+                            />
+                          ) : null}
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

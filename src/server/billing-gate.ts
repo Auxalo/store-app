@@ -1,5 +1,6 @@
 import type { Db } from "mongodb";
-import { billingStateOf, stampOf } from "@/billing/state";
+import { billingStateOf } from "@/billing/state";
+import { stampWithPlan } from "./billing-settings";
 import { HttpError } from "./http";
 import { shopGate } from "./shop-status";
 
@@ -16,6 +17,6 @@ export async function assertBillingOpen(
   const { billing } = await shopGate(db, storeId);
   if (billingStateOf(billing, now).locked)
     throw new HttpError(402, "BILLING_DUE", {
-      billing: stampOf(billing, now),
+      billing: await stampWithPlan(db, billing, now),
     });
 }

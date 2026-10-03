@@ -1,5 +1,6 @@
 import type { Db } from "mongodb";
-import { type BillingDoc, type BillingStamp, stampOf } from "@/billing/state";
+import type { BillingDoc, BillingStamp } from "@/billing/state";
+import { stampWithPlan } from "./billing-settings";
 import { caches } from "./cache";
 
 export type ShopStatus = "active" | "suspended";
@@ -50,5 +51,5 @@ export async function billingStamp(
   storeId: string,
   now = new Date(),
 ): Promise<BillingStamp> {
-  return stampOf((await shopGate(db, storeId)).billing, now);
+  return stampWithPlan(db, (await shopGate(db, storeId)).billing, now);
 }

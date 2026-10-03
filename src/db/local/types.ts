@@ -1,3 +1,4 @@
+import type { BillingStamp } from "@/billing/state";
 import type { CommandType, SyncCollection } from "@/commands/definitions";
 import type { UnitCode } from "@/lib/units";
 import type { ExpenseCategory } from "@/schemas/expense";
@@ -360,4 +361,8 @@ export interface MetaValues {
   skuSeq: number;
   /** How this device gets its data: "online" (ask the server) or "offline" (a full copy on the device). */
   dataMode: "online" | "offline";
+  /** The shop's billing as the server last said (see src/billing/client.ts). */
+  billing: BillingStamp;
+  /** The latest server time this device has seen (turning its clock back does not undo a lock). */
+  billingClockHwm: number;
 }

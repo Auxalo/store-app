@@ -1,4 +1,5 @@
 import Dexie from "dexie";
+import { ingestStamp } from "@/billing/client";
 import { SYNC_COLLECTIONS } from "@/commands/definitions";
 import { applyServerDocs } from "@/db/local/apply-server";
 import type { StoreDB } from "@/db/local/db";
@@ -218,6 +219,7 @@ export async function pullAll(
       "clockOffsetMs",
       Date.parse(page.serverTime) - (before + after) / 2,
     );
+    if (page.billing) await ingestStamp(page.billing, before, after);
 
     pages++;
     cursor = page.cursor;

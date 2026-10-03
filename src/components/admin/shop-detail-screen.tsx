@@ -8,7 +8,7 @@ import {
   PlayCircle,
 } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import {
   AlertDialog,
@@ -31,16 +31,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { ActivityPanel } from "./activity-panel";
 import { adminFetch, reasonOf } from "./admin-api";
+import { StateBadge, when } from "./admin-format";
+import { ShopBillingPanel } from "./shop-billing-panel";
+import type { ShopRow } from "./shops-tab";
 
-interface Detail {
-  id: string;
-  name: string;
-  status: "active" | "suspended";
-  createdAt: string | null;
-  lastSeenAt: string | null;
-  owner: { name: string; username: string } | null;
+interface Detail extends ShopRow {
+  adminNote: string;
   counts: Record<string, number>;
   people: Array<{
     name: string;
@@ -50,20 +52,26 @@ interface Detail {
   }>;
 }
 
-const when = (iso: string | null) =>
-  iso
-    ? new Date(iso).toLocaleString("en-GB", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      })
-    : "—";
+interface Device {
+  id: string;
+  code: string;
+  name: string;
+  createdAt: string;
+  lastSeenAt: string;
+  revokedAt: string | null;
+}
 
-function Detail() {
-  const id = useSearchParams().get("id") ?? "";
+const TABS = ["overview", "billing", "people", "devices", "activity"] as const;
+type Tab = (typeof TABS)[number];
+
+function DetailView() {
+  const params = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const id = params.get("id") ?? "";
+  const asked = params.get("tab") as Tab | null;
+  const tab: Tab = asked && TABS.includes(asked) ? asked : "overview";
   const [shop, setShop] = useState<Detail | null | undefined>(undefined);
-  const [confirming, setConfirming] = useState(false);
-  const [resetting, setResetting] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const result = await adminFetch<{ shop: Detail }>(
@@ -77,9 +85,97 @@ function Detail() {
     else setShop(null);
   }, [id, load]);
 
+  const go = (next: string) => {
+    const search = new URLSearchParams(params);
+    search.set("tab", next);
+    router.replace(`${pathname}?${search.toString()}`);
+  };
+
+  if (shop === undefined) return <Skeleton className="h-60 w-full" />;
+  if (shop === null)
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-sm">Shop not found.</p>
+        <Button asChild variant="outline" className="w-fit">
+          <Link href="/admin?tab=shops">Back</Link>
+        </Button>
+      </div>
+    );
+
+  const paused = shop.status === "suspended";
+  return (
+    <div className="flex flex-col gap-4" data-testid="admin-shop-detail">
+      <Link
+        href="/admin?tab=shops"
+        className="inline-flex w-fit items-center gap-1 text-sm text-muted-foreground hover:underline"
+      >
+        <ArrowLeft className="size-4" aria-hidden /> All shops
+      </Link>
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-xl font-semibold">{shop.name}</h2>
+        <Badge
+          variant={paused ? "destructive" : "secondary"}
+          data-testid="admin-shop-status"
+        >
+          {paused ? "Paused" : "Active"}
+        </Badge>
+        <StateBadge state={shop.billing.state} />
+        <span className="text-xs text-muted-foreground">id {shop.id}</span>
+      </div>
+
+      <Tabs value={tab} onValueChange={go} className="gap-4">
+        <div className="-mx-1 overflow-x-auto px-1">
+          <TabsList>
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="billing">Billing</TabsTrigger>
+            <TabsTrigger value="people">People</TabsTrigger>
+            <TabsTrigger value="devices">Devices</TabsTrigger>
+            <TabsTrigger value="activity">Activity</TabsTrigger>
+          </TabsList>
+        </div>
+        <TabsContent value="overview">
+          <OverviewPanel shop={shop} onChange={load} />
+        </TabsContent>
+        <TabsContent value="billing">
+          <ShopBillingPanel
+            storeId={shop.id}
+            billing={shop.billing}
+            onChange={load}
+          />
+        </TabsContent>
+        <TabsContent value="people">
+          <PeoplePanel shop={shop} />
+        </TabsContent>
+        <TabsContent value="devices">
+          <DevicesPanel storeId={shop.id} />
+        </TabsContent>
+        <TabsContent value="activity">
+          <ActivityPanel storeId={shop.id} />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function OverviewPanel({
+  shop,
+  onChange,
+}: {
+  shop: Detail;
+  onChange: () => Promise<void>;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [profile, setProfile] = useState({
+    name: shop.name,
+    contactPhone: shop.contactPhone,
+    adminNote: shop.adminNote,
+  });
+  const paused = shop.status === "suspended";
+
   async function toggle() {
-    if (!shop) return;
-    const next = shop.status === "active" ? "suspended" : "active";
+    const next = paused ? "active" : "suspended";
     const result = await adminFetch(`/api/admin/shops/${shop.id}/status`, {
       method: "POST",
       body: { status: next },
@@ -92,11 +188,10 @@ function Detail() {
           : "Shop resumed."
         : reasonOf(result),
     );
-    await load();
+    await onChange();
   }
 
   async function resetPassword(form: FormData) {
-    if (!shop) return;
     const result = await adminFetch(
       `/api/admin/shops/${shop.id}/reset-password`,
       {
@@ -110,36 +205,17 @@ function Detail() {
     } else setMessage(reasonOf(result));
   }
 
-  if (shop === undefined) return <Skeleton className="h-60 w-full" />;
-  if (shop === null)
-    return (
-      <div className="flex flex-col gap-3">
-        <p className="text-sm">Shop not found.</p>
-        <Button asChild variant="outline" className="w-fit">
-          <Link href="/admin">Back</Link>
-        </Button>
-      </div>
-    );
+  async function saveProfile() {
+    const result = await adminFetch(`/api/admin/shops/${shop.id}`, {
+      method: "PATCH",
+      body: profile,
+    });
+    setMessage(result.ok ? "Saved." : reasonOf(result));
+    if (result.ok) await onChange();
+  }
 
-  const paused = shop.status === "suspended";
   return (
-    <div className="flex flex-col gap-4" data-testid="admin-shop-detail">
-      <Link
-        href="/admin"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:underline"
-      >
-        <ArrowLeft className="size-4" aria-hidden /> All shops
-      </Link>
-      <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-xl font-semibold">{shop.name}</h2>
-        <Badge
-          variant={paused ? "destructive" : "secondary"}
-          data-testid="admin-shop-status"
-        >
-          {paused ? "Paused" : "Active"}
-        </Badge>
-        <span className="text-xs text-muted-foreground">id {shop.id}</span>
-      </div>
+    <div className="flex flex-col gap-4">
       {message ? (
         <p
           role="status"
@@ -180,7 +256,7 @@ function Detail() {
         <CardHeader>
           <CardTitle className="text-base">What is in it</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-3 text-sm md:grid-cols-3">
+        <CardContent className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
           {Object.entries(shop.counts).map(([key, value]) => (
             <div key={key}>
               <div className="text-muted-foreground">{key}</div>
@@ -200,26 +276,52 @@ function Detail() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">People</CardTitle>
+          <CardTitle className="text-base">
+            Your notes (the shop never sees these)
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          <ul className="divide-y text-sm">
-            {shop.people.map((p) => (
-              <li
-                key={p.username}
-                className="flex items-center justify-between gap-2 py-2"
-              >
-                <span>
-                  {p.name}{" "}
-                  <span className="text-muted-foreground">({p.username})</span>
-                </span>
-                <span className="text-muted-foreground">
-                  {p.role}
-                  {p.isActive ? "" : " · deactivated"}
-                </span>
-              </li>
-            ))}
-          </ul>
+        <CardContent className="flex flex-col gap-3 text-sm">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs">Shop name</Label>
+              <Input
+                value={profile.name}
+                onChange={(e) =>
+                  setProfile({ ...profile, name: e.target.value })
+                }
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs">Phone to reach the shop</Label>
+              <Input
+                value={profile.contactPhone}
+                inputMode="tel"
+                onChange={(e) =>
+                  setProfile({ ...profile, contactPhone: e.target.value })
+                }
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">Notes</Label>
+            <Textarea
+              value={profile.adminNote}
+              maxLength={2000}
+              onChange={(e) =>
+                setProfile({ ...profile, adminNote: e.target.value })
+              }
+              placeholder="Address, how they pay, anything to remember"
+              data-testid="admin-note"
+            />
+          </div>
+          <Button
+            variant="outline"
+            className="w-fit"
+            onClick={() => void saveProfile()}
+            data-testid="admin-save-profile"
+          >
+            Save
+          </Button>
         </CardContent>
       </Card>
 
@@ -281,10 +383,130 @@ function Detail() {
   );
 }
 
+function PeoplePanel({ shop }: { shop: Detail }) {
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <ul className="divide-y text-sm">
+          {shop.people.map((p) => (
+            <li
+              key={p.username}
+              className="flex items-center justify-between gap-2 py-2"
+            >
+              <span>
+                {p.name}{" "}
+                <span className="text-muted-foreground">({p.username})</span>
+              </span>
+              <span className="text-muted-foreground">
+                {p.role}
+                {p.isActive ? "" : " · deactivated"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DevicesPanel({ storeId }: { storeId: string }) {
+  const [devices, setDevices] = useState<Device[] | null>(null);
+  const [revoking, setRevoking] = useState<Device | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const result = await adminFetch<{ devices: Device[] }>(
+      `/api/admin/shops/${storeId}/devices`,
+    );
+    setDevices(result.ok ? result.data.devices : []);
+  }, [storeId]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function revoke() {
+    if (!revoking) return;
+    const result = await adminFetch(
+      `/api/admin/shops/${storeId}/devices/${revoking.id}/revoke`,
+      { method: "POST" },
+    );
+    setRevoking(null);
+    setMessage(result.ok ? "Device revoked." : reasonOf(result));
+    await load();
+  }
+
+  if (!devices) return <Skeleton className="h-40 w-full" />;
+  return (
+    <div className="flex flex-col gap-3">
+      {message ? (
+        <p role="status" className="rounded-lg bg-muted p-3 text-sm">
+          {message}
+        </p>
+      ) : null}
+      {devices.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          No devices.
+        </p>
+      ) : (
+        <Card>
+          <CardContent className="pt-6">
+            <ul className="divide-y text-sm" data-testid="admin-devices">
+              {devices.map((d) => (
+                <li key={d.id} className="flex items-center gap-3 py-2">
+                  <span className="min-w-0 flex-1">
+                    <span className="font-medium">{d.name}</span>{" "}
+                    <span className="text-muted-foreground">({d.code})</span>
+                    <span className="block text-xs text-muted-foreground">
+                      last used {when(d.lastSeenAt)} · added {when(d.createdAt)}
+                    </span>
+                  </span>
+                  {d.revokedAt ? (
+                    <span className="text-xs text-muted-foreground">
+                      revoked {when(d.revokedAt)}
+                    </span>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setRevoking(d)}
+                    >
+                      Revoke
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+      <AlertDialog
+        open={!!revoking}
+        onOpenChange={(open) => !open && setRevoking(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke {revoking?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              It can no longer use the shop (for a lost or stolen phone). It has
+              to be signed in again to be used.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void revoke()}>
+              Revoke
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 export function ShopDetailScreen() {
   return (
     <Suspense fallback={<Skeleton className="h-60 w-full" />}>
-      <Detail />
+      <DetailView />
     </Suspense>
   );
 }
