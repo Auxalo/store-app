@@ -2,7 +2,8 @@ import type { Db, Document } from "mongodb";
 import type { ListParams, Resource } from "@/data/spec";
 import { DEFAULT_TIME_ZONE } from "@/lib/constants";
 import { queryTokens } from "@/lib/search-fields";
-import type { WireDoc } from "@/schemas/sync";
+import type { WireChange, WireDoc } from "@/schemas/sync";
+import { caches } from "../cache";
 import { type StoredDoc, toWire } from "../commands/master-data";
 import {
   buildFilter,
@@ -39,10 +40,14 @@ export interface Viewer {
 }
 
 export async function storeTimeZone(db: Db, storeId: string): Promise<string> {
+  const cached = caches.timeZones.get(storeId);
+  if (cached !== undefined) return cached;
   const store = await db
     .collection<{ _id: string; timeZone?: string }>("stores")
     .findOne({ _id: storeId }, { projection: { timeZone: 1 } });
-  return store?.timeZone ?? DEFAULT_TIME_ZONE;
+  const timeZone = store?.timeZone ?? DEFAULT_TIME_ZONE;
+  caches.timeZones.set(storeId, timeZone);
+  return timeZone;
 }
 
 /**
@@ -141,35 +146,21 @@ export async function listResource<R extends Resource>(
     lowStockBound: await boundFor(db, resource, params, viewer.storeId),
   });
 
-  // A scanned barcode or SKU goes to the top, once, on the first page.
-  let exact: Document[] = [];
+  // A scanned barcode or SKU goes to the top, once, on the first page. It is asked at the same
+  // time as the page itself, and taken out of the page afterwards (it appears in it too).
   const q = String((params as { q?: string }).q ?? "").trim();
-  if (resource === "products" && q && !page.cursor) {
-    exact = await collection
-      .find({
-        storeId: viewer.storeId,
-        deletedAt: null,
-        $or: [{ barcode: q }, { sku: q }],
-      })
-      .sort({ _id: 1 })
-      .maxTimeMS(MAX_TIME_MS)
-      .toArray();
-    if (exact.length > 0)
-      filter = { $and: [filter, { _id: { $nin: exact.map((d) => d._id) } }] };
-  } else if (resource === "products" && q && page.cursor) {
-    // Later pages must not show the exact matches again.
-    const again = await collection
-      .find({
-        storeId: viewer.storeId,
-        deletedAt: null,
-        $or: [{ barcode: q }, { sku: q }],
-      })
-      .project({ _id: 1 })
-      .maxTimeMS(MAX_TIME_MS)
-      .toArray();
-    if (again.length > 0)
-      filter = { $and: [filter, { _id: { $nin: again.map((d) => d._id) } }] };
-  }
+  const exactQuery =
+    resource === "products" && q
+      ? collection
+          .find({
+            storeId: viewer.storeId,
+            deletedAt: null,
+            $or: [{ barcode: q }, { sku: q }],
+          })
+          .sort({ _id: 1 })
+          .maxTimeMS(MAX_TIME_MS)
+          .toArray()
+      : Promise.resolve([] as Document[]);
 
   if (page.cursor) {
     const values = decodeCursor(page.cursor, hash);
@@ -178,17 +169,24 @@ export async function listResource<R extends Resource>(
   }
 
   const hint = searchHint(resource, params);
-  const found = await collection
-    .find(filter, hint ? { hint } : {})
-    .sort(Object.fromEntries(keys.map((k) => [k.field, k.dir])))
-    .limit(limit + 1)
-    .maxTimeMS(MAX_TIME_MS)
-    .toArray();
+  const [exact, found] = await Promise.all([
+    exactQuery,
+    collection
+      .find(filter, hint ? { hint } : {})
+      .sort(Object.fromEntries(keys.map((k) => [k.field, k.dir])))
+      .limit(limit + 1)
+      .maxTimeMS(MAX_TIME_MS)
+      .toArray(),
+  ]);
   const hasMore = found.length > limit;
   const rows = found.slice(0, limit);
   const last = rows[rows.length - 1];
 
-  const items = [...exact, ...rows].map((d) => shape(resource, d, viewer));
+  const exactIds = new Set(exact.map((d) => String(d._id)));
+  const shown = rows.filter((d) => !exactIds.has(String(d._id)));
+  const items = [...(page.cursor ? [] : exact), ...shown].map((d) =>
+    shape(resource, d, viewer),
+  );
   if (resource === "stockMovements") await addProductNames(db, viewer, items);
 
   return {
@@ -301,12 +299,11 @@ export async function getRecord(
   id: string,
   viewer: Viewer,
 ): Promise<{ record: WireDoc; extra: Record<string, WireDoc[]> } | null> {
-  const doc = await db
+  // The record and what belongs to it are asked at the same time (the related rows only need the
+  // id, and they are scoped to the shop like everything else).
+  const docPromise = db
     .collection(COLLECTION[resource])
     .findOne({ _id: id as never, storeId: viewer.storeId });
-  if (!doc) return null;
-  const record = shape(resource, doc, viewer, true);
-  const extra: Record<string, WireDoc[]> = {};
   const rows = (
     name: string,
     filter: Document,
@@ -321,31 +318,73 @@ export async function getRecord(
       .maxTimeMS(MAX_TIME_MS)
       .toArray();
 
-  if (resource === "sales" || resource === "purchases") {
-    const kind = resource === "sales" ? "sale" : "purchase";
-    extra.returns = (
-      await rows("returns", { kind, refId: id }, { createdAt: 1 }, 100)
-    ).map((d) => shape("returns", d, viewer));
-  } else if (resource === "products") {
-    extra.stockMovements = (
-      await rows(
-        "stockMovements",
-        { productId: id },
-        { createdAt: -1, _id: 1 },
-        100,
-      )
-    ).map((d) => shape("stockMovements", d, viewer));
-  } else if (resource === "customers" || resource === "suppliers") {
-    extra.ledgerEntries = (
-      await rows(
-        "ledgerEntries",
-        { partyId: id },
-        { createdAt: -1, _id: 1 },
-        200,
-      )
-    ).map((d) => toWire(d as unknown as StoredDoc));
+  const extraPromise: Promise<Record<string, WireDoc[]>> =
+    resource === "sales" || resource === "purchases"
+      ? rows(
+          "returns",
+          { kind: resource === "sales" ? "sale" : "purchase", refId: id },
+          { createdAt: 1 },
+          100,
+        ).then((found) => ({
+          returns: found.map((d) => shape("returns", d, viewer)),
+        }))
+      : resource === "products"
+        ? rows(
+            "stockMovements",
+            { productId: id },
+            { createdAt: -1, _id: 1 },
+            100,
+          ).then((found) => ({
+            stockMovements: found.map((d) =>
+              shape("stockMovements", d, viewer),
+            ),
+          }))
+        : resource === "customers" || resource === "suppliers"
+          ? rows(
+              "ledgerEntries",
+              { partyId: id },
+              { createdAt: -1, _id: 1 },
+              200,
+            ).then((found) => ({
+              ledgerEntries: found.map((d) =>
+                toWire(d as unknown as StoredDoc),
+              ),
+            }))
+          : Promise.resolve({});
+  const [doc, extra] = await Promise.all([docPromise, extraPromise]);
+  if (!doc) return null;
+  return { record: shape(resource, doc, viewer, true), extra };
+}
+
+/**
+ * The records a command changed, as a person may see them: no purchase prices and no cost of sold
+ * goods unless they are allowed (the same rule `shape()` applies to every list and record). A save
+ * returns the records it changed, so without this a cashier's browser would receive costs.
+ */
+export function hideCostInChanges(
+  changes: WireChange[],
+  viewer: Pick<Viewer, "canSeeCost">,
+): WireChange[] {
+  if (viewer.canSeeCost) return changes;
+  return changes.map((change) => {
+    const doc = { ...(change.doc as unknown as Record<string, unknown>) };
+    if (change.collection === "products") delete doc.purchasePrice;
+    if (Array.isArray(doc.items))
+      doc.items = (doc.items as Array<Record<string, unknown>>).map(
+        ({ unitCost: _unitCost, ...item }) => item,
+      );
+    return { ...change, doc: doc as never };
+  });
+}
+
+/** How far the shop's changes have got, according to a set of records (the highest sequence in them). */
+export function headOf(changes: WireChange[]): number {
+  let head = 0;
+  for (const c of changes) {
+    const seq = Number((c.doc as unknown as { syncSeq?: number }).syncSeq ?? 0);
+    if (seq > head) head = seq;
   }
-  return { record, extra };
+  return head;
 }
 
 /** A scanned or typed barcode or SKU: the one active product it belongs to. */
@@ -362,9 +401,13 @@ export async function lookupProduct(
     deletedAt: null,
     isActive: { $ne: false },
   };
-  const doc =
-    (await products.findOne({ ...base, barcode: trimmed })) ??
-    (await products.findOne({ ...base, sku: trimmed }));
+  // One question for both; a barcode match wins over a SKU match (as it always did).
+  const found = await products
+    .find({ ...base, $or: [{ barcode: trimmed }, { sku: trimmed }] })
+    .limit(2)
+    .maxTimeMS(MAX_TIME_MS)
+    .toArray();
+  const doc = found.find((d) => d.barcode === trimmed) ?? found[0];
   return doc ? shape("products", doc, viewer) : null;
 }
 

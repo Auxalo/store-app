@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { can } from "@/auth/permissions";
 import { requireActor } from "@/server/actor-request";
+import { headOf, hideCostInChanges } from "@/server/data/service";
 import { getSyncDeps } from "@/server/deps";
 import { errorResponse, readJson } from "@/server/http";
 import { runOnlineCommand } from "@/server/online-commands";
@@ -33,10 +35,20 @@ export async function POST(request: Request) {
     const body = bodySchema.parse(await readJson(request));
     const deps = await getSyncDeps();
     const result = await runOnlineCommand(deps, actor, body);
+    // The records come back to the browser: leave out what this person may not see (costs).
+    const viewer = { canSeeCost: can(actor.role, "purchasePrice.view") };
+    const docs = result.docs
+      ? hideCostInChanges(result.docs, viewer)
+      : undefined;
     if (result.ok)
-      return NextResponse.json({ status: result.status, docs: result.docs });
+      // `head` lets the browser know its own change is not news from another device.
+      return NextResponse.json({
+        status: result.status,
+        docs,
+        head: headOf(docs ?? []),
+      });
     return NextResponse.json(
-      { code: result.code, docs: result.docs },
+      { code: result.code, docs },
       { status: STATUS[result.status] },
     );
   } catch (error) {

@@ -12,6 +12,11 @@ export interface ServerCtx {
   deviceId: string;
   /** When the action happened on the device (canonical UTC ISO). Used for last-write-wins. */
   opCreatedAt: string;
+  /**
+   * What the "prepare" step already read inside this transaction (the sold products, the customer),
+   * so the handler does not read the same records again. Nothing here may outlive the operation.
+   */
+  scratch?: Map<string, unknown>;
 }
 
 export type ApplyResult =

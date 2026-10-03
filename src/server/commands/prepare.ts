@@ -1,5 +1,6 @@
 import type { CommandInput, CommandType } from "@/commands/definitions";
 import { onlineNumber, onlineSku, yearMonth } from "@/lib/doc-number";
+import { storeTimeZone } from "../data/service";
 import { PrepareRejection } from "../sync/push";
 import type { ServerCtx } from "./types";
 
@@ -30,10 +31,9 @@ async function nextCount(ctx: ServerCtx, key: string): Promise<number> {
 }
 
 async function storeMonth(ctx: ServerCtx): Promise<string> {
-  const store = await ctx.db
-    .collection<{ _id: string; timeZone?: string }>("stores")
-    .findOne({ _id: ctx.storeId }, { session: ctx.session });
-  return yearMonth(ctx.opCreatedAt, store?.timeZone);
+  // The time zone is remembered for a few seconds (it almost never changes), so a sale does not
+  // read the shop's record just to name the month.
+  return yearMonth(ctx.opCreatedAt, await storeTimeZone(ctx.db, ctx.storeId));
 }
 
 async function documentNumber(ctx: ServerCtx, prefix: string) {
@@ -138,6 +138,7 @@ export const preparePayload: {
       )
       .toArray();
     const products = new Map(found.map((p) => [p._id, p]));
+    ctx.scratch?.set(`products:${ids.slice().sort().join(",")}`, products);
     // What an item costs and is listed at comes from the shop's records, not from the browser.
     const lines = input.lines.map((line) => {
       const product = products.get(line.productId);
@@ -152,6 +153,7 @@ export const preparePayload: {
     const customer = input.customerId
       ? await find(ctx, "customers", input.customerId)
       : null;
+    if (customer) ctx.scratch?.set(`customer:${customer._id}`, customer);
     return {
       ...input,
       lines,

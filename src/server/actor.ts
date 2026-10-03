@@ -3,6 +3,7 @@ import { type Db, ObjectId } from "mongodb";
 import { lockoutState } from "@/auth/lockout";
 import { isRole, type Role } from "@/auth/permissions";
 import { normalizePin, verifyPin } from "@/auth/pin";
+import { caches } from "./cache";
 
 /**
  * Who is acting at this counter, decided by the SERVER.
@@ -159,7 +160,9 @@ export async function unlockActor(
 
 /** Does anyone in this store have a PIN? Then every online action must come with a PIN unlock. */
 export async function pinsInUse(db: Db, storeId: string): Promise<boolean> {
-  return (
+  const cached = caches.pins.get(storeId);
+  if (cached !== undefined) return cached;
+  const inUse =
     (await users(db).countDocuments(
       {
         storeId,
@@ -167,8 +170,9 @@ export async function pinsInUse(db: Db, storeId: string): Promise<boolean> {
         pinHash: { $exists: true, $ne: "" },
       },
       { limit: 1 },
-    )) > 0
-  );
+    )) > 0;
+  caches.pins.set(storeId, inUse);
+  return inUse;
 }
 
 export interface ActorUser {
@@ -206,11 +210,14 @@ export async function chooseActor(
   );
   if (userId) {
     const user = ObjectId.isValid(userId)
-      ? await users(db).findOne({
-          _id: new ObjectId(userId),
-          storeId: input.storeId,
-        })
-      : null;
+      ? ((await caches.users.load(`${input.storeId}:${userId}`, async () => {
+          const found = await users(db).findOne({
+            _id: new ObjectId(userId),
+            storeId: input.storeId,
+          });
+          return found ?? undefined;
+        })) as { name: string; role: string; isActive?: boolean } | undefined)
+      : undefined;
     if (!user || user.isActive === false || !isRole(user.role))
       return { kind: "invalid" };
     return {

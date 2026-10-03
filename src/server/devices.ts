@@ -1,5 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { Db } from "mongodb";
+import { caches } from "./cache";
 import { COL } from "./sync/collections";
 import type { DeviceAuth } from "./sync/push";
 
@@ -16,6 +17,8 @@ interface DeviceDoc {
   lastSeenAt: Date;
   revokedAt?: Date | null;
 }
+
+const LAST_SEEN_EVERY_MS = 5 * 60_000;
 
 const hash = (token: string) =>
   createHash("sha256").update(token).digest("hex");
@@ -54,18 +57,30 @@ export async function checkDevice(
 ): Promise<DeviceCheck> {
   const parsed = parseDeviceCookie(cookieHeader);
   if (!parsed) return { ok: false, reason: "missing" };
-  const doc = await db
-    .collection<DeviceDoc>(COL.devices)
-    .findOne({ _id: parsed.deviceId });
+  // The device record is kept for a few seconds (this is read by every request). A found record
+  // only: a device registered a moment ago is seen at once.
+  const doc = (await caches.devices.load(parsed.deviceId, async () => {
+    const found = await db
+      .collection<DeviceDoc>(COL.devices)
+      .findOne({ _id: parsed.deviceId });
+    return found ?? undefined;
+  })) as DeviceDoc | undefined;
   if (!doc) return { ok: false, reason: "invalid" };
   const expected = Buffer.from(doc.tokenHash, "hex");
   const actual = Buffer.from(hash(parsed.token), "hex");
   if (expected.length !== actual.length || !timingSafeEqual(expected, actual))
     return { ok: false, reason: "invalid" };
   if (doc.revokedAt) return { ok: false, reason: "revoked" };
-  void db
-    .collection<DeviceDoc>(COL.devices)
-    .updateOne({ _id: doc._id }, { $set: { lastSeenAt: new Date() } });
+  // "Last seen" only needs minute-level accuracy, so it is written at most every 5 minutes (it was a
+  // database write on every request), and a failed write never fails the request.
+  const now = Date.now();
+  if (now - doc.lastSeenAt.getTime() > LAST_SEEN_EVERY_MS) {
+    doc.lastSeenAt = new Date(now);
+    void db
+      .collection<DeviceDoc>(COL.devices)
+      .updateOne({ _id: doc._id }, { $set: { lastSeenAt: doc.lastSeenAt } })
+      .catch(() => undefined);
+  }
   return {
     ok: true,
     device: { storeId: doc.storeId, deviceId: doc._id, code: doc.code },
@@ -114,6 +129,7 @@ export async function registerDevice(
       { _id: deviceId },
       { $set: { tokenHash: hash(token), lastSeenAt: new Date() } },
     );
+    caches.devices.delete(deviceId);
     return { code: doc.code, token };
   }
 
@@ -197,5 +213,7 @@ export async function revokeDevice(
       { _id: id, storeId, revokedAt: { $in: [null, undefined] } as never },
       { $set: { revokedAt: new Date() } },
     );
+  // Refused from now on by this server; others within the cache's few seconds.
+  caches.devices.delete(id);
   return result.matchedCount > 0;
 }

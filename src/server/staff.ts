@@ -1,6 +1,7 @@
 import { type Db, ObjectId } from "mongodb";
 import { isRole, type Role } from "@/auth/permissions";
 import type { PinHash } from "@/auth/pin";
+import { clearStoreCaches } from "./cache";
 import { COL } from "./sync/collections";
 
 export interface StaffMember {
@@ -75,6 +76,7 @@ export async function updateStaff(
   if (patch.role !== undefined) set.role = patch.role;
   if (patch.isActive !== undefined) set.isActive = patch.isActive;
   await users(db).updateOne({ _id }, { $set: set });
+  clearStoreCaches();
   const updated = await users(db).findOne({ _id });
   return { ok: true, member: toMember(updated as UserDoc) };
 }
@@ -99,6 +101,7 @@ export async function setStaffPin(
       } as never,
     },
   );
+  clearStoreCaches();
   return {
     ok: true,
     member: toMember({ ...user, pinSalt: pin.salt, pinHash: pin.hash }),

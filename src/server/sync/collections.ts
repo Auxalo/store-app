@@ -1,4 +1,4 @@
-import type { Db } from "mongodb";
+import type { CreateIndexesOptions, Db, IndexSpecification } from "mongodb";
 import { AUDIT_RETENTION_SECONDS } from "@/lib/constants";
 
 /** Mongo collection names used by the sync engine (business collections match SYNC_COLLECTIONS). */
@@ -107,5 +107,32 @@ export async function ensureSyncIndexes(db: Db): Promise<void> {
         { expireAfterSeconds: 60 * 60 * 24 * 180 },
       ),
   ]);
+
+  // Better Auth creates no indexes of its own for its collections. Without these, every session
+  // lookup scans every session ever made, and old sessions are never cleaned up. They are created
+  // one by one and a failure is only logged, so an odd old row can never stop the app starting.
+  const authIndexes: Array<
+    [string, IndexSpecification, CreateIndexesOptions?]
+  > = [
+    ["session", { token: 1 }, { unique: true }],
+    ["session", { userId: 1 }],
+    // Sessions last 30 days; MongoDB removes them when they expire.
+    ["session", { expiresAt: 1 }, { expireAfterSeconds: 0 }],
+    ["account", { userId: 1 }],
+    ["rateLimit", { key: 1 }],
+  ];
+  await Promise.all(
+    authIndexes.map(([name, keys, options]) =>
+      db
+        .collection(name)
+        .createIndex(keys, options)
+        .catch((error: unknown) =>
+          console.error(
+            `index ${name} ${JSON.stringify(keys)} not created`,
+            error,
+          ),
+        ),
+    ),
+  );
   ensured.add(db);
 }

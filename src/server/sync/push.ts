@@ -114,6 +114,7 @@ export async function applyOperation(
           role,
           deviceId: op.deviceId,
           opCreatedAt: op.createdAt,
+          scratch: new Map(),
         };
         const handler = serverCommands[
           op.type as keyof typeof serverCommands
