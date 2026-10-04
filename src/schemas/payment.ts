@@ -19,3 +19,18 @@ export const paymentInput = z.object({
   note: z.string().trim().max(200).default(""),
 });
 export const paymentPayload = paymentInput;
+
+/** A payment recorded by mistake is cancelled, not deleted: it stays on record and the balance goes back. */
+export const paymentVoidInput = z.object({
+  id: idSchema,
+  reason: z.string().trim().max(200).default(""),
+});
+/**
+ * The device adds whose balance the payment moved and by how much, so a cancellation that has not
+ * reached the server yet can be shown on screen. The server ignores these and reads its own record.
+ */
+export const paymentVoidPayload = paymentVoidInput.extend({
+  partyType: z.enum(["customer", "supplier"]).optional(),
+  partyId: idSchema.optional(),
+  amount: z.number().int().optional(),
+});

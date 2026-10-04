@@ -289,6 +289,164 @@ describe("dues and payments", () => {
   });
 });
 
+describe("cancelling a payment", () => {
+  async function owedCustomer(d: Device, due = 10_000) {
+    const milk = await addProduct(d, 100_000);
+    const customer = await addCustomer(d);
+    await sellTo(d, [sLine(milk, 2000)], {
+      customerId: customer,
+      customerName: "রহিম",
+      tendered: 0,
+    }); // owes 10,000
+    await d.sync();
+    expect((await d.db.customers.get(customer))?.balance).toBe(due);
+    return customer;
+  }
+  const collect = async (d: Device, partyId: string, amount: number) => {
+    const id = newId();
+    await runCommand(d.db, d.ctx, "payment.collect", { id, partyId, amount });
+    return id;
+  };
+
+  it("puts the balance back at once, keeps the payment, and converges across devices", async () => {
+    const a = await newDevice();
+    const b = await newDevice();
+    const customer = await owedCustomer(a);
+    await b.sync();
+    const payment = await collect(a, customer, 4_000);
+    await a.sync();
+    expect((await a.db.customers.get(customer))?.balance).toBe(6_000);
+
+    a.faults.offline = true;
+    await runCommand(a.db, a.ctx, "payment.void", {
+      id: payment,
+      reason: "wrong customer",
+    });
+    // On this device, immediately:
+    expect((await a.db.customers.get(customer))?.balance).toBe(10_000);
+    expect(await a.db.payments.get(payment)).toMatchObject({
+      status: "voided",
+      voidReason: "wrong customer",
+      amount: 4_000,
+    });
+    const reversal = await a.db.ledgerEntries.get(`${payment}:vl`);
+    expect(reversal).toMatchObject({
+      amountDelta: 4_000,
+      refType: "payment_void",
+    });
+
+    a.faults.offline = false;
+    await a.sync();
+    await b.sync();
+    for (const d of [a, b]) {
+      expect((await d.db.customers.get(customer))?.balance).toBe(10_000);
+      expect((await d.db.payments.get(payment))?.status).toBe("voided");
+    }
+    expect(
+      (
+        await mongo.db
+          .collection("customers")
+          .findOne({ _id: customer as never })
+      )?.balance,
+    ).toBe(10_000);
+    expect(await pending(a)).toBe(0);
+  });
+
+  it("an unsent cancellation still shows after other changes arrive", async () => {
+    const a = await newDevice();
+    const b = await newDevice();
+    const customer = await owedCustomer(a);
+    const payment = await collect(a, customer, 4_000);
+    await a.sync();
+    await b.sync();
+
+    a.faults.offline = true;
+    await runCommand(a.db, a.ctx, "payment.void", { id: payment, reason: "x" });
+    await collect(b, customer, 1_000); // another device keeps working
+    await b.sync();
+    a.faults.offline = false;
+    await pullAll(a.db, a.transport);
+    // 10,000 owed, minus b's 1,000; a's payment of 4,000 is cancelled (not yet sent).
+    expect((await a.db.customers.get(customer))?.balance).toBe(9_000);
+    expect((await a.db.payments.get(payment))?.status).toBe("voided");
+    await a.sync();
+    expect(
+      (
+        await mongo.db
+          .collection("customers")
+          .findOne({ _id: customer as never })
+      )?.balance,
+    ).toBe(9_000);
+  });
+
+  it("works for a supplier too", async () => {
+    const d = await newDevice();
+    const milk = await addProduct(d, 0);
+    const supplier = await addSupplier(d);
+    await buy(d, [pLine(milk, 10_000, 4500)], {
+      supplierId: supplier,
+      supplierName: "X",
+      paid: 0,
+    });
+    const id = newId();
+    await runCommand(d.db, d.ctx, "payment.pay", {
+      id,
+      partyId: supplier,
+      amount: 20_000,
+      method: "bank",
+    });
+    expect((await d.db.suppliers.get(supplier))?.balance).toBe(25_000);
+    await runCommand(d.db, d.ctx, "payment.void", { id, reason: "typo" });
+    expect((await d.db.suppliers.get(supplier))?.balance).toBe(45_000);
+    await d.sync();
+    expect(
+      (
+        await mongo.db
+          .collection("suppliers")
+          .findOne({ _id: supplier as never })
+      )?.balance,
+    ).toBe(45_000);
+  });
+
+  it("cannot be cancelled twice, or for a payment this device does not have", async () => {
+    const d = await newDevice();
+    const customer = await owedCustomer(d);
+    const payment = await collect(d, customer, 1_000);
+    await runCommand(d.db, d.ctx, "payment.void", { id: payment, reason: "a" });
+    await expect(
+      runCommand(d.db, d.ctx, "payment.void", { id: payment, reason: "b" }),
+    ).rejects.toThrow();
+    await expect(
+      runCommand(d.db, d.ctx, "payment.void", { id: newId(), reason: "c" }),
+    ).rejects.toThrow();
+    expect((await d.db.customers.get(customer))?.balance).toBe(10_000);
+  });
+
+  it("if the server refuses it, the device goes back to the payment being active", async () => {
+    const d = await newDevice();
+    const customer = await owedCustomer(d);
+    const payment = await collect(d, customer, 4_000);
+    await d.sync();
+    // The server no longer has the payment (so it refuses the cancellation).
+    await mongo.db.collection("payments").deleteOne({ _id: payment as never });
+    await runCommand(d.db, d.ctx, "payment.void", { id: payment, reason: "x" });
+    expect((await d.db.customers.get(customer))?.balance).toBe(10_000);
+    await d.sync();
+    const [op] = await d.db.outbox
+      .where("operationId")
+      .equals(
+        (await d.db.outbox.toArray()).filter(
+          (o) => o.type === "payment.void",
+        )[0].operationId,
+      )
+      .toArray();
+    expect(op).toMatchObject({ status: "failed", lastError: "NOT_FOUND" });
+    expect((await d.db.payments.get(payment))?.status).not.toBe("voided");
+    expect((await d.db.customers.get(customer))?.balance).toBe(6_000);
+    expect(await d.db.ledgerEntries.get(`${payment}:vl`)).toBeUndefined();
+  });
+});
+
 describe("expenses", () => {
   it("records, syncs and cancels expenses", async () => {
     const a = await newDevice();

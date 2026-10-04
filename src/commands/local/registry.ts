@@ -8,6 +8,7 @@ import {
   expenseVoid,
   openingBalanceCreate,
   paymentCreate,
+  paymentVoid,
   purchaseCreate,
   purchaseReturnCreate,
   saleReturnCreate,
@@ -188,6 +189,7 @@ export const localCommands: { [T in CommandType]: LocalHandler<T> } = {
     paymentCreate(db, ctx, "supplier", input, now),
   "expense.create": (db, ctx, input, now) => expenseCreate(db, ctx, input, now),
   "expense.void": (db, _ctx, input, now) => expenseVoid(db, input, now),
+  "payment.void": (db, ctx, input, now) => paymentVoid(db, ctx, input, now),
   "saleReturn.create": (db, ctx, input, now) =>
     saleReturnCreate(db, ctx, input, now),
   "purchaseReturn.create": (db, ctx, input, now) =>

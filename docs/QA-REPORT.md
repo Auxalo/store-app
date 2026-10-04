@@ -254,3 +254,17 @@ A grouped section under today's numbers, for owners and managers (anyone who may
 - The formula is one function (`src/reports/worth.ts`, tested). Online mode gets everything in the existing single dashboard request; offline mode adds up the device's data.
 - What it leaves out: cash and bank balances (the app does not track them), and stock is valued at the latest purchase price, not a running average. Bad debts and dead stock make it look higher than it is.
 - Tests: `worth.test.ts`; the browser setup test checks stock at cost, at selling price, the margin, the worth and the hide/show in both modes.
+
+# Part 7: cancelling a payment
+
+**Gap.** A payment taken from a customer, or paid to a supplier, by mistake could not be undone (sales, returns and expenses could).
+
+**Now.** "Cancel payment" on the payment line of a customer's or supplier's statement, and on each row of the Payments list. A reason is asked for. Owner and manager only (the `sale.void` permission); a cashier who may collect payments cannot cancel them.
+
+- The payment is never deleted: it stays on record, marked cancelled, and a reversing line is added to the statement (refType `payment_void`), so the balance goes back to what it was before, an advance included.
+- It works for both directions: cancelling a customer's payment makes them owe again; cancelling a supplier payment makes the shop owe again.
+- The Payments list totals leave cancelled payments out; the statement shows both lines, the original struck through with a "Cancelled" mark.
+- Works offline (the balance changes at once on the device, then syncs; it is signed like other owner actions), and online. Cancelling twice, or a retry, changes nothing. The server takes the amount and the person from its own record, never from the device. If the server refuses it, the device goes back to the payment being active. The audit log records who cancelled it.
+- A payment cannot be edited; to fix a wrong amount, cancel it and enter the right one.
+
+Tests: `purchasing.test.ts` on the server (both directions, advance, once only, device cannot choose the amount or person, cashier refused, other shop's payment, audit), `src/sync/__tests__/purchasing.test.ts` on the device queue (immediate balance, convergence across devices, unsent cancellation surviving a pull, undo on refusal), and the browser test "collect a customer's due" in both modes.

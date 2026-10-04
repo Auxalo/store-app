@@ -214,6 +214,11 @@ export interface Payment {
   amount: number;
   method: PaymentMethod;
   note: string;
+  /** Absent on older records: they are active. */
+  status?: "active" | "voided";
+  voidReason?: string;
+  voidedAt?: string;
+  voidedBy?: string;
   createdAt: string;
   updatedAt: string;
   createdBy: string;

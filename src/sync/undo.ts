@@ -24,6 +24,7 @@ const HAS_EFFECTS = new Set([
   "purchase.create",
   "payment.collect",
   "payment.pay",
+  "payment.void",
   "party.openingBalance",
 ]);
 
@@ -33,7 +34,7 @@ export async function undoLocalEffects(
 ): Promise<void> {
   if (!HAS_EFFECTS.has(op.type)) return;
   const root = op.entityId;
-  const isVoid = op.type === "sale.void";
+  const isVoid = op.type === "sale.void" || op.type === "payment.void";
   const mine = (id: string) =>
     isVoid
       ? id.startsWith(`${root}:v`)
@@ -82,8 +83,20 @@ export async function undoLocalEffects(
   if (op.type === "payment.collect" || op.type === "payment.pay")
     await db.payments.delete(root);
 
+  // A cancelled payment that was not cancelled after all: the payment is active again.
+  if (op.type === "payment.void") {
+    const payment = await db.payments.get(root);
+    if (payment?.status === "voided")
+      await db.payments.update(root, {
+        status: "active",
+        voidReason: undefined,
+        voidedAt: undefined,
+        voidedBy: undefined,
+      });
+  }
+
   // A cancellation that did not happen: the sale is as it was.
-  if (isVoid) {
+  if (op.type === "sale.void") {
     const sale = await db.sales.get(root);
     if (sale?.status === "voided")
       await db.sales.update(root, {

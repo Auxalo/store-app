@@ -649,3 +649,179 @@ describe("returns", () => {
     });
   });
 });
+
+describe("cancelling a payment", () => {
+  async function partyWithBalance(
+    kind: "customer" | "supplier",
+    amount = 10_000,
+  ) {
+    const party = await addParty(kind);
+    await push(
+      deviceA,
+      op("party.openingBalance", {
+        id: randomUUID(),
+        partyType: kind,
+        partyId: party,
+        amount,
+        note: "",
+      }),
+    );
+    return party;
+  }
+  const payment = (
+    type: "payment.collect" | "payment.pay",
+    partyId: string,
+    amount: number,
+  ) => {
+    const id = randomUUID();
+    return {
+      id,
+      envelope: op(type, { id, partyId, amount, method: "cash", note: "" }),
+    };
+  };
+  const cancel = (id: string, o: Partial<OpEnvelope> = {}) =>
+    op("payment.void", { id, reason: "entered by mistake" }, o);
+
+  it("puts a customer's balance back, keeps the payment on record, and adds a reversing entry", async () => {
+    const customer = await partyWithBalance("customer", 10_000);
+    const p = payment("payment.collect", customer, 4_000);
+    await push(deviceA, p.envelope);
+    expect(await balanceOf("customers", customer)).toBe(6_000);
+
+    const [result] = await push(deviceA, cancel(p.id));
+    expect(result.status).toBe("applied");
+    expect(await balanceOf("customers", customer)).toBe(10_000);
+    expect(await ledgerSum(customer)).toBe(10_000);
+    const stored = await col("payments").findOne({ _id: p.id as never });
+    expect(stored).toMatchObject({
+      status: "voided",
+      voidReason: "entered by mistake",
+      amount: 4_000,
+    });
+    // Both the payment and its reversal are in the statement.
+    expect(
+      await col("ledgerEntries").countDocuments({ refId: p.id } as never),
+    ).toBe(2);
+  });
+
+  it("puts a supplier's balance back (what we owe them goes up again)", async () => {
+    const supplier = await partyWithBalance("supplier", 30_000);
+    const p = payment("payment.pay", supplier, 12_000);
+    await push(deviceA, p.envelope);
+    expect(await balanceOf("suppliers", supplier)).toBe(18_000);
+    await push(deviceA, cancel(p.id));
+    expect(await balanceOf("suppliers", supplier)).toBe(30_000);
+  });
+
+  it("restores an advance too (a payment that took the balance below zero)", async () => {
+    const customer = await partyWithBalance("customer", 1_000);
+    const p = payment("payment.collect", customer, 4_000);
+    await push(deviceA, p.envelope);
+    expect(await balanceOf("customers", customer)).toBe(-3_000);
+    await push(deviceA, cancel(p.id));
+    expect(await balanceOf("customers", customer)).toBe(1_000);
+  });
+
+  it("cancels once: a retry or a second cancel changes nothing", async () => {
+    const customer = await partyWithBalance("customer", 10_000);
+    const p = payment("payment.collect", customer, 2_500);
+    await push(deviceA, p.envelope);
+    const once = cancel(p.id);
+    await push(deviceA, once);
+    const [retry] = await push(deviceA, once);
+    expect(retry.status).toBe("duplicate");
+    const [second] = await push(deviceA, cancel(p.id));
+    expect(second.status).toBe("applied");
+    expect(await balanceOf("customers", customer)).toBe(10_000);
+    expect(
+      await col("ledgerEntries").countDocuments({ refId: p.id } as never),
+    ).toBe(2);
+  });
+
+  it("takes its amount and person from the server's record, not from the device", async () => {
+    const customer = await partyWithBalance("customer", 10_000);
+    const other = await partyWithBalance("customer", 10_000);
+    const p = payment("payment.collect", customer, 4_000);
+    await push(deviceA, p.envelope);
+    await push(
+      deviceA,
+      op("payment.void", {
+        id: p.id,
+        reason: "x",
+        partyId: other,
+        amount: 9_999_999,
+        partyType: "customer",
+      }),
+    );
+    expect(await balanceOf("customers", customer)).toBe(10_000);
+    expect(await balanceOf("customers", other)).toBe(10_000);
+  });
+
+  it("is for owners and managers: a cashier who may collect cannot cancel", async () => {
+    const customer = await partyWithBalance("customer", 10_000);
+    const p = payment("payment.collect", customer, 4_000);
+    const [collected] = await push(
+      deviceA,
+      op(
+        "payment.collect",
+        {
+          id: p.id,
+          partyId: customer,
+          amount: 4_000,
+          method: "cash",
+          note: "",
+        },
+        { actorUserId: cashier },
+      ),
+    );
+    expect(collected.status).toBe("applied");
+    const [denied] = await push(
+      deviceA,
+      cancel(p.id, { actorUserId: cashier }),
+    );
+    expect(denied).toMatchObject({ status: "rejected", error: "FORBIDDEN" });
+    expect(await balanceOf("customers", customer)).toBe(6_000);
+  });
+
+  it("refuses a payment that does not exist, or that belongs to another shop", async () => {
+    const [missing] = await push(deviceA, cancel(randomUUID()));
+    expect(missing).toMatchObject({ status: "rejected", error: "NOT_FOUND" });
+
+    const otherStore = await mongo.seedStore("Other");
+    const foreign = randomUUID();
+    await col("payments").insertOne({
+      _id: foreign,
+      storeId: otherStore,
+      partyType: "customer",
+      partyId: randomUUID(),
+      partyName: "X",
+      amount: 100,
+      method: "cash",
+      note: "",
+      version: 1,
+      syncSeq: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: "x",
+      deviceId: "x",
+    } as never);
+    const [denied] = await push(deviceA, cancel(foreign));
+    expect(denied).toMatchObject({ status: "rejected", error: "NOT_FOUND" });
+    expect(
+      (await col("payments").findOne({ _id: foreign as never }))?.status,
+    ).toBeUndefined();
+  });
+
+  it("records who cancelled it in the audit log", async () => {
+    const customer = await partyWithBalance("customer", 10_000);
+    const p = payment("payment.collect", customer, 1_000);
+    await push(deviceA, p.envelope);
+    await push(deviceA, cancel(p.id));
+    expect(
+      await col("auditLogs").countDocuments({
+        action: "payment.void",
+        entityId: p.id,
+      } as never),
+    ).toBe(1);
+  });
+});

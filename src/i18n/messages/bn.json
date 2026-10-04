@@ -192,6 +192,7 @@
       "paymentPay": "সরবরাহকারীকে পরিশোধ",
       "expenseCreate": "খরচ",
       "expenseVoid": "খরচ বাতিল",
+      "paymentVoid": "পেমেন্ট বাতিল",
       "saleReturnCreate": "বিক্রয় ফেরত",
       "purchaseReturnCreate": "ক্রয় ফেরত"
     },
@@ -509,6 +510,7 @@
       "sale": "বিক্রি",
       "sale_void": "বিক্রি বাতিল",
       "payment": "পেমেন্ট",
+      "payment_void": "পেমেন্ট বাতিল",
       "sale_return": "বিক্রয় ফেরত",
       "purchase": "ক্রয়",
       "purchase_return": "ক্রয় ফেরত",
@@ -589,6 +591,11 @@
   },
   "payments": {
     "empty": "এখনো কোনো পেমেন্ট নেই।",
+    "voidTitle": "এই পেমেন্ট বাতিল করবেন?",
+    "voidBody": "এটি রেকর্ডে থাকবে, বাতিল চিহ্ন সহ। হিসাব আগের অবস্থায় ফিরে যাবে।",
+    "voidReason": "কেন বাতিল করছেন?",
+    "voidConfirm": "পেমেন্ট বাতিল",
+    "voided": "বাতিল",
     "received": "{name}-এর কাছ থেকে প্রাপ্ত",
     "paidTo": "{name}-কে পরিশোধ",
     "filterAll": "সব",
@@ -760,7 +767,8 @@
       "sale_void": "বিক্রি বাতিল",
       "sale_priceOverride": "ভিন্ন দামে বিক্রি",
       "sale_stalePrice": "পুরনো দামে বিক্রি (বিক্রির পরে দাম বদলেছে)",
-      "expense_void": "খরচ বাতিল"
+      "expense_void": "খরচ বাতিল",
+      "payment_void": "পেমেন্ট বাতিল"
     },
     "off": "অডিট লগ বন্ধ, তাই নতুন পরিবর্তন লেখা হচ্ছে না।",
     "turnOn": "সেটিংসে চালু করুন"

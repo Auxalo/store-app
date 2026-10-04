@@ -23,7 +23,12 @@ import {
   expenseVoidPayload,
 } from "@/schemas/expense";
 import { openingBalanceInput, openingBalancePayload } from "@/schemas/opening";
-import { paymentInput, paymentPayload } from "@/schemas/payment";
+import {
+  paymentInput,
+  paymentPayload,
+  paymentVoidInput,
+  paymentVoidPayload,
+} from "@/schemas/payment";
 import {
   productCreateInput,
   productCreatePayload,
@@ -248,6 +253,17 @@ export const COMMANDS = {
     input: paymentInput,
     payload: paymentPayload,
     entityIds: (p: { id: string; partyId: string }) => [p.id, p.partyId],
+  },
+  // Cancels a payment (either direction): it stays on record and the balance goes back. Owner and manager only.
+  "payment.void": {
+    collection: "payments",
+    permission: "sale.void",
+    input: paymentVoidInput,
+    payload: paymentVoidPayload,
+    entityIds: (p: { id: string; partyId?: string }) => [
+      p.id,
+      ...(p.partyId ? [p.partyId] : []),
+    ],
   },
   // A balance a customer or supplier already had before using the app (owner and manager only).
   "party.openingBalance": {

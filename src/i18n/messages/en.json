@@ -192,6 +192,7 @@
       "paymentPay": "Pay supplier",
       "expenseCreate": "Expense",
       "expenseVoid": "Cancel expense",
+      "paymentVoid": "Cancel payment",
       "saleReturnCreate": "Sale return",
       "purchaseReturnCreate": "Purchase return"
     },
@@ -509,6 +510,7 @@
       "sale": "Sale",
       "sale_void": "Sale cancelled",
       "payment": "Payment",
+      "payment_void": "Payment cancelled",
       "sale_return": "Sale return",
       "purchase": "Purchase",
       "purchase_return": "Purchase return",
@@ -589,6 +591,11 @@
   },
   "payments": {
     "empty": "No payments yet.",
+    "voidTitle": "Cancel this payment?",
+    "voidBody": "It stays on record, marked as cancelled. The balance goes back to what it was before this payment.",
+    "voidReason": "Why is it being cancelled?",
+    "voidConfirm": "Cancel payment",
+    "voided": "Cancelled",
     "received": "Received from {name}",
     "paidTo": "Paid to {name}",
     "filterAll": "All",
@@ -760,7 +767,8 @@
       "sale_void": "Sale cancelled",
       "sale_priceOverride": "Sold at a different price",
       "sale_stalePrice": "Sold at the old price (changed after the sale)",
-      "expense_void": "Expense cancelled"
+      "expense_void": "Expense cancelled",
+      "payment_void": "Payment cancelled"
     },
     "off": "The audit log is off, so new changes are not being recorded.",
     "turnOn": "Turn it on in Settings"
