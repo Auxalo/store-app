@@ -290,6 +290,79 @@ describe("QA C3: a cashier's device cannot choose its own prices (offline push p
   });
 });
 
+describe("a cashier's offline sale at a price the owner has since changed", () => {
+  // Product decision 1, changed: the goods have left, so a sale made at the price the item had
+  // until the owner changed it is kept (and flagged), not refused.
+  async function setup() {
+    const { runCommand } = await import("@/commands/local/run");
+    const ownerDevice = await createDevice(mongo, storeId, "owner", owner);
+    const milk = randomUUID();
+    await runCommand(ownerDevice.db, ownerDevice.ctx, "product.create", {
+      id: milk,
+      name: "Milk",
+      sellingPrice: 5000,
+      purchasePrice: 4000,
+      openingStock: 100_000,
+      openingMovementId: randomUUID(),
+    });
+    await ownerDevice.sync();
+    const cashierDevice = await createDevice(
+      mongo,
+      storeId,
+      "cashier",
+      cashier,
+    );
+    await cashierDevice.sync();
+    const sellOffline = async (unitPrice: number) => {
+      const id = randomUUID();
+      await runCommand(cashierDevice.db, cashierDevice.ctx, "sale.create", {
+        id,
+        lines: [line(milk, { qty: 1000, listPrice: unitPrice, unitPrice })],
+        tendered: unitPrice,
+      });
+      return id;
+    };
+    const ownerChangesPrice = async (price: number) => {
+      await runCommand(ownerDevice.db, ownerDevice.ctx, "product.update", {
+        id: milk,
+        changes: { sellingPrice: price },
+      });
+      await ownerDevice.sync();
+    };
+    return { cashierDevice, sellOffline, ownerChangesPrice };
+  }
+
+  it("is kept at the price the customer paid", async () => {
+    const { cashierDevice, sellOffline, ownerChangesPrice } = await setup();
+    const saleId = await sellOffline(5000); // rung up before the change
+    await new Promise((r) => setTimeout(r, 20));
+    await ownerChangesPrice(6000);
+    await cashierDevice.sync().catch(() => undefined);
+    const sale = await col("sales").findOne({ _id: saleId as never });
+    expect(sale?.total).toBe(5000);
+  });
+
+  it("is still refused when the price is not one the item had", async () => {
+    const { cashierDevice, sellOffline, ownerChangesPrice } = await setup();
+    const saleId = await sellOffline(1000);
+    await new Promise((r) => setTimeout(r, 20));
+    await ownerChangesPrice(6000);
+    await cashierDevice.sync().catch(() => undefined);
+    const sale = await col("sales").findOne({ _id: saleId as never });
+    expect(sale).toBeNull();
+  });
+
+  it("is still refused when it was rung up after the change", async () => {
+    const { cashierDevice, sellOffline, ownerChangesPrice } = await setup();
+    await ownerChangesPrice(6000);
+    await new Promise((r) => setTimeout(r, 20));
+    const saleId = await sellOffline(5000); // the old price, claimed after the change
+    await cashierDevice.sync().catch(() => undefined);
+    const sale = await col("sales").findOne({ _id: saleId as never });
+    expect(sale).toBeNull();
+  });
+});
+
 describe("QA C4: deleting a customer or supplier who still owes or is owed money", () => {
   it("a customer with a balance cannot be deleted (or at least keeps appearing in dues)", async () => {
     const milk = await product();

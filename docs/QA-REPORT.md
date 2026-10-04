@@ -202,3 +202,9 @@ Checked every screen at 360 px and desktop, in light mode, against a demo shop i
 Also added: the GitHub Actions workflow (see DEPLOY.md section 8).
 
 Seen and left alone: the customer picker in the POS lists the first 30 (search finds the rest); the sync pill and the small switches are 28 px / 18 px high.
+
+## Product decision 1 changed: stale prices
+
+A cashier's offline sale made at the price an item had until the owner changed it is now kept, at the price the customer paid, and flagged "Sold at the old price" in the audit log (when it is on). Before, it was refused and undone on the device although the goods had left.
+
+How it is kept safe: the server records each selling-price change (the old price and when it changed). A pushed sale is honoured only when the line's price equals that previous price and the sale was rung up before the change. Any other price below the list price, or the old price claimed after the change, is still refused (tests in `qa-money.test.ts`). Limit: only the latest previous price is remembered, so after two changes while a device was offline, a sale at the oldest price is still refused.

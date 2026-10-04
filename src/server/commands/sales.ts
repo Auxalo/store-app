@@ -229,6 +229,23 @@ export async function saleCreate(
       : l;
   });
 
+  // A line sold at the price the item had until the owner changed it, on a sale rung up before
+  // that change, was not an override: the cashier could not have known. It is honoured at the
+  // price the customer was charged (the goods have left), and flagged for the owner below.
+  const stale = new Set<number>();
+  lines.forEach((l, index) => {
+    const product = products.get(l.productId);
+    if (
+      product &&
+      l.unitPrice !== l.listPrice &&
+      product.previousSellingPrice === l.unitPrice &&
+      typeof product.priceChangedAt === "string" &&
+      product.priceChangedAt > ctx.opCreatedAt
+    )
+      stale.add(index);
+  });
+  for (const index of stale) lines[index].listPrice = lines[index].unitPrice;
+
   // Selling at a price other than the listed one needs its own permission.
   const overridden = lines.filter((l) => l.unitPrice !== l.listPrice);
   if (overridden.length > 0 && !can(ctx.role, "sale.priceOverride"))
@@ -358,6 +375,18 @@ export async function saleCreate(
     docs.push(wire("ledgerEntries", entry));
   }
 
+  if (stale.size > 0) {
+    await writeAudit(ctx, {
+      action: "sale.stalePrice",
+      entity: "sale",
+      entityId: p.id,
+      newValue: [...stale].map((index) => ({
+        productId: lines[index].productId,
+        unitPrice: lines[index].unitPrice,
+        currentPrice: products.get(lines[index].productId)?.sellingPrice,
+      })),
+    });
+  }
   if (overridden.length > 0) {
     await writeAudit(ctx, {
       action: "sale.priceOverride",

@@ -756,6 +756,7 @@
       "stock_adjust": "Stock adjusted",
       "sale_void": "Sale cancelled",
       "sale_priceOverride": "Sold at a different price",
+      "sale_stalePrice": "Sold at the old price (changed after the sale)",
       "expense_void": "Expense cancelled"
     },
     "off": "The audit log is off, so new changes are not being recorded.",

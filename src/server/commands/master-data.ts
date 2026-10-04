@@ -137,6 +137,16 @@ export async function masterUpdate(
       $set: {
         ...effective,
         ...(cfg.derive ? cfg.derive({ ...doc, ...effective }) : {}),
+        // When and from what a selling price changed: a sale rung up offline at the old price
+        // before the change is still honoured (see saleCreate).
+        ...(cfg.collection === "products" &&
+        typeof effective.sellingPrice === "number" &&
+        effective.sellingPrice !== doc.sellingPrice
+          ? {
+              previousSellingPrice: doc.sellingPrice,
+              priceChangedAt: new Date().toISOString(),
+            }
+          : {}),
         ...Object.fromEntries(
           Object.keys(effective).map((field) => [
             `fieldVersions.${field}`,
