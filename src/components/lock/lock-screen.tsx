@@ -6,7 +6,8 @@ import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { lockoutState } from "@/auth/lockout";
-import { verifyPin } from "@/auth/pin";
+import { deriveProofKey, verifyPin } from "@/auth/pin";
+import { refreshStaff } from "@/auth/staff-cache";
 import { signOut } from "@/auth/use-auth";
 import { PinPad } from "@/components/lock/pin-pad";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -21,7 +22,7 @@ import { useFormat } from "@/i18n/use-format";
 interface LockScreenProps {
   users: LocalUser[];
   storeName?: string;
-  onUnlock: (userId: string) => void;
+  onUnlock: (userId: string, proofKey?: string) => void;
 }
 
 /**
@@ -54,7 +55,11 @@ export function LockScreen({ users, storeName, onUnlock }: LockScreenProps) {
   }, [lock]);
 
   async function submit() {
-    if (!current?.pinHash || !current.pinSalt || busy || pin.length < 4) return;
+    if (!current?.pinSalt || busy || pin.length < 4) return;
+    const salt = current.pinSalt;
+    // The hash of an owner's or manager's PIN reaches a device only once they have entered it
+    // online there; until then the server has to check it.
+    const localHash = current.pinHash;
     const state = lockoutState(
       current.failedPins,
       current.lastFailedAt,
@@ -64,16 +69,21 @@ export function LockScreen({ users, storeName, onUnlock }: LockScreenProps) {
 
     setBusy(true);
     let ok: boolean;
+    let learned = false; // the server checked it: this device may now be given the hash
     if (useDataModeStore.getState().mode === "online") {
       try {
         await postUnlock(current.userId, pin);
         ok = true;
+        learned = true;
       } catch (error) {
+        if (isOffline(error) && !localHash) {
+          setMessage(t("lock.needsOnlineFirst"));
+          setPin("");
+          setBusy(false);
+          return;
+        }
         ok = isOffline(error)
-          ? await verifyPin(pin, {
-              salt: current.pinSalt,
-              hash: current.pinHash,
-            })
+          ? await verifyPin(pin, { salt, hash: localHash as string })
           : false;
         if (!ok && error instanceof DataError && error.status >= 500) {
           setMessage(t("common.somethingWrong"));
@@ -82,15 +92,27 @@ export function LockScreen({ users, storeName, onUnlock }: LockScreenProps) {
           return;
         }
       }
-    } else {
-      ok = await verifyPin(pin, {
-        salt: current.pinSalt,
-        hash: current.pinHash,
-      });
+    } else if (localHash) {
+      ok = await verifyPin(pin, { salt, hash: localHash });
       // With a connection, also tell the server who is working (best effort, never in the way):
       // then the server's own numbers and switching to online mode need no second PIN.
       if (ok && navigator.onLine)
         void postUnlock(current.userId, pin).catch(() => undefined);
+    } else {
+      // No hash of this person's PIN here yet: the server checks it (needs a connection).
+      try {
+        await postUnlock(current.userId, pin);
+        ok = true;
+        learned = true;
+      } catch (error) {
+        if (isOffline(error)) {
+          setMessage(t("lock.needsOnlineFirst"));
+          setPin("");
+          setBusy(false);
+          return;
+        }
+        ok = false;
+      }
     }
     const db = getLocalDb();
     if (ok) {
@@ -98,10 +120,13 @@ export function LockScreen({ users, storeName, onUnlock }: LockScreenProps) {
         failedPins: 0,
         lastFailedAt: 0,
       });
+      // The key that signs this person's offline work, made from the PIN just typed.
+      const proofKey = await deriveProofKey(pin, salt);
+      if (learned) void refreshStaff(db); // now the hash may come to this device
       setPin("");
       setMessage(null);
       setBusy(false);
-      onUnlock(current.userId);
+      onUnlock(current.userId, proofKey);
       return;
     }
     const failedPins = current.failedPins + 1;

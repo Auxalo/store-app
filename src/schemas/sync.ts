@@ -12,6 +12,8 @@ export const opEnvelopeSchema = z.object({
   actorUserId: idSchema,
   deviceId: z.uuid(),
   createdAt: isoDateSchema,
+  /** Signature of the action by the person it names (owner and manager actions need one). */
+  proof: z.string().max(64).optional(),
 });
 export type OpEnvelope = z.infer<typeof opEnvelopeSchema>;
 

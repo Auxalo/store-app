@@ -10,7 +10,7 @@ import {
   ROLE_PERMISSIONS,
   type Role,
 } from "@/auth/permissions";
-import { hashPin, normalizePin } from "@/auth/pin";
+import { hashPin, needsStrongPin, normalizePin } from "@/auth/pin";
 import { refreshStaff } from "@/auth/staff-cache";
 import { useProfile } from "@/auth/use-auth";
 import { PinDialog } from "@/components/lock/pin-dialog";
@@ -47,6 +47,7 @@ interface Member {
   username: string;
   role: Role;
   isActive: boolean;
+  hasPin?: boolean;
   pinHash?: string;
 }
 
@@ -85,7 +86,9 @@ export function StaffScreen() {
     );
 
   const owner = staff?.find((m) => m.role === "owner");
-  const othersHavePins = staff?.some((m) => m.role !== "owner" && m.pinHash);
+  const othersHavePins = staff?.some(
+    (m) => m.role !== "owner" && (m.hasPin ?? m.pinHash),
+  );
 
   async function setActive(member: Member, isActive: boolean) {
     const result = await api(`/api/staff/${member.id}`, {
@@ -109,7 +112,7 @@ export function StaffScreen() {
         </p>
       ) : null}
 
-      {owner && !owner.pinHash && othersHavePins ? (
+      {owner && !(owner.hasPin ?? owner.pinHash) && othersHavePins ? (
         <p
           className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm"
           data-testid="owner-pin-hint"
@@ -146,7 +149,8 @@ export function StaffScreen() {
                 ) : null}
               </p>
               <p className="truncate text-xs text-muted-foreground">
-                {m.username} · {m.pinHash ? t("pin.hasPin") : t("pin.noPin")}
+                {m.username} ·{" "}
+                {(m.hasPin ?? m.pinHash) ? t("pin.hasPin") : t("pin.noPin")}
               </p>
             </div>
             <Button
@@ -227,6 +231,7 @@ export function StaffScreen() {
           open
           userId={pinFor.id}
           userName={pinFor.name}
+          role={pinFor.role}
           onClose={() => {
             setPinFor(null);
             void load();
@@ -312,8 +317,11 @@ function AddStaffDialog({
       password.length < PASSWORD_MIN
     )
       return setError(t("common.somethingWrong"));
-    const cleanPin = pin ? normalizePin(pin) : null;
-    if (pin && !cleanPin) return setError(t("pin.invalid"));
+    const cleanPin = pin ? normalizePin(pin, staffRole) : null;
+    if (pin && !cleanPin)
+      return setError(
+        needsStrongPin(staffRole) ? t("pin.invalidStrong") : t("pin.invalid"),
+      );
     setBusy(true);
     const result = await api("/api/staff", {
       method: "POST",

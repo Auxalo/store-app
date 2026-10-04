@@ -3,7 +3,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuth } from "@/auth/server";
 import { getSyncDeps } from "@/server/deps";
-import { checkDevice, DEVICE_COOKIE, registerDevice } from "@/server/devices";
+import {
+  checkDevice,
+  DEVICE_COOKIE,
+  noteDeviceUnlock,
+  registerDevice,
+} from "@/server/devices";
 import { errorResponse, HttpError, readJson } from "@/server/http";
 import { shopIsSuspended } from "@/server/shop-status";
 
@@ -50,6 +55,9 @@ export async function POST(request: Request) {
       name: body.name,
       existing,
     });
+
+    // Signing in with the password is as good as the PIN: this device may hold this person's PIN hash.
+    await noteDeviceUnlock(db, body.deviceId, user.id);
 
     const response = NextResponse.json({ code: registration.code });
     if (registration.token) {

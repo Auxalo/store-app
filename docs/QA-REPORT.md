@@ -92,8 +92,8 @@ Tests: `src/server/__tests__/qa-security.test.ts` (unit) and `tests/e2e/qa-secur
 | M2 | After sign-out the server still knew who had been working | **Confirmed, fixed** | Medium |
 | M1 | After "sign in again" lock, setting a new PIN did not let the person unlock | **Confirmed, fixed** | Medium |
 | H5 | PIN guesses made at the same moment could all be checked | Hardened (could not be reproduced in the test) | Medium |
-| H2 | A cashier's device can push operations in the owner's name | **Confirmed, NOT fixed (design limit)** | High |
-| H3 | Every device can read every person's PIN hash | **Confirmed, NOT fixed (design limit)** | High |
+| H2 | A cashier's device can push operations in the owner's name | **Confirmed, fixed in part 5** | High |
+| H3 | Every device can read every person's PIN hash | **Confirmed, fixed in part 5** | High |
 
 ## Fixed
 
@@ -175,7 +175,7 @@ Not part of this round, by your choice: the screens and forms findings (barcode 
 ## Not done
 
 - The screens and forms findings were done in part 4 below.
-- The four product decisions and the two security design limits (H2, H3) are unchanged.
+- Product decisions 2, 3 and 4 are unchanged. Decision 1 (stale prices) and the two security design limits (H2, H3) were changed afterwards (see below and part 5).
 
 # Part 4: phone and usability pass (no business logic changed)
 
@@ -208,3 +208,38 @@ Seen and left alone: the customer picker in the POS lists the first 30 (search f
 A cashier's offline sale made at the price an item had until the owner changed it is now kept, at the price the customer paid, and flagged "Sold at the old price" in the audit log (when it is on). Before, it was refused and undone on the device although the goods had left.
 
 How it is kept safe: the server records each selling-price change (the old price and when it changed). A pushed sale is honoured only when the line's price equals that previous price and the sale was rung up before the change. Any other price below the list price, or the old price claimed after the change, is still refused (tests in `qa-money.test.ts`). Limit: only the latest previous price is remembered, so after two changes while a device was offline, a sale at the oldest price is still refused.
+
+# Part 5: H2 and H3 fixed (who an offline action belongs to, and who can read PIN hashes)
+
+## H2: an owner's or manager's offline action must be signed
+
+**Problem.** A device syncs later, and the server believed the person named in each queued action. A cashier's device could send "cancel this sale" or "change a setting" in the owner's name (confirmed before the fix: a `setting.set` in the owner's name was applied).
+
+**Fix.** When someone types their PIN, the app makes a signing key from it (a second PBKDF2 value from the same PIN, with a different salt, so it cannot be made from the hash other devices hold). The key lives in memory only (a lock or reload forgets it). Every action queued while that person is unlocked is signed with it (HMAC over the action's id, type, person, device, time and data). The server stores the same key per person and, for any action by an owner or manager in a shop that uses PINs, checks the signature before applying it. An unsigned, wrongly signed, changed or re-dated action is refused with `PROOF_REQUIRED`.
+
+- A cashier's actions need no signature: a cashier can only sell, and a forged sale only misnames who sold.
+- Changing a PIN keeps the previous key valid for 14 days, so work queued before the change still goes through.
+- Settling a conflict ("keep mine") changes only `baseVersion`, which is not covered by the signature.
+- A person with no PIN cannot sign. Their actions are accepted only from a device they set up or entered their PIN on (a shop with no PINs at all works as before: one account).
+- If the server does not yet have a person's signing key (a PIN set before this change), it learns it the first time they enter the PIN online.
+- Online mode is unchanged: the server already knows who is working from its own cookie.
+
+**Tests.** `qa-security.test.ts` (device of a cashier naming the owner, a cashier's own key, changed and re-dated actions, conflict re-basing, PIN change grace, a person with no PIN), `src/sync/__tests__/proof.test.ts` (the real device queue against the real server), `src/auth/__tests__/op-proof.test.ts`, and in the browser `staff.spec.ts` (the owner's signed offline work is accepted; the same action sent by hand without a signature is refused).
+
+## H3: PIN hashes no longer go to every device
+
+**Problem.** Offline PIN checks need the PIN's hash on the device, so every device downloaded everyone's, the owner's too. A 4-digit PIN falls in about 15 minutes of guessing on one computer (measured: 92 ms per guess).
+
+**Fix.**
+- An **owner's or manager's** hash goes only to a device that person has signed in on (set it up, signed in there with the password, or entered their PIN there online). Other devices see only that the person has a PIN (and the salt, which is not secret).
+- A **cashier's** hash still goes to every device (a cashier's PIN opens nothing beyond what the cashier can do).
+- An owner's or manager's **PIN must be 6 digits** (over a day of guessing on one computer instead of 15 minutes); cashiers keep 4 to 6.
+- The signing key is stored only on the server and is never listed.
+
+**What changes for people.**
+- A manager (or owner) using a device for the first time needs the internet once to enter their PIN; after that it works offline there. Without internet the lock screen says so.
+- Setting a PIN for an owner or manager needs 6 digits.
+
+**Limit that remains.** On a shared counter where the owner has signed in, the owner's hash is on that device. A cashier who is technical and has hours could try to guess a 6-digit PIN from it. The 6-digit rule and the signature make that slow and unrewarding rather than impossible; a fully offline PIN cannot be made stronger than that.
+
+**Tests.** `qa-security.test.ts` (who receives whose hash, wrong PIN gives nothing, the key is never listed), `staff.test.ts`, `pin.test.ts`, and in the browser `staff.spec.ts` (a manager's first sign-in on a device needs the internet, then works offline).

@@ -68,7 +68,7 @@ export function UserMenu() {
   const pinUsers = useLiveQuery(
     () =>
       getLocalDb()
-        .localUsers.filter((u) => u.isActive && !!u.pinHash)
+        .localUsers.filter((u) => u.isActive && (!!u.pinHash || !!u.hasPin))
         .count(),
     [],
     0,
@@ -187,6 +187,7 @@ export function UserMenu() {
       <PinDialog
         userId={profile.userId}
         userName={profile.name}
+        role={profile.role}
         self
         open={settingPin}
         onClose={() => setSettingPin(false)}

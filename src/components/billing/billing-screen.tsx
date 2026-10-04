@@ -472,7 +472,7 @@ function AskOwner() {
   const pinUsers = useLiveQuery(
     () =>
       getLocalDb()
-        .localUsers.filter((u) => u.isActive && !!u.pinHash)
+        .localUsers.filter((u) => u.isActive && (!!u.pinHash || !!u.hasPin))
         .count(),
     [],
     0,

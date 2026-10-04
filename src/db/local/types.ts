@@ -288,6 +288,8 @@ export interface LocalUser {
   username: string;
   role: "owner" | "manager" | "cashier";
   isActive: boolean;
+  /** Has a PIN. The hash itself is held only where the server allows (an owner's or manager's: where they signed in). */
+  hasPin?: boolean;
   pinSalt?: string;
   pinHash?: string;
   failedPins: number;
@@ -330,6 +332,8 @@ export interface OutboxOp {
   actorUserId: string;
   deviceId: string;
   createdAt: string;
+  /** Signature made with the actor's PIN key: proves the actor made it (see src/auth/op-proof.ts). */
+  proof?: string;
   status: OutboxStatus;
   attempts: number;
   /** Epoch ms before which this operation will not be retried (backoff). */

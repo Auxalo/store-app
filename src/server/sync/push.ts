@@ -1,4 +1,5 @@
 import { type Db, type MongoClient, ObjectId } from "mongodb";
+import { verifyOpProof } from "@/auth/op-proof";
 import { can, isRole, type Role } from "@/auth/permissions";
 import {
   COMMANDS,
@@ -12,6 +13,7 @@ import {
   type PushResult,
   type WireChange,
 } from "@/schemas/sync";
+import { pinsInUse } from "../actor";
 import { serverCommands } from "../commands/registry";
 import type { ApplyResult, ServerCtx } from "../commands/types";
 import { COL } from "./collections";
@@ -25,10 +27,15 @@ export interface SyncDeps {
 export interface DeviceAuth {
   storeId: string;
   deviceId: string;
+  /** Who set this device up, and who has entered their PIN on it online (see listStaff). */
+  createdBy?: string;
+  unlockedBy?: string[];
 }
 
 interface Actor {
   role: Role;
+  /** The keys that may have signed this person's offline work (the current one, then the one before a PIN change). */
+  proofKeys: string[];
 }
 
 interface AppliedOp {
@@ -42,6 +49,9 @@ interface AppliedOp {
 /** Looks the actor up in the database: the role is never taken from the device. */
 /** How far ahead of the server's clock an operation may be dated (honest clock differences). */
 const CLOCK_SLACK_MS = 5 * 60_000;
+
+/** How long a person's previous PIN key still verifies work they queued before changing their PIN. */
+const PREVIOUS_KEY_GRACE_MS = 14 * 24 * 3_600_000;
 
 /** How long after being deactivated a person's earlier offline work is still accepted. */
 const DEACTIVATED_GRACE_MS = 14 * 24 * 3_600_000;
@@ -71,7 +81,43 @@ async function loadActor(
     )
       return null;
   }
-  return { role: user.role };
+  const keys: string[] = [];
+  if (typeof user.pinProofKey === "string") keys.push(user.pinProofKey);
+  if (
+    typeof user.pinProofKeyPrev === "string" &&
+    user.pinProofChangedAt instanceof Date &&
+    Date.now() - user.pinProofChangedAt.getTime() < PREVIOUS_KEY_GRACE_MS
+  )
+    keys.push(user.pinProofKeyPrev);
+  return { role: user.role, proofKeys: keys };
+}
+
+/**
+ * Whether an action by an owner or manager really came from them. Their offline work is signed
+ * with a key only their PIN makes; a device that merely holds the person's id cannot sign. A
+ * person with no PIN cannot sign, so their work is accepted only from a device that they set up
+ * or entered their PIN on. A shop that uses no PINs has no counter to share: one account works.
+ */
+async function actorIsProven(
+  db: Db,
+  device: DeviceAuth,
+  actor: Actor,
+  op: OpEnvelope,
+  signedAt: string,
+): Promise<boolean> {
+  // A cashier can do nothing but sell (checked above), and a forged sale only misnames who sold.
+  if (actor.role === "cashier") return true;
+  if (actor.proofKeys.length > 0) {
+    const proof = op.proof;
+    if (!proof) return false;
+    const signed = { ...op, createdAt: signedAt };
+    return actor.proofKeys.some((key) => verifyOpProof(key, signed, proof));
+  }
+  if (!(await pinsInUse(db, device.storeId))) return true;
+  return (
+    device.createdBy === op.actorUserId ||
+    device.unlockedBy?.includes(op.actorUserId) === true
+  );
 }
 
 const isDuplicateKey = (error: unknown) =>
@@ -196,6 +242,8 @@ async function processOp(
   deps: SyncDeps,
   device: DeviceAuth,
   op: OpEnvelope,
+  /** The date the device signed (the date in `op` may have been corrected for a clock that runs ahead). */
+  signedAt: string,
 ): Promise<PushResult> {
   const reject = (error: string): PushResult => ({
     operationId: op.operationId,
@@ -220,6 +268,8 @@ async function processOp(
   );
   if (!actor) return reject("ACTOR_NOT_ALLOWED");
   if (!can(actor.role, def.permission)) return reject("FORBIDDEN");
+  if (!(await actorIsProven(deps.db, device, actor, op, signedAt)))
+    return reject("PROOF_REQUIRED");
 
   const result = await applyOperation(
     deps,
@@ -298,7 +348,7 @@ export async function handlePush(
         ? { ...parsed.data, createdAt: new Date().toISOString() }
         : parsed.data;
     try {
-      const result = await processOp(deps, device, op);
+      const result = await processOp(deps, device, op, parsed.data.createdAt);
       results.push(result);
       if (result.status === "retry") halted = true;
     } catch (error) {

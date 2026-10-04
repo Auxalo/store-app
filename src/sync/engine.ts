@@ -42,6 +42,7 @@ const toEnvelope = (op: OutboxOp): OpEnvelope => ({
   actorUserId: op.actorUserId,
   deviceId: op.deviceId,
   createdAt: op.createdAt,
+  ...(op.proof ? { proof: op.proof } : {}),
 });
 
 /** After a crash, operations marked `syncing` may or may not have reached the server. Re-send them: the server de-duplicates. */

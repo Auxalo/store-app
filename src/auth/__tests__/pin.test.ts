@@ -67,3 +67,14 @@ describe("wrong-PIN lockout", () => {
     expect(lockoutState(40, now, now).needsOnlineLogin).toBe(true);
   });
 });
+
+describe("the PIN of an owner or manager", () => {
+  it("must be 6 digits; a cashier's may be 4 to 6", () => {
+    expect(normalizePin("1234", "owner")).toBeNull();
+    expect(normalizePin("12345", "manager")).toBeNull();
+    expect(normalizePin("482913", "owner")).toBe("482913");
+    expect(normalizePin("৪৮২৯১৩", "manager")).toBe("482913");
+    expect(normalizePin("1234", "cashier")).toBe("1234");
+    expect(normalizePin("1234")).toBe("1234");
+  });
+});

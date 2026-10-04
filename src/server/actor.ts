@@ -2,8 +2,9 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { type Db, ObjectId } from "mongodb";
 import { lockoutState } from "@/auth/lockout";
 import { isRole, type Role } from "@/auth/permissions";
-import { normalizePin, verifyPin } from "@/auth/pin";
+import { deriveProofKey, normalizePin, verifyPin } from "@/auth/pin";
 import { caches } from "./cache";
+import { noteDeviceUnlock } from "./devices";
 
 /**
  * Who is acting at this counter, decided by the SERVER.
@@ -27,6 +28,7 @@ interface UserDoc {
   isActive?: boolean;
   pinSalt?: string;
   pinHash?: string;
+  pinProofKey?: string;
 }
 
 interface AttemptDoc {
@@ -156,6 +158,16 @@ export async function unlockActor(
   }
 
   await attempts(db).deleteOne({ _id: key });
+  // This person has now entered their PIN on this device online: it may keep their PIN hash (so
+  // they can work there offline, see listStaff), and the server learns the key that signs their
+  // offline work if it did not have it yet (a PIN set before signing existed).
+  await noteDeviceUnlock(db, input.deviceId, input.userId);
+  if (!user.pinProofKey && pin) {
+    await users(db).updateOne(
+      { _id: user._id },
+      { $set: { pinProofKey: await deriveProofKey(pin, user.pinSalt) } },
+    );
+  }
   const expiresAt = now + ACTOR_TTL_MS;
   return {
     ok: true,

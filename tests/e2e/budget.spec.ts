@@ -14,12 +14,14 @@ test.afterEach(async ({ page }) => {
 // (the sidebar loads too). Each budget is the largest measurement plus about 20 KB. The sign-in
 // page grew by about 24 KB during Sprint 2 and 3 (more strings, the data layer's small shared
 // pieces); worth trimming later.
+// Raised by about 15 KB after the signing of offline work (src/auth/op-proof.ts and its hashing
+// library), the PIN rules, and the usability pass: measured 373 / 544 / 552 / 555 / 555 on a desktop.
 const BUDGET_KB: Record<string, number> = {
   "/login": 395,
-  "/pos": 545,
-  "/dashboard": 550,
-  "/reports": 550,
-  "/products": 555,
+  "/pos": 560,
+  "/dashboard": 568,
+  "/reports": 570,
+  "/products": 570,
 };
 
 test("first-load JavaScript stays within budget", async ({

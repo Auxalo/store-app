@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { ObjectId } from "mongodb";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { hashPin } from "@/auth/pin";
 import { startMongo, type TestMongo } from "../../../tests/helpers/mongo";
@@ -109,10 +110,23 @@ describe("staff", () => {
     expect(await setStaffPin(mongo.db, storeId, cashier, pin)).toMatchObject({
       ok: true,
     });
-    const member = (await listStaff(mongo.db, storeId)).find(
-      (s) => s.id === cashier,
-    );
-    expect(member).toMatchObject({ pinSalt: pin.salt, pinHash: pin.hash });
+    const member = (
+      await listStaff(mongo.db, storeId, { userId: cashier })
+    ).find((s) => s.id === cashier);
+    expect(member).toMatchObject({
+      pinSalt: pin.salt,
+      pinHash: pin.hash,
+      hasPin: true,
+    });
+    // The signing key is stored for the server, and never listed.
+    expect(JSON.stringify(member)).not.toContain(pin.proof as string);
+    expect(
+      (
+        await mongo.db
+          .collection("user")
+          .findOne({ _id: new ObjectId(cashier) })
+      )?.pinProofKey,
+    ).toBe(pin.proof);
     expect(JSON.stringify(member)).not.toContain("4821");
     expect(await setStaffPin(mongo.db, storeId, "ghost", pin)).toEqual({
       ok: false,
