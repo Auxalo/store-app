@@ -243,3 +243,14 @@ How it is kept safe: the server records each selling-price change (the old price
 **Limit that remains.** On a shared counter where the owner has signed in, the owner's hash is on that device. A cashier who is technical and has hours could try to guess a 6-digit PIN from it. The 6-digit rule and the signature make that slow and unrewarding rather than impossible; a fully offline PIN cannot be made stronger than that.
 
 **Tests.** `qa-security.test.ts` (who receives whose hash, wrong PIN gives nothing, the key is never listed), `staff.test.ts`, `pin.test.ts`, and in the browser `staff.spec.ts` (a manager's first sign-in on a device needs the internet, then works offline).
+
+# Part 6: "Store worth" on the dashboard
+
+A grouped section under today's numbers, for owners and managers (anyone who may see cost prices):
+
+- **Store worth (excluding cash)** = stock at cost + what customers owe - what the shop owes suppliers. Advances count: a customer who paid ahead lowers it, a supplier paid ahead raises it (so the figure can differ from the two "owe" cards, which show only what is owed; each card says how much was paid ahead).
+- Four cards beside it: stock at cost, stock at selling price (with the expected margin), customers owe you, you owe suppliers. The last two moved here from the daily grid.
+- An eye button hides every amount until tapped; the choice is kept on that device.
+- The formula is one function (`src/reports/worth.ts`, tested). Online mode gets everything in the existing single dashboard request; offline mode adds up the device's data.
+- What it leaves out: cash and bank balances (the app does not track them), and stock is valued at the latest purchase price, not a running average. Bad debts and dead stock make it look higher than it is.
+- Tests: `worth.test.ts`; the browser setup test checks stock at cost, at selling price, the margin, the worth and the hide/show in both modes.

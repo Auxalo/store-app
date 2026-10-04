@@ -13,9 +13,12 @@ interface PreferencesState {
   numerals: NumeralSystem;
   timeZone: string;
   receiptPaper: ReceiptPaper;
+  /** The dashboard's store-worth amounts are shown as dots until tapped. */
+  hideWorth: boolean;
   setLocale: (locale: Locale) => void;
   setNumerals: (numerals: NumeralSystem) => void;
   setReceiptPaper: (paper: ReceiptPaper) => void;
+  setHideWorth: (hide: boolean) => void;
 }
 
 /**
@@ -29,9 +32,11 @@ export const usePreferences = create<PreferencesState>()(
       numerals: "auto",
       timeZone: DEFAULT_TIME_ZONE,
       receiptPaper: "80mm",
+      hideWorth: false,
       setLocale: (locale) => set({ locale }),
       setNumerals: (numerals) => set({ numerals }),
       setReceiptPaper: (receiptPaper) => set({ receiptPaper }),
+      setHideWorth: (hideWorth) => set({ hideWorth }),
     }),
     { name: "sa.prefs", version: 1 },
   ),

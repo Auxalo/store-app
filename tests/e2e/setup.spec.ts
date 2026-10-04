@@ -84,6 +84,22 @@ test("a new owner is guided through setup: products, customers with dues, suppli
   await expect(page.getByTestId("stat-supplierDue")).toHaveText("৳৪,০০০");
   await expect(page.getByTestId("stat-todaySales")).toHaveText("৳০");
 
+  // The store-worth group: stock at cost (100 x 68 + 20 x 36), at selling price (100 x 75 + 20 x 42),
+  // and worth = stock at cost + customers owe - the shop owes suppliers (7,520 + 1,750 - 4,000).
+  await expect(page.getByTestId("stat-stockCost")).toHaveText("৳৭,৫২০");
+  await expect(page.getByTestId("stat-stockRetail")).toHaveText("৳৮,৩৪০");
+  await expect(page.getByTestId("store-worth")).toContainText("সম্ভাব্য লাভ ৳৮২০");
+  await expect(page.getByTestId("stat-storeWorth")).toHaveText("৳৫,২৭০");
+
+  // The amounts can be hidden, and stay hidden on this device.
+  await page.getByTestId("worth-toggle").click();
+  await expect(page.getByTestId("stat-storeWorth")).toHaveText("৳ ••••");
+  await expect(page.getByTestId("stat-customerDue")).toHaveText("৳ ••••");
+  await page.reload();
+  await expect(page.getByTestId("stat-storeWorth")).toHaveText("৳ ••••");
+  await page.getByTestId("worth-toggle").click();
+  await expect(page.getByTestId("stat-storeWorth")).toHaveText("৳৫,২৭০");
+
   await page.goto("/inventory");
   await expect(
     page.getByTestId("product-row").filter({ hasText: "মিনিকেট চাল" }),

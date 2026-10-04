@@ -6,8 +6,7 @@ import {
   ReceiptText,
   ShoppingBasket,
   TrendingUp,
-  Truck,
-  Users,
+  type Users,
 } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -26,9 +25,12 @@ import { useDataMode } from "@/data/mode-store";
 import { useSetting } from "@/hooks/use-setting";
 import { useFormat } from "@/i18n/use-format";
 import { SETUP_SETTING } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 import { changeBetween } from "@/reports/compare";
+import { useStockHeader } from "@/reports/use-reports";
 import { presetRange, useSummary } from "@/reports/use-summary";
 import { usePreferences } from "@/stores/preferences";
+import { StoreWorth } from "./store-worth";
 
 /** The owner's morning view: today in numbers, what is running low, and the last few sales. */
 export function DashboardScreen() {
@@ -42,6 +44,8 @@ export function DashboardScreen() {
   const [days, setDays] = useState<"days7" | "days30">("days7");
 
   const showProfit = can(role, "profit.view");
+  // The worth figures are made of cost prices, so they go only to people who may see those.
+  const showWorth = can(role, "purchasePrice.view");
   const ts = useTranslations("setup");
   // Owners are reminded to set up until they finish or skip it (the setting is empty until then).
   const setupDone = useSetting<string>(SETUP_SETTING, "").value;
@@ -65,16 +69,9 @@ export function DashboardScreen() {
     "device",
     !online,
   ).summary;
-  const customerDuesLocal = useTotals(
-    "customers",
-    { balance: "owes" },
-    { enabled: !online },
-  );
-  const supplierDuesLocal = useTotals(
-    "suppliers",
-    { balance: "owes" },
-    { enabled: !online },
-  );
+  const customerDuesLocal = useTotals("customers", {}, { enabled: !online });
+  const supplierDuesLocal = useTotals("suppliers", {}, { enabled: !online });
+  const stockLocal = useStockHeader(!online && showWorth);
   const lowLocal = useList(
     "products",
     { stock: "low", active: "active", sort: "stock" },
@@ -89,11 +86,29 @@ export function DashboardScreen() {
   const yesterday = online ? remote.data?.yesterday : yesterdayLocal;
   const trend = online ? remote.data?.trend : trendLocal;
   const customerDues = online
-    ? remote.data && { owed: remote.data.customerOwed }
+    ? remote.data && {
+        owed: remote.data.customerOwed,
+        advance: remote.data.customerAdvance,
+      }
     : customerDuesLocal;
   const supplierDues = online
-    ? remote.data && { owed: remote.data.supplierOwed }
+    ? remote.data && {
+        owed: remote.data.supplierOwed,
+        advance: remote.data.supplierAdvance,
+      }
     : supplierDuesLocal;
+  const stock = online ? remote.data?.stock : stockLocal;
+  const worthFigures =
+    stock && customerDues && supplierDues
+      ? {
+          stockCost: stock.costValue,
+          stockRetail: stock.retailValue,
+          customersOwed: customerDues.owed ?? 0,
+          customersAdvance: customerDues.advance ?? 0,
+          suppliersOwed: supplierDues.owed ?? 0,
+          suppliersAdvance: supplierDues.advance ?? 0,
+        }
+      : undefined;
   const lowReady = online ? !!remote.data : lowLocal.status === "ready";
   const recent = {
     items: online ? (remote.data?.recent ?? []) : recentLocal.items,
@@ -155,8 +170,6 @@ export function DashboardScreen() {
       change: vs((x) => x.purchasesTotal),
       sub: "",
     },
-    { key: "customerDue", icon: Users, value: customerDues?.owed, sub: "" },
-    { key: "supplierDue", icon: Truck, value: supplierDues?.owed, sub: "" },
   ];
 
   return (
@@ -186,7 +199,10 @@ export function DashboardScreen() {
       </Button>
 
       <div
-        className="grid grid-cols-2 gap-2 md:grid-cols-3"
+        className={cn(
+          "grid grid-cols-2 gap-2",
+          stats.length === 4 ? "md:grid-cols-4" : "md:grid-cols-3",
+        )}
         data-testid="stats"
       >
         {stats.map((st) => (
@@ -204,6 +220,8 @@ export function DashboardScreen() {
           />
         ))}
       </div>
+
+      {showWorth ? <StoreWorth figures={worthFigures} /> : null}
 
       <Card>
         <CardHeader className="flex-row items-center justify-between">

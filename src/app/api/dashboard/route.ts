@@ -4,7 +4,12 @@ import { can } from "@/auth/permissions";
 import { parseListParams } from "@/data/spec";
 import { presetRange } from "@/reports/ranges";
 import { requireActor } from "@/server/actor-request";
-import { listResource, storeTimeZone, totalsOf } from "@/server/data/service";
+import {
+  listResource,
+  stockSummary,
+  storeTimeZone,
+  totalsOf,
+} from "@/server/data/service";
 import { getSyncDeps } from "@/server/deps";
 import { errorResponse } from "@/server/http";
 import { hideProfit, serverSummaryCached } from "@/server/reports";
@@ -41,24 +46,14 @@ export async function GET(request: Request) {
         timeZone,
       );
 
-    const [today, yesterday, trend, customers, suppliers, low, recent] =
+    const [today, yesterday, trend, customers, suppliers, low, recent, stock] =
       await Promise.all([
         summary("today"),
         summary("yesterday"),
         summary(days),
-        totalsOf(
-          db,
-          "customers",
-          parseListParams("customers", { balance: "owes" }),
-          viewer,
-        ),
+        totalsOf(db, "customers", parseListParams("customers", {}), viewer),
         can(actor.role, "purchase.manage")
-          ? totalsOf(
-              db,
-              "suppliers",
-              parseListParams("suppliers", { balance: "owes" }),
-              viewer,
-            )
+          ? totalsOf(db, "suppliers", parseListParams("suppliers", {}), viewer)
           : Promise.resolve({ owed: 0 } as Record<string, number>),
         listResource(
           db,
@@ -78,6 +73,7 @@ export async function GET(request: Request) {
           viewer,
           { limit: 6 },
         ),
+        stockSummary(db, viewer),
       ]);
 
     const seeProfit = can(actor.role, "profit.view");
@@ -87,7 +83,10 @@ export async function GET(request: Request) {
       yesterday: shown(yesterday),
       trend: shown(trend),
       customerOwed: customers.owed ?? 0,
+      customerAdvance: customers.advance ?? 0,
       supplierOwed: suppliers.owed ?? 0,
+      supplierAdvance: suppliers.advance ?? 0,
+      stock: { costValue: stock.costValue, retailValue: stock.retailValue },
       low: low.items,
       recent: recent.items,
     });

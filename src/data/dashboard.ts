@@ -10,7 +10,13 @@ export interface DashboardData {
   yesterday: Summary;
   trend: Summary;
   customerOwed: number;
+  /** Customers who paid ahead (money the store owes them). */
+  customerAdvance: number;
   supplierOwed: number;
+  /** Suppliers paid ahead. */
+  supplierAdvance: number;
+  /** The whole stock, at cost and at selling price. */
+  stock: { costValue: number; retailValue: number };
   low: Product[];
   recent: Sale[];
 }
