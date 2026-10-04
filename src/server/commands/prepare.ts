@@ -230,6 +230,7 @@ export const preparePayload: {
   "payment.pay": passthrough,
   "expense.create": passthrough,
   "expense.void": passthrough,
+  "payment.void": passthrough,
 
   "saleReturn.create": async (ctx, input) => {
     const sale = await find(ctx, "sales", input.saleId);

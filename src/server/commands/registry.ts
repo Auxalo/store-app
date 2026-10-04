@@ -14,6 +14,7 @@ import {
   expenseVoid,
   openingBalanceCreate,
   paymentCreate,
+  paymentVoid,
   purchaseCreate,
   purchaseReturnCreate,
   saleReturnCreate,
@@ -108,6 +109,7 @@ export const serverCommands: { [T in CommandType]: ServerHandler<T> } = {
   "payment.pay": (ctx, payload) => paymentCreate(ctx, "supplier", payload),
   "expense.create": (ctx, payload) => expenseCreate(ctx, payload),
   "expense.void": (ctx, payload) => expenseVoid(ctx, payload),
+  "payment.void": (ctx, payload) => paymentVoid(ctx, payload),
   "saleReturn.create": (ctx, payload) => saleReturnCreate(ctx, payload),
   "purchaseReturn.create": (ctx, payload) => purchaseReturnCreate(ctx, payload),
 

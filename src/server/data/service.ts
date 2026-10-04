@@ -260,7 +260,11 @@ export async function totalsOf<R extends Resource>(
       },
     },
     expenses: { amount: active("amount") },
-    payments: { amount: { $sum: "$amount" } },
+    payments: {
+      amount: {
+        $sum: { $cond: [{ $ne: ["$status", "voided"] }, "$amount", 0] },
+      },
+    },
     returns: { total: { $sum: "$total" } },
   };
   const [row] = await db

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, HandCoins, Phone } from "lucide-react";
+import { ArrowLeft, Ban, HandCoins, Phone } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -8,9 +8,11 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
+import { CancelPaymentDialog } from "@/components/payments/cancel-payment-dialog";
 import { MoneyField } from "@/components/pos/money-field";
 import { ListError } from "@/components/shared/load-more";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -44,6 +46,10 @@ export function PartyDetailScreen({ kind }: { kind: PartyKind }) {
   const { role } = useProfile();
   const id = useSearchParams().get("id") ?? "";
   const [paying, setPaying] = useState(false);
+  const [cancelling, setCancelling] = useState<{
+    id: string;
+    amount: number;
+  } | null>(null);
 
   const loaded = useRecord(kind === "customer" ? "customers" : "suppliers", id);
   const party = loaded.record as Party | undefined;
@@ -87,8 +93,18 @@ export function PartyDetailScreen({ kind }: { kind: PartyKind }) {
     return { entry: e, after };
   });
 
+  // A payment that has a cancellation entry after it is already cancelled.
+  const cancelled = new Set(
+    entries.filter((e) => e.refType === "payment_void").map((e) => e.refId),
+  );
+  const canCancel = can(role, "sale.void");
+
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
+      <CancelPaymentDialog
+        payment={cancelling}
+        onClose={() => setCancelling(null)}
+      />
       <Link
         href={`/${kind}s`}
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -148,6 +164,10 @@ export function PartyDetailScreen({ kind }: { kind: PartyKind }) {
             <ul className="divide-y" data-testid="statement">
               {rows.map(({ entry, after }) => {
                 const href = LINKS[entry.refType];
+                const wasCancelled =
+                  entry.refType === "payment" && cancelled.has(entry.refId);
+                const cancellable =
+                  entry.refType === "payment" && !wasCancelled && canCancel;
                 const label = t(
                   `party.entryTypes.${entry.refType}` as never,
                   {} as never,
@@ -160,6 +180,11 @@ export function PartyDetailScreen({ kind }: { kind: PartyKind }) {
                     <div className="min-w-0">
                       <p className="font-medium">
                         {label}
+                        {wasCancelled ? (
+                          <Badge variant="destructive" className="ms-2">
+                            {t("payments.voided")}
+                          </Badge>
+                        ) : null}
                         {entry.note ? (
                           <span className="ms-2 font-normal text-muted-foreground">
                             {entry.note}
@@ -177,6 +202,7 @@ export function PartyDetailScreen({ kind }: { kind: PartyKind }) {
                           entry.amountDelta < 0
                             ? "text-emerald-600"
                             : "text-amber-600",
+                          wasCancelled && "line-through",
                         )}
                       >
                         {entry.amountDelta > 0 ? "+" : "−"}
@@ -185,6 +211,23 @@ export function PartyDetailScreen({ kind }: { kind: PartyKind }) {
                       <p className="text-xs text-muted-foreground">
                         {t("party.balanceAfter", { value: f.money(after) })}
                       </p>
+                      {cancellable ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="mt-1 h-8 text-destructive"
+                          onClick={() =>
+                            setCancelling({
+                              id: entry.refId,
+                              amount: Math.abs(entry.amountDelta),
+                            })
+                          }
+                          data-testid="cancel-payment"
+                        >
+                          <Ban aria-hidden />
+                          {t("payments.voidConfirm")}
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 );

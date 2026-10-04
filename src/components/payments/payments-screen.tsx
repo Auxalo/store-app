@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Ban } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
@@ -11,12 +11,14 @@ import {
   ListToolbar,
 } from "@/components/shared/list-toolbar";
 import { ListError, LoadMore } from "@/components/shared/load-more";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useList, useTotals } from "@/data/hooks";
 import { useFormat } from "@/i18n/use-format";
 import { cn } from "@/lib/utils";
+import { CancelPaymentDialog } from "./cancel-payment-dialog";
 
 type Filter = "all" | "customer" | "supplier";
 const SORTS = ["newest", "oldest", "amount"] as const;
@@ -29,6 +31,10 @@ export function PaymentsScreen() {
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<(typeof SORTS)[number]>("newest");
   const [filters, setFilters] = useState<FilterValues>({});
+  const [cancelling, setCancelling] = useState<{
+    id: string;
+    amount: number;
+  } | null>(null);
 
   // Paying a supplier is for people who manage purchases; others only see money from customers.
   const type = can(role, "purchase.manage") ? filter : "customer";
@@ -43,6 +49,10 @@ export function PaymentsScreen() {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+      <CancelPaymentDialog
+        payment={cancelling}
+        onClose={() => setCancelling(null)}
+      />
       <ListToolbar
         fields={[
           {
@@ -116,11 +126,15 @@ export function PaymentsScreen() {
         >
           {list.items.map((p) => {
             const incoming = p.partyType === "customer";
+            const voided = p.status === "voided";
             return (
-              <li key={p.id}>
+              <li
+                key={p.id}
+                className="flex items-center rounded-xl border bg-card"
+              >
                 <Link
                   href={`/${p.partyType}s/view?id=${p.partyId}`}
-                  className="flex items-center gap-3 rounded-xl border bg-card p-3 hover:bg-muted/50"
+                  className="flex min-w-0 flex-1 items-center gap-3 rounded-xl p-3 hover:bg-muted/50"
                   data-testid="payment-row"
                 >
                   {incoming ? (
@@ -139,6 +153,11 @@ export function PaymentsScreen() {
                       {incoming
                         ? t("payments.received", { name: p.partyName })
                         : t("payments.paidTo", { name: p.partyName })}
+                      {voided ? (
+                        <Badge variant="destructive" className="ms-2">
+                          {t("payments.voided")}
+                        </Badge>
+                      ) : null}
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">
                       {f.dateTime(p.createdAt)} · {t(`payment.${p.method}`)}
@@ -149,11 +168,26 @@ export function PaymentsScreen() {
                     className={cn(
                       "shrink-0 font-semibold",
                       incoming ? "text-emerald-600" : "text-amber-600",
+                      voided && "line-through",
                     )}
                   >
                     {f.money(p.amount)}
                   </span>
                 </Link>
+                {!voided && can(role, "sale.void") ? (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="me-1 text-destructive"
+                    aria-label={t("payments.voidConfirm")}
+                    onClick={() =>
+                      setCancelling({ id: p.id, amount: p.amount })
+                    }
+                    data-testid="cancel-payment"
+                  >
+                    <Ban aria-hidden />
+                  </Button>
+                ) : null}
               </li>
             );
           })}

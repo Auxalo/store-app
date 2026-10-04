@@ -335,6 +335,76 @@ export async function paymentCreate(
   return { status: "applied", docs: [wire("payments", payment), ...partyDocs] };
 }
 
+/**
+ * Cancels a payment: it stays on record, marked cancelled, and a reversing ledger entry puts the
+ * balance back. Cancelling twice changes nothing (a retry). The amount and the person come from the
+ * server's own record, never from the device.
+ */
+export async function paymentVoid(
+  ctx: ServerCtx,
+  p: CommandPayload<"payment.void">,
+): Promise<ApplyResult> {
+  const payments = ctx.db.collection<
+    StoredDoc & {
+      status?: string;
+      partyType: PartyKind;
+      partyId: string;
+      amount: number;
+    }
+  >("payments");
+  const payment = await payments.findOne(
+    { _id: p.id, storeId: ctx.storeId },
+    { session: ctx.session },
+  );
+  if (!payment) return { status: "rejected", error: "NOT_FOUND" };
+  if (payment.status === "voided")
+    return { status: "applied", docs: [wire("payments", payment)] };
+
+  const party = await liveParty(ctx, payment.partyType, payment.partyId);
+  const seq = await allocSeq(ctx.db, ctx.session, ctx.storeId, 3);
+  const updated = await payments.findOneAndUpdate(
+    { _id: p.id, storeId: ctx.storeId },
+    {
+      $inc: { version: 1 },
+      $set: {
+        status: "voided",
+        voidReason: p.reason,
+        voidedAt: ctx.opCreatedAt,
+        voidedBy: ctx.actorUserId,
+        syncSeq: seq,
+        updatedAt: later(ctx.opCreatedAt, payment.updatedAt),
+      },
+    },
+    { returnDocument: "after", session: ctx.session },
+  );
+  const partyDocs = party
+    ? await adjustParty(
+        ctx,
+        payment.partyType,
+        party,
+        payment.amount,
+        {
+          type: "payment_void",
+          id: p.id,
+          ledgerId: `${p.id}:vl`,
+          note: p.reason,
+        },
+        seq + 1,
+      )
+    : [];
+  await writeAudit(ctx, {
+    action: "payment.void",
+    entity: "payment",
+    entityId: p.id,
+    oldValue: { status: "active", amount: payment.amount },
+    newValue: { status: "voided", reason: p.reason },
+  });
+  return {
+    status: "applied",
+    docs: [wire("payments", updated ?? payment), ...partyDocs],
+  };
+}
+
 /** A balance that existed before the shop started using the app: a ledger entry and a balance change. */
 export async function openingBalanceCreate(
   ctx: ServerCtx,

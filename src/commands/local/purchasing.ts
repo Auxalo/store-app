@@ -274,6 +274,50 @@ export async function paymentCreate(
   return input;
 }
 
+/**
+ * Cancels a payment: the record stays, marked cancelled, and a reversing ledger entry puts the
+ * balance back (what they owed before the payment, they owe again).
+ */
+export async function paymentVoid(
+  db: StoreDB,
+  ctx: LocalContext,
+  input: CommandInput<"payment.void">,
+  now: string,
+): Promise<CommandPayload<"payment.void">> {
+  const payment = await db.payments.get(input.id);
+  if (!payment) throw new NotFoundError("payment");
+  if (payment.status === "voided") throw new AlreadyExistsError("void");
+  // The balance goes back when the person is still on the books; a deleted one has nothing to fix.
+  await adjustParty(
+    db,
+    ctx,
+    payment.partyType,
+    payment.partyId,
+    payment.amount,
+    {
+      type: "payment_void",
+      id: payment.id,
+      ledgerId: `${payment.id}:vl`,
+      note: input.reason,
+    },
+    now,
+  );
+  await db.payments.update(payment.id, {
+    status: "voided",
+    voidReason: input.reason,
+    voidedAt: now,
+    voidedBy: ctx.actorUserId,
+    version: payment.version + 1,
+    updatedAt: now,
+  });
+  return {
+    ...input,
+    partyType: payment.partyType,
+    partyId: payment.partyId,
+    amount: payment.amount,
+  };
+}
+
 /** Records the balance a customer or supplier already had when the shop started using the app. */
 export async function openingBalanceCreate(
   db: StoreDB,

@@ -42,6 +42,23 @@ function overlay(doc: Doc, op: OutboxOp): Doc {
       return { ...doc, deletedAt: op.createdAt, ...bump };
     case "expense.void":
       return { ...doc, status: "voided", voidReason: payload.reason, ...bump };
+    case "payment.void": {
+      // The payment record is marked cancelled; the person's balance goes back by its amount.
+      if (payload.id === doc.id)
+        return {
+          ...doc,
+          status: "voided",
+          voidReason: payload.reason,
+          ...bump,
+        };
+      return payload.partyId === doc.id
+        ? {
+            ...doc,
+            balance: (doc.balance as number) + (payload.amount as number),
+            ...bump,
+          }
+        : doc;
+    }
     case "party.openingBalance":
       // Like a payment, but in the other direction: only the party's balance changes here.
       return payload.partyId === doc.id

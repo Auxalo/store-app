@@ -388,7 +388,7 @@ export function referenceTotals(
       out.amount = sum("amount", standing);
       break;
     case "payments":
-      out.amount = sum("amount");
+      out.amount = sum("amount", (d) => d.status !== "voided");
       break;
     case "returns":
       out.total = sum("total");

@@ -144,6 +144,26 @@ test("collect a customer's due after a credit sale", async ({
   await page.getByTestId("save-payment").click();
   await expect(page.getByText("সব মেটানো")).toBeVisible();
   await expect(page.getByTestId("statement-row")).toHaveCount(3); // sale, two payments
+
+  // The last payment was a mistake: cancel it (a reason is needed). The 40 is owed again, both
+  // lines stay on the statement, and the payment shows as cancelled.
+  await page.getByTestId("cancel-payment").first().click();
+  await expect(page.getByTestId("payment-void-confirm")).toBeDisabled();
+  await page.getByTestId("payment-void-reason").fill("ভুল এন্ট্রি");
+  await page.getByTestId("payment-void-confirm").click();
+  await expect(page.getByTestId("party-balance-total")).toHaveText("৳৪০");
+  await expect(page.getByTestId("statement-row")).toHaveCount(4);
+  await expect(page.getByTestId("statement")).toContainText("পেমেন্ট বাতিল");
+  await expect(page.getByTestId("cancel-payment")).toHaveCount(1); // only the first payment is left to cancel
+
+  // The payments list keeps it, marked cancelled, and it no longer counts in the total.
+  await page.goto("/payments");
+  await expect(page.getByTestId("payment-row")).toHaveCount(2);
+  await expect(
+    page.getByTestId("payment-row").filter({ hasText: "বাতিল" }),
+  ).toHaveCount(1);
+  await expect(page.getByTestId("payment-count")).toBeVisible();
+  await expect(page.getByText("৳৬০").first()).toBeVisible();
 });
 
 test("expenses: add one, see the total, cancel it", async ({
