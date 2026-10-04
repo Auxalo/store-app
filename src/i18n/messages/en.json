@@ -20,6 +20,7 @@
     "reports": "Reports",
     "sync": "Sync status",
     "settings": "Settings",
+    "billing": "Billing",
     "home": "Home",
     "more": "More",
     "menu": "Menu"
@@ -235,7 +236,8 @@
   "account": {
     "signOutPendingTitle": "Sign out with unsynced changes?",
     "signOutPendingBody": "{count, plural, one {{n} change has} other {{n} changes have}} not reached the cloud yet. It stays safe on this device and syncs when you sign in again.",
-    "signOutConfirm": "Sign out anyway"
+    "signOutConfirm": "Sign out anyway",
+    "signOutFailed": "Could not sign out. Check your connection and try again."
   },
   "units": {
     "pcs": "pcs",
@@ -389,7 +391,9 @@
     "shortcuts": "Shortcuts: / search · F9 complete · F4 customer · Esc clear",
     "saving": "Saving…",
     "unitPrice": "Unit price",
-    "dueAmount": "On credit: {value}"
+    "dueAmount": "On credit: {value}",
+    "receiptUnavailable": "The sale is saved, but its receipt could not be shown. You can find it under Sales.",
+    "codeNotFound": "No product with this code or name."
   },
   "sales": {
     "searchPlaceholder": "Invoice number, customer name or mobile",
@@ -464,7 +468,8 @@
     "totalDue": "Total due: {value}",
     "quickAdd": "New customer",
     "none": "None",
-    "opening": "Previous due (they owe you), ৳ (optional)"
+    "opening": "Previous due (they owe you), ৳ (optional)",
+    "deleteHasBalance": "“{name}” still has a balance (money owed, or owed back). Settle it first, then remove."
   },
   "suppliers": {
     "add": "Add supplier",
@@ -484,9 +489,11 @@
     "totalOwed": "We owe: {value}",
     "owed": "We owe",
     "advance": "Advance paid",
-    "opening": "Previous payable (you owe them), ৳ (optional)"
+    "opening": "Previous payable (you owe them), ৳ (optional)",
+    "deleteHasBalance": "“{name}” still has a balance (money owed, or owed back). Settle it first, then remove."
   },
   "party": {
+    "notFound": "This person was not found on this device.",
     "statement": "Statement",
     "noEntries": "No transactions yet.",
     "collect": "Collect payment",
@@ -622,6 +629,7 @@
     "back": "Choose someone else",
     "wrongPin": "Wrong PIN. {left, plural, one {{n} try} other {{n} tries}} left before you have to wait.",
     "wait": "Too many wrong tries. Try again in {seconds} seconds.",
+    "needsOnlineFirst": "This person has not signed in on this device yet. Connect to the internet and enter the PIN once.",
     "needsOnline": "Too many wrong tries. Sign in again with your password.",
     "signInAgain": "Sign in with password",
     "switchUser": "Switch user",
@@ -631,9 +639,11 @@
     "setMine": "Set my PIN",
     "setFor": "Set PIN for {name}",
     "newPin": "New PIN (4 to 6 digits)",
+    "newPinStrong": "New PIN (6 digits)",
     "confirmPin": "Repeat the PIN",
     "mismatch": "The two PINs do not match.",
     "invalid": "A PIN is 4 to 6 digits.",
+    "invalidStrong": "An owner's or manager's PIN is 6 digits.",
     "saved": "PIN saved",
     "needsInternet": "You need internet to change a PIN.",
     "hasPin": "PIN is set",
@@ -665,6 +675,7 @@
     "auditHint": "Who changed prices, stock and sales.",
     "export": "Backup and export",
     "exportHint": "Download a copy of the data on this device.",
+    "exportOnlineHint": "You are using online mode, so the shop's data is on the server and this device has no copy to download. Reports can be exported from the Reports page.",
     "exportJson": "Download everything (JSON)",
     "exportCsv": "Download {what} (CSV)",
     "exporting": "Preparing…",
@@ -718,7 +729,9 @@
       "report_view": "See reports and the audit log",
       "user_manage": "Manage staff",
       "settings_manage": "Change settings and devices",
-      "opening_manage": "Enter previous balances"
+      "opening_manage": "Enter previous balances",
+      "mode_switch": "Switch this device online or offline",
+      "billing_manage": "See billing and send payments"
     },
     "ownerNeedsPin": "Other people have PINs but you do not. Set your own PIN (top-right menu) or you will need your password to unlock."
   },
@@ -729,6 +742,7 @@
     "revoked": "Cut off",
     "revoke": "Cut off",
     "revokeTitle": "Cut off this device?",
+    "revokeSelf": "This is the device you are using right now, so it will stop syncing too.",
     "revokeBody": "It will no longer be able to sync. Anything still waiting on it stays safe on that device.",
     "rename": "Rename",
     "needsInternet": "You need internet to manage devices.",
@@ -745,6 +759,7 @@
       "stock_adjust": "Stock adjusted",
       "sale_void": "Sale cancelled",
       "sale_priceOverride": "Sold at a different price",
+      "sale_stalePrice": "Sold at the old price (changed after the sale)",
       "expense_void": "Expense cancelled"
     },
     "off": "The audit log is off, so new changes are not being recorded.",
@@ -758,6 +773,18 @@
     "todayPurchases": "Today's purchases",
     "customerDue": "Customers owe you",
     "supplierDue": "You owe suppliers",
+    "worthTitle": "Store worth",
+    "worthHero": "Store worth (excluding cash)",
+    "worthNote": "Cash and bank balances are not counted.",
+    "worthStockCost": "Stock at cost",
+    "worthStockRetail": "Stock at selling price",
+    "worthMargin": "Expected margin {value}",
+    "worthAdvances": "Paid ahead {value}",
+    "worthPartStock": "Stock at cost",
+    "worthPartCustomers": "Customers owe you (net)",
+    "worthPartSuppliers": "You owe suppliers (net)",
+    "worthShow": "Show amounts",
+    "worthHide": "Hide amounts",
     "lowStock": "Running low",
     "lowStockEmpty": "Nothing is running low.",
     "outOfStock": "Out of stock",
@@ -1013,7 +1040,9 @@
     },
     "gate": {
       "title": "Preparing offline mode",
-      "body": "This device is getting the shop's data. It needs internet this first time."
+      "body": "This device is getting the shop's data. It needs internet this first time.",
+      "slow": "This is taking long. Check that the internet is on.",
+      "retry": "Try again"
     },
     "readiness": {
       "title": "Offline readiness",
@@ -1045,5 +1074,79 @@
     "body": "This screen could not load. Your saved data is safe. Try again, or go back to the start.",
     "retry": "Try again",
     "home": "Go to start"
+  },
+  "billing": {
+    "title": "Billing",
+    "state": {
+      "trial": "Free trial",
+      "active": "Active",
+      "ending": "Ending soon",
+      "overdue": "Payment due",
+      "locked": "Locked",
+      "free": "Free plan",
+      "off": "No billing"
+    },
+    "daysLeft": "{count, plural, one {{n} day left} other {{n} days left}}",
+    "endsToday": "Ends today",
+    "endsOn": "Ends on {date}",
+    "trialEndsOn": "Trial ends on {date}",
+    "locksOn": "The app locks on {date}",
+    "lockedTitle": "Your subscription has ended",
+    "lockedBody": "The app is locked until the payment is confirmed. Your data is safe on this device and in the cloud.",
+    "provisional": "Open until {date} while your payment is checked.",
+    "askOwner": "Please ask the shop owner to renew the subscription.",
+    "switchUser": "Switch user",
+    "freeBody": "This shop uses the app for free. No payment is needed.",
+    "offBody": "Billing is not set up for this shop.",
+    "renew": "Renew",
+    "plan": "Plan",
+    "choosePlan": "Choose a plan",
+    "howToPay": "How to pay",
+    "step1": "Open bKash or Nagad and choose Send Money.",
+    "step2": "Send {amount} to this number:",
+    "step3": "Then fill in the form below with the transaction ID (TrxID).",
+    "copy": "Copy",
+    "copied": "Number copied",
+    "method": "Sent with",
+    "bkash": "bKash",
+    "nagad": "Nagad",
+    "trxId": "Transaction ID (TrxID)",
+    "trxIdHint": "From the bKash or Nagad message, e.g. 9J7A3B2C1D",
+    "sender": "Number you sent from",
+    "amount": "Amount sent (৳)",
+    "submit": "Send for approval",
+    "sending": "Sending…",
+    "submitted": "Payment sent. It will be checked soon.",
+    "opened": "The app stays open for the next {n} hours while your payment is checked.",
+    "tellOnWhatsapp": "Tell {name} on WhatsApp",
+    "whatsappMessage": "Hello, I paid {amount} by {method} for {shop}. TrxID: {trxId}",
+    "history": "Payments",
+    "noPayments": "No payments yet.",
+    "status": {
+      "pending": "Waiting for approval",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    },
+    "rejectedReason": "Reason: {reason}",
+    "periodTo": "Paid until {date}",
+    "needInternet": "Connect to the internet to send a payment.",
+    "help": "Need help? WhatsApp {number}",
+    "banner": {
+      "ending": "Your subscription ends on {date}.",
+      "trialEnding": "Your free trial ends on {date}.",
+      "overdue": "Payment is due. The app will lock on {date}.",
+      "provisional": "Your payment is being checked. The app is open until {date}."
+    },
+    "errors": {
+      "TRX_USED": "This transaction ID has already been used.",
+      "TOO_MANY_PENDING": "Payments are already waiting to be checked. Please wait for them.",
+      "INVALID_PLAN": "Choose a plan.",
+      "BILLING_NOT_PAID": "This shop does not need to pay.",
+      "RATE_LIMITED": "Too many tries. Please wait a while and try again.",
+      "trxIdFormat": "Enter the transaction ID from the bKash or Nagad message.",
+      "phoneFormat": "Enter the number you sent the money from.",
+      "amount": "Enter the amount you sent.",
+      "other": "Could not send. Check the internet and try again."
+    }
   }
 }

@@ -1,3 +1,4 @@
+import type { BillingStamp } from "@/billing/state";
 import type { CommandType, SyncCollection } from "@/commands/definitions";
 import type { UnitCode } from "@/lib/units";
 import type { ExpenseCategory } from "@/schemas/expense";
@@ -249,6 +250,8 @@ export interface ReturnLine {
   qty: number;
   /** Refund per unit (the sale price, or for purchases the cost). */
   unitAmount: number;
+  /** What went back for this whole line, after discounts (a sale return). */
+  amount?: number;
 }
 
 /** A return keeps the original invoice untouched; it is its own record. */
@@ -285,6 +288,8 @@ export interface LocalUser {
   username: string;
   role: "owner" | "manager" | "cashier";
   isActive: boolean;
+  /** Has a PIN. The hash itself is held only where the server allows (an owner's or manager's: where they signed in). */
+  hasPin?: boolean;
   pinSalt?: string;
   pinHash?: string;
   failedPins: number;
@@ -327,6 +332,8 @@ export interface OutboxOp {
   actorUserId: string;
   deviceId: string;
   createdAt: string;
+  /** Signature made with the actor's PIN key: proves the actor made it (see src/auth/op-proof.ts). */
+  proof?: string;
   status: OutboxStatus;
   attempts: number;
   /** Epoch ms before which this operation will not be retried (backoff). */
@@ -360,4 +367,8 @@ export interface MetaValues {
   skuSeq: number;
   /** How this device gets its data: "online" (ask the server) or "offline" (a full copy on the device). */
   dataMode: "online" | "offline";
+  /** The shop's billing as the server last said (see src/billing/client.ts). */
+  billing: BillingStamp;
+  /** The latest server time this device has seen (turning its clock back does not undo a lock). */
+  billingClockHwm: number;
 }

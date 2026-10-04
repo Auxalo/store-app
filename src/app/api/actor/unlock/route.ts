@@ -5,6 +5,7 @@ import { ACTOR_COOKIE, unlockActor } from "@/server/actor";
 import { getSyncDeps } from "@/server/deps";
 import { checkDevice } from "@/server/devices";
 import { errorResponse, HttpError, readJson } from "@/server/http";
+import { checkRateLimit } from "@/server/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,8 @@ export async function POST(request: Request) {
     const { db } = await getSyncDeps();
     const device = await checkDevice(db, request.headers.get("cookie"));
     if (!device.ok) throw new HttpError(401, "DEVICE_UNKNOWN");
+    // Each try costs the server a slow computation: a flood of them is refused.
+    checkRateLimit(device.device.deviceId, "write");
 
     const result = await unlockActor(db, {
       storeId: device.device.storeId,

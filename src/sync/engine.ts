@@ -1,4 +1,5 @@
 import Dexie from "dexie";
+import { ingestStamp } from "@/billing/client";
 import { SYNC_COLLECTIONS } from "@/commands/definitions";
 import { applyServerDocs } from "@/db/local/apply-server";
 import type { StoreDB } from "@/db/local/db";
@@ -11,6 +12,7 @@ import {
 } from "@/schemas/sync";
 import { backoffDelay } from "./backoff";
 import { type SyncTransport, TransportError } from "./transport";
+import { undoLocalEffects } from "./undo";
 
 export interface EngineOptions {
   deviceId: string;
@@ -21,6 +23,15 @@ export interface EngineOptions {
 }
 
 const MAX_BATCHES_PER_RUN = 40;
+/**
+ * A request may not be larger than the server accepts (1,000,000 bytes). A batch is closed before
+ * it gets near that, so a queue of big sales is sent in several requests instead of one that is
+ * refused for ever.
+ */
+const MAX_BATCH_BYTES = 700_000;
+/** How long a device waits after "this shop is paused" or "update the app" before it asks again. */
+const HOLD_MS = 60_000;
+const encoder = new TextEncoder();
 const MAX_PAGES_PER_RUN = 2000;
 
 const toEnvelope = (op: OutboxOp): OpEnvelope => ({
@@ -31,6 +42,7 @@ const toEnvelope = (op: OutboxOp): OpEnvelope => ({
   actorUserId: op.actorUserId,
   deviceId: op.deviceId,
   createdAt: op.createdAt,
+  ...(op.proof ? { proof: op.proof } : {}),
 });
 
 /** After a crash, operations marked `syncing` may or may not have reached the server. Re-send them: the server de-duplicates. */
@@ -55,19 +67,22 @@ async function requeueAfterFailure(
   error: unknown,
   now: number,
 ) {
-  const countsAsAttempt =
-    error instanceof TransportError
-      ? error.kind === "network" || error.kind === "server"
-      : true;
+  // A paused shop, an app that is too old, or a refused device are not "attempts" that wear out
+  // the operation, but asking again a moment later changes nothing either: wait a minute. (Without
+  // a wait the device asked again every second, for ever.) A device that is merely not registered
+  // yet (401) counts as an attempt and backs off like any failure.
+  const hold =
+    error instanceof TransportError &&
+    (error.kind === "suspended" ||
+      error.kind === "upgrade" ||
+      (error.kind === "auth" && error.status !== 401));
   await db.transaction("rw", db.outbox, async () => {
     for (const op of ops) {
-      const attempts = op.attempts + (countsAsAttempt ? 1 : 0);
+      const attempts = op.attempts + (hold ? 0 : 1);
       await db.outbox.update(op.seq as number, {
         status: "pending",
         attempts,
-        nextAttemptAt: countsAsAttempt
-          ? now + backoffDelay(attempts)
-          : op.nextAttemptAt,
+        nextAttemptAt: hold ? now + HOLD_MS : now + backoffDelay(attempts),
         lastError: error instanceof Error ? error.message : "unknown",
       });
     }
@@ -130,6 +145,8 @@ async function applyPushResults(
           serverDoc: own[0],
           lastError: result.error ?? "REJECTED",
         });
+        // Take back what the operation did to the rest of the device (stock, balances, lines).
+        await undoLocalEffects(db, op);
         if (own.length) await applyServerDocs(db, op.collection, own);
         else if (op.type.endsWith(".create"))
           await db.table(op.collection).delete(op.entityId);
@@ -149,12 +166,24 @@ export async function pushAll(
 
   for (let batch = 0; batch < MAX_BATCHES_PER_RUN; batch++) {
     const now = clock();
-    const due = await db.outbox
+    const queued = await db.outbox
       .where("[status+seq]")
       .between(["pending", Dexie.minKey], ["pending", Dexie.maxKey])
-      .filter((op) => op.nextAttemptAt <= now)
       .limit(MAX_OPS_PER_PUSH)
       .toArray();
+    // Strictly in order. The queue stops at the first operation that is still waiting: a later
+    // operation (a sale) must never reach the server before an earlier one it depends on (the
+    // customer or the product it uses), or its effects are lost. A batch is also closed before it
+    // gets too big for the server.
+    const due: OutboxOp[] = [];
+    let bytes = 0;
+    for (const op of queued) {
+      if (op.nextAttemptAt > now) break;
+      const size = encoder.encode(JSON.stringify(toEnvelope(op))).length;
+      if (due.length > 0 && bytes + size > MAX_BATCH_BYTES) break;
+      due.push(op);
+      bytes += size;
+    }
     if (due.length === 0) break;
 
     await db.outbox.bulkUpdate(
@@ -218,6 +247,7 @@ export async function pullAll(
       "clockOffsetMs",
       Date.parse(page.serverTime) - (before + after) / 2,
     );
+    if (page.billing) await ingestStamp(page.billing, before, after);
 
     pages++;
     cursor = page.cursor;
@@ -240,6 +270,14 @@ export async function syncOnce(
   options: EngineOptions,
 ): Promise<SyncOutcome> {
   const { sent } = await pushAll(db, transport, options);
+  // An operation still waiting out a retry delay may already have been saved by the server (its
+  // answer was lost). A download now would bring the shop's record, which includes it, and the
+  // device would count it a second time on screen. Wait until it has been confirmed.
+  const waiting = await db.outbox
+    .where("status")
+    .anyOf("pending", "syncing")
+    .count();
+  if (waiting > 0) return { pushed: sent, pages: 0, pulled: 0 };
   const { pages, docs } = await pullAll(db, transport, {
     onProgress: options.onPullProgress,
   });

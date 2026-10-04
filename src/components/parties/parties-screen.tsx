@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { errorCode } from "@/data/errors";
 import {
   useCommand,
   useList,
@@ -251,7 +252,9 @@ export function PartiesScreen({ kind }: { kind: PartyKind }) {
                 className="flex min-w-0 flex-1 items-center gap-3"
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium">{p.name}</span>
+                  <span className="line-clamp-2 break-words font-medium">
+                    {p.name}
+                  </span>
                   <span className="block truncate text-xs text-muted-foreground">
                     {[p.phone, p.address].filter(Boolean).join(" · ")}
                   </span>
@@ -259,6 +262,7 @@ export function PartiesScreen({ kind }: { kind: PartyKind }) {
                 {p.balance !== 0 ? (
                   <Badge
                     variant={p.balance > 0 ? "secondary" : "outline"}
+                    className="shrink-0"
                     data-testid="party-balance"
                   >
                     {p.balance > 0
@@ -268,7 +272,7 @@ export function PartiesScreen({ kind }: { kind: PartyKind }) {
                   </Badge>
                 ) : null}
                 <ChevronRight
-                  className="size-4 text-muted-foreground rtl:rotate-180"
+                  className="size-4 text-muted-foreground max-sm:hidden rtl:rotate-180"
                   aria-hidden
                 />
               </Link>
@@ -332,7 +336,16 @@ export function PartiesScreen({ kind }: { kind: PartyKind }) {
                   void run(
                     `${kind}.delete` as never,
                     { id: deleting.id } as never,
-                  ).catch(() => toast.error(t("common.somethingWrong")));
+                  ).catch((error: unknown) =>
+                    toast.error(
+                      // A refusal on the device is an Error with the code as its message.
+                      errorCode(error) === "HAS_BALANCE" ||
+                        (error instanceof Error &&
+                          error.message === "HAS_BALANCE")
+                        ? tk("deleteHasBalance", { name: deleting.name })
+                        : t("common.somethingWrong"),
+                    ),
+                  );
               }}
             >
               {t("common.delete")}

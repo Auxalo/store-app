@@ -1,9 +1,11 @@
 import "server-only";
 import { getAuth } from "@/auth/server";
+import type { BillingMode } from "@/billing/state";
 import { getDb } from "@/db/server/mongo";
 import { DEFAULT_CURRENCY, DEFAULT_TIME_ZONE } from "@/lib/constants";
 import { newId } from "@/lib/ids";
 import type { OwnerSignupInput } from "@/schemas/auth";
+import { getPlatformBilling, initialBilling } from "./billing-settings";
 
 export class UsernameTakenError extends Error {
   constructor() {
@@ -16,22 +18,38 @@ export function syntheticEmail(username: string) {
   return `${username}@users.store-app.invalid`;
 }
 
+/** How the operator wants a new shop's billing to start (otherwise their default applies). */
+export interface BillingStart {
+  mode?: BillingMode;
+  trialDays?: number;
+  paidUntil?: Date;
+}
+
 /**
- * Creates a store and its owner. Used by public signup; staff accounts reuse
- * `createStoreUser` (Phase 6). Rolls the store back if the user cannot be created.
+ * Creates a store and its owner. Used by public signup, the operator panel and `pnpm shop:create`;
+ * staff accounts reuse `createStoreUser`. Rolls the store back if the user cannot be created.
  */
-export async function createStoreWithOwner(input: OwnerSignupInput) {
+export async function createStoreWithOwner(
+  input: OwnerSignupInput,
+  billingStart: BillingStart = {},
+) {
   const db = await getDb();
   const username = input.username.toLowerCase();
 
   const storeId = newId();
   const now = new Date();
+  const billing = initialBilling(
+    await getPlatformBilling(db),
+    now,
+    billingStart,
+  );
   await db.collection<{ _id: string }>("stores").insertOne({
     _id: storeId,
     name: input.storeName,
     currency: DEFAULT_CURRENCY,
     timeZone: DEFAULT_TIME_ZONE,
     syncSeq: 0,
+    billing,
     createdAt: now,
     updatedAt: now,
   } as never);

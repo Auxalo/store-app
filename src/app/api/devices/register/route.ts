@@ -1,8 +1,14 @@
+import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuth } from "@/auth/server";
 import { getSyncDeps } from "@/server/deps";
-import { checkDevice, DEVICE_COOKIE, registerDevice } from "@/server/devices";
+import {
+  checkDevice,
+  DEVICE_COOKIE,
+  noteDeviceUnlock,
+  registerDevice,
+} from "@/server/devices";
 import { errorResponse, HttpError, readJson } from "@/server/http";
 import { shopIsSuspended } from "@/server/shop-status";
 
@@ -31,6 +37,13 @@ export async function POST(request: Request) {
 
     const body = bodySchema.parse(await readJson(request));
     const { db } = await getSyncDeps();
+    // The session cookie remembers the person for a few minutes; ask the database, so someone
+    // deactivated a moment ago cannot register a new device.
+    const live = ObjectId.isValid(user.id)
+      ? await db.collection("user").findOne({ _id: new ObjectId(user.id) })
+      : null;
+    if (!live || live.isActive === false || live.platformAdmin === true)
+      throw new HttpError(403, "USER_INACTIVE");
     // A paused shop cannot add devices (the app then shows who to contact).
     if (await shopIsSuspended(db, user.storeId))
       throw new HttpError(403, "SHOP_SUSPENDED");
@@ -42,6 +55,9 @@ export async function POST(request: Request) {
       name: body.name,
       existing,
     });
+
+    // Signing in with the password is as good as the PIN: this device may hold this person's PIN hash.
+    await noteDeviceUnlock(db, body.deviceId, user.id);
 
     const response = NextResponse.json({ code: registration.code });
     if (registration.token) {

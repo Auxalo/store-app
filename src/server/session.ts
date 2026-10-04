@@ -36,6 +36,8 @@ export async function requireUser(
     : null;
   if (!doc || doc.isActive === false || !isRole(doc.role))
     throw new HttpError(403, "USER_INACTIVE");
+  // An operator (who runs the service) belongs to no shop: none of a shop's endpoints is theirs.
+  if (doc.platformAdmin === true) throw new HttpError(403, "FORBIDDEN");
   if (permission && !can(doc.role, permission))
     throw new HttpError(403, "FORBIDDEN");
   if (await shopIsSuspended(db, doc.storeId as string))

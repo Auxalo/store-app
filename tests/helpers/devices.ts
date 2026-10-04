@@ -37,6 +37,8 @@ export async function createDevice(
   storeId: string,
   role: Role,
   actorUserId: string,
+  /** proofKey: what the person's PIN signs their work with. registeredBy: who set this device up. */
+  extra: { proofKey?: string; registeredBy?: string } = {},
 ): Promise<Device> {
   const db = new StoreDB(`dev-${randomUUID()}`);
   const deviceId = await getDeviceId(db);
@@ -48,7 +50,11 @@ export async function createDevice(
       if (faults.offline || Math.random() < faults.flaky / 2)
         throw new TransportError("network");
       const response = wire(
-        await handlePush(mongo, { storeId, deviceId }, wire(request)),
+        await handlePush(
+          mongo,
+          { storeId, deviceId, createdBy: extra.registeredBy },
+          wire(request),
+        ),
       );
       if (faults.dropNextResponses > 0 || Math.random() < faults.flaky / 2) {
         faults.dropNextResponses = Math.max(0, faults.dropNextResponses - 1);
@@ -66,7 +72,7 @@ export async function createDevice(
   const options = { deviceId, appVersion: "1.0.0" };
   return {
     db,
-    ctx: { storeId, actorUserId, role, deviceId },
+    ctx: { storeId, actorUserId, role, deviceId, proofKey: extra.proofKey },
     faults,
     transport,
     options,

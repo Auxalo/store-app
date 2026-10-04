@@ -7,12 +7,13 @@ interface StaffRow {
   username: string;
   role: LocalUser["role"];
   isActive: boolean;
+  hasPin?: boolean;
   pinSalt?: string;
   pinHash?: string;
 }
 
 /**
- * Copies the store's people (and their PIN hashes) onto this device so the lock screen works with
+ * Copies the store's people (and the PIN hashes this device may hold) onto this device so the lock screen works with
  * no internet. Wrong-PIN counters are kept across refreshes, and reset only when someone's PIN
  * actually changed. Failures are ignored: the device simply keeps the list it already has.
  */
@@ -33,15 +34,21 @@ export async function refreshStaff(db: StoreDB): Promise<void> {
     await db.localUsers.bulkPut(
       rows.map((row) => {
         const before = existing.get(row.id);
-        const pinChanged = before?.pinHash !== row.pinHash;
+        // The server sends a person's hash only where they may keep it; a hash this device already
+        // has stays (as long as it is for the same PIN).
+        const pinHash =
+          row.pinHash ??
+          (before?.pinSalt === row.pinSalt ? before?.pinHash : undefined);
+        const pinChanged = before?.pinSalt !== row.pinSalt;
         return {
           userId: row.id,
           name: row.name,
           username: row.username,
           role: row.role,
           isActive: row.isActive,
+          hasPin: row.hasPin ?? !!row.pinHash,
           pinSalt: row.pinSalt,
-          pinHash: row.pinHash,
+          pinHash,
           failedPins: pinChanged ? 0 : (before?.failedPins ?? 0),
           lastFailedAt: pinChanged ? 0 : (before?.lastFailedAt ?? 0),
         };

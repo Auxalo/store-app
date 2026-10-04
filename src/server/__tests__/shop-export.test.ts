@@ -112,7 +112,10 @@ async function fill(shop: string, owner: string, tag: string) {
   );
 }
 
-/** Everything a shop holds, as text, to compare before and after. */
+/**
+ * Everything a shop holds, as text, to compare before and after. The change numbers are left out:
+ * a restore gives every record a new, higher one on purpose (so devices download them again).
+ */
 async function snapshot(shop: string): Promise<string> {
   const out: Record<string, unknown[]> = {};
   const users = await mongo.db
@@ -141,7 +144,9 @@ async function snapshot(shop: string): Promise<string> {
     .collection("stores")
     .find({ _id: shop as never })
     .toArray();
-  return JSON.stringify(out);
+  return JSON.stringify(out, (key, value) =>
+    key === "syncSeq" ? undefined : value,
+  );
 }
 
 async function exportLines(shop: string): Promise<string[]> {
@@ -198,9 +203,21 @@ describe("backing up and restoring one shop", () => {
       });
     const before = await snapshot(shopA);
     expect(before).toContain("changed later");
+    // What the operator decided since the backup (billing, a pause) is kept by the restore.
+    const billing = { mode: "paid", paidOnce: true, planId: "m12" };
+    await mongo.db
+      .collection<{ _id: string }>("stores")
+      .updateOne({ _id: shopA }, { $set: { billing, status: "suspended" } });
     await restoreShop(mongo.db, () => iter(lines), { replace: true });
     expect(await snapshot(shopA)).not.toContain("changed later");
     expect(await snapshot(shopB)).toBe(otherBefore);
+    const store = await mongo.db
+      .collection<{ _id: string }>("stores")
+      .findOne({ _id: shopA });
+    expect(store).toMatchObject({ billing, status: "suspended" });
+    await mongo.db
+      .collection<{ _id: string }>("stores")
+      .updateOne({ _id: shopA }, { $unset: { status: "" } });
   }, 60_000);
 
   it("a dry run checks the file and writes nothing", async () => {

@@ -1,17 +1,19 @@
 import { type Db, type MongoClient, ObjectId } from "mongodb";
+import { verifyOpProof } from "@/auth/op-proof";
 import { can, isRole, type Role } from "@/auth/permissions";
 import {
   COMMANDS,
   isCommandType,
   OP_SCHEMA_VERSION,
 } from "@/commands/definitions";
-import type {
-  OpEnvelope,
-  PushRequest,
-  PushResponse,
-  PushResult,
-  WireChange,
+import {
+  type OpEnvelope,
+  opEnvelopeSchema,
+  type PushResponse,
+  type PushResult,
+  type WireChange,
 } from "@/schemas/sync";
+import { pinsInUse } from "../actor";
 import { serverCommands } from "../commands/registry";
 import type { ApplyResult, ServerCtx } from "../commands/types";
 import { COL } from "./collections";
@@ -25,10 +27,15 @@ export interface SyncDeps {
 export interface DeviceAuth {
   storeId: string;
   deviceId: string;
+  /** Who set this device up, and who has entered their PIN on it online (see listStaff). */
+  createdBy?: string;
+  unlockedBy?: string[];
 }
 
 interface Actor {
   role: Role;
+  /** The keys that may have signed this person's offline work (the current one, then the one before a PIN change). */
+  proofKeys: string[];
 }
 
 interface AppliedOp {
@@ -40,23 +47,77 @@ interface AppliedOp {
 }
 
 /** Looks the actor up in the database: the role is never taken from the device. */
+/** How far ahead of the server's clock an operation may be dated (honest clock differences). */
+const CLOCK_SLACK_MS = 5 * 60_000;
+
+/** How long a person's previous PIN key still verifies work they queued before changing their PIN. */
+const PREVIOUS_KEY_GRACE_MS = 14 * 24 * 3_600_000;
+
+/** How long after being deactivated a person's earlier offline work is still accepted. */
+const DEACTIVATED_GRACE_MS = 14 * 24 * 3_600_000;
+
 async function loadActor(
   db: Db,
   storeId: string,
   userId: string,
+  madeAt: string,
 ): Promise<Actor | null> {
   if (!ObjectId.isValid(userId)) return null;
   const user = await db
     .collection(COL.users)
     .findOne({ _id: new ObjectId(userId) });
+  if (!user || user.storeId !== storeId || !isRole(user.role)) return null;
+  if (user.isActive === false) {
+    // Sales rung up before the person was let go, on a phone that had no internet, are real: the
+    // goods left and the cash was taken. They are accepted when sent soon enough; anything made
+    // after the person was deactivated is not.
+    const since =
+      user.deactivatedAt instanceof Date ? user.deactivatedAt.getTime() : null;
+    const made = Date.parse(madeAt);
+    if (
+      since === null ||
+      !(made <= since) ||
+      Date.now() - since > DEACTIVATED_GRACE_MS
+    )
+      return null;
+  }
+  const keys: string[] = [];
+  if (typeof user.pinProofKey === "string") keys.push(user.pinProofKey);
   if (
-    !user ||
-    user.storeId !== storeId ||
-    user.isActive === false ||
-    !isRole(user.role)
+    typeof user.pinProofKeyPrev === "string" &&
+    user.pinProofChangedAt instanceof Date &&
+    Date.now() - user.pinProofChangedAt.getTime() < PREVIOUS_KEY_GRACE_MS
   )
-    return null;
-  return { role: user.role };
+    keys.push(user.pinProofKeyPrev);
+  return { role: user.role, proofKeys: keys };
+}
+
+/**
+ * Whether an action by an owner or manager really came from them. Their offline work is signed
+ * with a key only their PIN makes; a device that merely holds the person's id cannot sign. A
+ * person with no PIN cannot sign, so their work is accepted only from a device that they set up
+ * or entered their PIN on. A shop that uses no PINs has no counter to share: one account works.
+ */
+async function actorIsProven(
+  db: Db,
+  device: DeviceAuth,
+  actor: Actor,
+  op: OpEnvelope,
+  signedAt: string,
+): Promise<boolean> {
+  // A cashier can do nothing but sell (checked above), and a forged sale only misnames who sold.
+  if (actor.role === "cashier") return true;
+  if (actor.proofKeys.length > 0) {
+    const proof = op.proof;
+    if (!proof) return false;
+    const signed = { ...op, createdAt: signedAt };
+    return actor.proofKeys.some((key) => verifyOpProof(key, signed, proof));
+  }
+  if (!(await pinsInUse(db, device.storeId))) return true;
+  return (
+    device.createdBy === op.actorUserId ||
+    device.unlockedBy?.includes(op.actorUserId) === true
+  );
 }
 
 const isDuplicateKey = (error: unknown) =>
@@ -181,6 +242,8 @@ async function processOp(
   deps: SyncDeps,
   device: DeviceAuth,
   op: OpEnvelope,
+  /** The date the device signed (the date in `op` may have been corrected for a clock that runs ahead). */
+  signedAt: string,
 ): Promise<PushResult> {
   const reject = (error: string): PushResult => ({
     operationId: op.operationId,
@@ -197,9 +260,16 @@ async function processOp(
   const parsed = def.payload.safeParse(op.payload);
   if (!parsed.success) return reject("INVALID_PAYLOAD");
 
-  const actor = await loadActor(deps.db, device.storeId, op.actorUserId);
+  const actor = await loadActor(
+    deps.db,
+    device.storeId,
+    op.actorUserId,
+    op.createdAt,
+  );
   if (!actor) return reject("ACTOR_NOT_ALLOWED");
   if (!can(actor.role, def.permission)) return reject("FORBIDDEN");
+  if (!(await actorIsProven(deps.db, device, actor, op, signedAt)))
+    return reject("PROOF_REQUIRED");
 
   const result = await applyOperation(
     deps,
@@ -225,31 +295,74 @@ async function processOp(
   };
 }
 
+/** The database or the network failed for a moment: asking again later can work. */
+function isTransient(error: unknown): boolean {
+  const e = error as {
+    name?: string;
+    hasErrorLabel?: (label: string) => boolean;
+  };
+  return (
+    (typeof e?.name === "string" && e.name.startsWith("Mongo")) ||
+    e?.hasErrorLabel?.("TransientTransactionError") === true
+  );
+}
+
+const idOf = (raw: unknown): string =>
+  typeof (raw as { operationId?: unknown } | null)?.operationId === "string"
+    ? String((raw as { operationId: string }).operationId)
+    : "";
+
 /**
  * Processes a batch in order. If one operation hits a transient problem, every later operation is
  * answered `retry` too, so a dependent change (an edit after its create) can never run ahead.
+ *
+ * An operation that is malformed, or that fails for a reason that will never change (a record it
+ * cannot read), is refused on its own: it must not hold up everything behind it for ever.
  */
 export async function handlePush(
   deps: SyncDeps,
   device: DeviceAuth,
-  request: PushRequest,
+  request: { deviceId: string; appVersion: string; ops: unknown[] },
 ): Promise<PushResponse> {
   const results: PushResult[] = [];
   let halted = false;
 
-  for (const op of request.ops) {
+  for (const raw of request.ops) {
     if (halted) {
-      results.push({ operationId: op.operationId, status: "retry" });
+      results.push({ operationId: idOf(raw), status: "retry" });
       continue;
     }
+    const parsed = opEnvelopeSchema.safeParse(raw);
+    if (!parsed.success) {
+      results.push({
+        operationId: idOf(raw),
+        status: "rejected",
+        error: "INVALID_OP",
+      });
+      continue;
+    }
+    // A device whose clock is ahead must not date records in the future: that would make its
+    // edits win over everybody else's for as long as the clock is wrong.
+    const op =
+      Date.parse(parsed.data.createdAt) > Date.now() + CLOCK_SLACK_MS
+        ? { ...parsed.data, createdAt: new Date().toISOString() }
+        : parsed.data;
     try {
-      const result = await processOp(deps, device, op);
+      const result = await processOp(deps, device, op, parsed.data.createdAt);
       results.push(result);
       if (result.status === "retry") halted = true;
     } catch (error) {
       console.error("sync push: operation failed", op.operationId, error);
-      results.push({ operationId: op.operationId, status: "retry" });
-      halted = true;
+      if (isTransient(error)) {
+        results.push({ operationId: op.operationId, status: "retry" });
+        halted = true;
+      } else {
+        results.push({
+          operationId: op.operationId,
+          status: "rejected",
+          error: "INTERNAL_ERROR",
+        });
+      }
     }
   }
   return { serverTime: new Date().toISOString(), results };

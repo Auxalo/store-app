@@ -31,8 +31,11 @@ export const saleLineInput = z.object({
   /** What the product was listed at when added; a different unitPrice is a price override. */
   listPrice: money,
   unitPrice: money,
-  /** Cost at the time of sale (for profit reports). */
-  unitCost: money,
+  /**
+   * Cost at the time of sale (for profit reports). A cashier's screen does not know it (purchase
+   * prices are hidden from cashiers), so it may be missing: the server uses its own record.
+   */
+  unitCost: money.default(0),
   /** Poisha off this line. */
   discount: money.default(0),
 });
@@ -84,7 +87,8 @@ export const saleVoidInput = z.object({
 export const saleVoidPayload = saleVoidInput.extend({
   customerId: idSchema.nullable(),
   due: money,
-  lines: z
-    .array(z.object({ productId: idSchema, qty: z.number().int().min(1) }))
-    .min(1),
+  /** What goes back into stock: the goods not already returned (none, if all of it had come back). */
+  lines: z.array(
+    z.object({ productId: idSchema, qty: z.number().int().min(1) }),
+  ),
 });

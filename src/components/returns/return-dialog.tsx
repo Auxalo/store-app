@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { useCommand, useRecord } from "@/data/hooks";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
+import { lineNets, refundFor } from "@/lib/refund";
 import { cn } from "@/lib/utils";
 import { returnTotal } from "@/schemas/return";
 import { usePreferences } from "@/stores/preferences";
@@ -24,8 +25,12 @@ interface Candidate {
   unit: Parameters<typeof QtyField>[0]["unit"];
   /** Quantity that can still come back. */
   remaining: number;
-  /** Refund per unit. */
+  /** Refund per unit (the price, or for a purchase the cost). */
   amount: number;
+  /** A sale: what the customer really paid for the whole line, and how much of it came back before. */
+  net: number;
+  itemQty: number;
+  returnedBefore: number;
 }
 
 type Kind = "sale" | "purchase";
@@ -74,6 +79,18 @@ export function ReturnDialog({
       kind === "sale"
         ? (parent.customerId as string | null)
         : (parent.supplierId as string | null);
+    // What each line of a sale really cost, after its discount and its share of the bill discount.
+    const nets =
+      kind === "sale"
+        ? lineNets(
+            items.map((item) => ({
+              qty: Number(item.qty),
+              unitPrice: Number(item.unitPrice),
+              discount: Number(item.discount ?? 0),
+            })),
+            Number(parent.discount ?? 0),
+          )
+        : [];
     const candidates: Candidate[] = items.map((item, itemIndex) => ({
       itemIndex,
       productId: String(item.productId),
@@ -82,6 +99,9 @@ export function ReturnDialog({
       unit: item.unit as Candidate["unit"],
       remaining: Number(item.qty) - (returned.get(itemIndex) ?? 0),
       amount: Number("unitPrice" in item ? item.unitPrice : item.unitCost),
+      net: nets[itemIndex] ?? 0,
+      itemQty: Number(item.qty),
+      returnedBefore: returned.get(itemIndex) ?? 0,
     }));
     return { partyId, candidates };
   }, [kind, loaded.record, loaded.extra]);
@@ -96,9 +116,13 @@ export function ReturnDialog({
 
   const candidates = data?.candidates ?? [];
   const chosen = candidates.filter((c) => (qtys[c.itemIndex] ?? 0) > 0);
-  const total = returnTotal(
-    chosen.map((c) => ({ qty: qtys[c.itemIndex], unitPrice: c.amount })),
-  );
+  // What goes back for a line of a sale is what was really paid for it (the server works out the
+  // same amount; this is what the screen shows and sends).
+  const refundOf = (c: Candidate) =>
+    kind === "sale"
+      ? refundFor(c.net, c.itemQty, c.returnedBefore, qtys[c.itemIndex])
+      : returnTotal([{ qty: qtys[c.itemIndex], unitCost: c.amount }]);
+  const total = chosen.reduce((sum, c) => sum + refundOf(c), 0);
   const needsParty = settlement === "credit" && !data?.partyId;
   const canSave = chosen.length > 0 && !needsParty && !saving;
   const nothingLeft = data && candidates.every((c) => c.remaining <= 0);
@@ -116,7 +140,9 @@ export function ReturnDialog({
         productNameBn: c.productNameBn,
         unit: c.unit,
         qty: qtys[c.itemIndex],
-        ...(kind === "sale" ? { unitPrice: c.amount } : { unitCost: c.amount }),
+        ...(kind === "sale"
+          ? { unitPrice: c.amount, amount: refundOf(c) }
+          : { unitCost: c.amount }),
       }));
       if (kind === "sale")
         await run("saleReturn.create", {

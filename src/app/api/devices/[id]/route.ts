@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { requireActor } from "@/server/actor-request";
 import { getSyncDeps } from "@/server/deps";
 import { renameDevice } from "@/server/devices";
 import { errorResponse, HttpError, readJson } from "@/server/http";
-import { requireUser } from "@/server/session";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const owner = await requireUser(request, "settings.manage");
+    const owner = await requireActor(request, "settings.manage", {
+      allowLocked: true,
+    });
     const { id } = await params;
     const { name } = bodySchema.parse(await readJson(request));
     const { db } = await getSyncDeps();

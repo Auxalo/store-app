@@ -12,6 +12,14 @@ function deviceName(): string {
   );
 }
 
+/**
+ * Gives this browser a new device identity. The server ties a device to the shop it was registered
+ * for, so a browser that moves to another shop needs a new one.
+ */
+export async function giveDeviceNewIdentity(db: StoreDB): Promise<void> {
+  await db.syncMeta.bulkDelete(["deviceId", "deviceCode"]);
+}
+
 let inFlight: Promise<string> | undefined;
 
 /**

@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { toast } from "sonner";
 import { useDebounceValue } from "usehooks-ts";
 import { ListError } from "@/components/shared/load-more";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +23,7 @@ import { stockStatus } from "@/db/local/queries/products";
 import type { Product } from "@/db/local/types";
 import { useFormat } from "@/i18n/use-format";
 import { refocusOnComputer } from "@/lib/focus";
+import { bnToEn } from "@/lib/numerals";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/stores/cart";
 import { usePreferences } from "@/stores/preferences";
@@ -93,14 +95,25 @@ export function ProductPicker({
   async function onEnter() {
     const code = query.trim();
     if (!code) return;
+    // A code typed with Bangla digits is the same code.
+    const ascii = bnToEn(code);
     // When the list is already about this very text, the exact match is at its top: no extra request.
     const fromList =
       q === code
         ? items.find((p) => p.barcode === code || p.sku === code)
         : undefined;
-    const exact = fromList ?? (await lookup(code).catch(() => null));
-    const pick = exact ?? (items.length === 1 ? items[0] : undefined);
-    if (!pick) return;
+    const exact =
+      fromList ??
+      (await lookup(code).catch(() => null)) ??
+      (ascii !== code ? await lookup(ascii).catch(() => null) : null);
+    // Typing a name and pressing Enter adds the only match, but only when the list on screen is
+    // about this very text (it may still be showing the answer to an earlier, shorter one).
+    const pick =
+      exact ?? (q === code && items.length === 1 ? items[0] : undefined);
+    if (!pick) {
+      toast.error(t("pos.codeNotFound"));
+      return;
+    }
     addProduct(pick);
     setQuery("");
   }
@@ -130,6 +143,9 @@ export function ProductPicker({
             if (e.key === "Enter") {
               e.preventDefault();
               void onEnter();
+            } else if (e.key === "Escape" && query) {
+              e.preventDefault();
+              setQuery(""); // Esc clears what was typed (the screen's hint says so)
             }
           }}
           placeholder={t("pos.searchPlaceholder")}

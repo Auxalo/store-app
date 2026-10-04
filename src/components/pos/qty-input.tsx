@@ -29,8 +29,9 @@ export function QtyInput({ line }: { line: CartLine }) {
         variant="outline"
         size="icon-sm"
         aria-label={t("decrease")}
-        disabled={line.qty <= smallest}
-        onClick={() => setQty(line.key, Math.max(smallest, line.qty - 1000))}
+        // One whole unit down; it never drops to 0.001 kg by accident (type a small amount instead).
+        disabled={line.qty - 1000 < smallest}
+        onClick={() => setQty(line.key, line.qty - 1000)}
       >
         <Minus aria-hidden />
       </Button>

@@ -109,6 +109,7 @@ export function CartPanel({
               variant="outline"
               size="sm"
               onClick={() => cart.hold()}
+              disabled={saving}
               aria-label={t("pos.hold")}
             >
               <Pause aria-hidden />
@@ -118,6 +119,7 @@ export function CartPanel({
               variant="ghost"
               size="icon-sm"
               onClick={() => cart.clear()}
+              disabled={saving}
               aria-label={t("pos.clearCart")}
             >
               <Trash2 aria-hidden />
@@ -145,8 +147,9 @@ export function CartPanel({
                   </p>
                   <button
                     type="button"
-                    className="text-muted-foreground hover:text-destructive"
+                    className="text-muted-foreground hover:text-destructive disabled:opacity-40"
                     aria-label={t("pos.remove")}
+                    disabled={saving}
                     onClick={() => cart.removeLine(line.key)}
                   >
                     <Trash2 className="size-4" aria-hidden />

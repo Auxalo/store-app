@@ -34,7 +34,7 @@ export function ActiveUserGate({ children }: { children: ReactNode }) {
   );
 
   const pinUsers = useMemo(
-    () => (users ?? []).filter((u) => u.isActive && u.pinHash),
+    () => (users ?? []).filter((u) => u.isActive && (u.pinHash || u.hasPin)),
     [users],
   );
   const active = pinUsers.find((u) => u.userId === activeUserId);

@@ -1,3 +1,5 @@
+import { useActiveUser } from "@/stores/active-user";
+
 /** Small fetch helper for the owner's online-only admin screens. */
 export interface ApiResult<T> {
   ok: boolean;
@@ -21,6 +23,10 @@ export async function api<T>(
     const json = (await response.json().catch(() => ({}))) as T & {
       code?: string;
     };
+    // The server does not know who is working here (the PIN was entered while there was no
+    // internet): ask for the PIN again, which tells it.
+    if (json.code === "PIN_REQUIRED" && !useActiveUser.getState().locked)
+      useActiveUser.getState().lock();
     return response.ok
       ? { ok: true, status: response.status, data: json }
       : { ok: false, status: response.status, code: json.code };

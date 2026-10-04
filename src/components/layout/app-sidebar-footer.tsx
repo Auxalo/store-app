@@ -3,6 +3,7 @@
 import { Globe, Info, MessageCircle, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { BillingCard } from "@/components/billing/billing-card";
 import { WorkOfflineSwitch } from "@/components/sync/work-offline";
 import {
   SidebarFooter,
@@ -18,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { useSyncStatus } from "@/sync/use-sync-status";
 import { DOT } from "./sync-badge";
 
-/** Bottom of the sidebar: where this device stands with syncing, and who built the app. */
+/** Bottom of the sidebar: the shop's plan, where this device stands with syncing, who built the app. */
 export function AppSidebarFooter() {
   const t = useTranslations();
   const f = useFormat();
@@ -32,6 +33,7 @@ export function AppSidebarFooter() {
   return (
     <SidebarFooter>
       <SidebarMenu>
+        <BillingCard />
         <WorkOfflineSwitch variant="sidebar" />
         <SidebarMenuItem>
           <SidebarMenuButton asChild tooltip={syncLabel}>

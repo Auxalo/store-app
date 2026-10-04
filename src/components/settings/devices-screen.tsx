@@ -191,6 +191,7 @@ export function DevicesScreen() {
             <AlertDialogTitle>{t("devices.revokeTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
               {t("devices.revokeBody")}
+              {revoking?.isThisDevice ? ` ${t("devices.revokeSelf")}` : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -68,26 +68,30 @@ export class TtlCache<V> {
   }
 }
 
-/** The caches themselves. Kept on globalThis so a hot reload in development starts fresh once. */
-const g = globalThis as unknown as {
-  __caches?: {
-    devices: TtlCache<unknown>;
-    users: TtlCache<unknown>;
-    pins: TtlCache<boolean>;
-    timeZones: TtlCache<string>;
-    status: TtlCache<string>;
-  };
+interface Caches {
+  devices: TtlCache<unknown>;
+  users: TtlCache<unknown>;
+  pins: TtlCache<boolean>;
+  timeZones: TtlCache<string>;
+  /** Is the shop paused, and its billing: what every request checks before anything else. */
+  gate: TtlCache<unknown>;
+}
+
+/**
+ * The caches themselves. Kept on globalThis so a hot reload in development keeps them; one added
+ * since the process started is created then.
+ */
+const g = globalThis as unknown as { __caches?: Partial<Caches> };
+const kept = g.__caches ?? {};
+g.__caches = {
+  devices: kept.devices ?? new TtlCache(10_000),
+  users: kept.users ?? new TtlCache(10_000),
+  pins: kept.pins ?? new TtlCache(10_000),
+  timeZones: kept.timeZones ?? new TtlCache(30_000),
+  gate: kept.gate ?? new TtlCache(10_000),
 };
 
-g.__caches ??= {
-  devices: new TtlCache(10_000),
-  users: new TtlCache(10_000),
-  pins: new TtlCache(10_000),
-  timeZones: new TtlCache(30_000),
-  status: new TtlCache(10_000),
-};
-
-export const caches = g.__caches;
+export const caches = g.__caches as Caches;
 
 /** After this server changes staff, PINs, devices or the shop itself, forget what it remembered. */
 export function clearStoreCaches(): void {
@@ -95,5 +99,5 @@ export function clearStoreCaches(): void {
   caches.users.clear();
   caches.pins.clear();
   caches.timeZones.clear();
-  caches.status.clear();
+  caches.gate.clear();
 }

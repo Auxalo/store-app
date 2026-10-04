@@ -3,6 +3,8 @@
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
+import { BillingBanner } from "@/components/billing/billing-banner";
+import { BillingGate } from "@/components/billing/billing-gate";
 import {
   SidebarInset,
   SidebarProvider,
@@ -36,7 +38,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
         <main className="flex-1 p-3 pb-24 md:p-6 md:pb-6">
           <OnlineBanner />
-          {children}
+          <BillingBanner />
+          <BillingGate>{children}</BillingGate>
         </main>
         <BottomNav />
       </SidebarInset>

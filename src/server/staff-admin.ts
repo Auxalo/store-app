@@ -3,8 +3,10 @@ import { type Db, ObjectId } from "mongodb";
 import type { z } from "zod";
 import { getAuth } from "@/auth/server";
 import type { createStaffSchema, updateStaffSchema } from "@/schemas/staff";
+import { clearStoreCaches } from "./cache";
 import { createStoreUser } from "./onboarding";
 import {
+  clearPinAttempts,
   getStaffMember,
   type StaffMember,
   setStaffPin,
@@ -52,10 +54,24 @@ export async function updateStaffMember(
       await ctx.password.hash(password),
     );
   }
-  if (patch.isActive === false && ObjectId.isValid(id)) {
+  if ((password || patch.isActive === false) && ObjectId.isValid(id)) {
+    // A new password ends every session of that person (someone who had it must sign in again);
+    // so does deactivating them.
     await db
       .collection("session")
       .deleteMany({ userId: { $in: [id, new ObjectId(id)] } as never });
+  }
+  if (password) await clearPinAttempts(db, id); // they signed in with a password: PIN tries start over
+  if (patch.isActive === false) {
+    // Devices the person registered stop working with them: a phone must not keep the shop's data
+    // after its owner was let go. (The owner signs the shared counter in again.)
+    await db
+      .collection("devices")
+      .updateMany(
+        { storeId, createdBy: id, revokedAt: null } as never,
+        { $set: { revokedAt: new Date() } } as never,
+      );
+    clearStoreCaches();
   }
   return result;
 }

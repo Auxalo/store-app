@@ -99,11 +99,20 @@ export function useProfile(): CachedProfile {
   return profile;
 }
 
-export async function signOut(): Promise<void> {
+/**
+ * Ends the session on the server, then forgets this device's copy. Returns false when the server
+ * refused: the session is then still alive, so going to the sign-in page would only bounce the
+ * person straight back in. The caller says so instead of pretending.
+ */
+export async function signOut(): Promise<boolean> {
+  // The server forgets who was working (the PIN person's cookie lasts 12 hours otherwise).
+  await fetch("/api/actor/lock", { method: "POST" }).catch(() => undefined);
   try {
-    await authClient.signOut();
+    const { error } = await authClient.signOut();
+    if (error?.status) return false;
   } catch {
     /* offline: still clear this device */
   }
   clearProfile();
+  return true;
 }

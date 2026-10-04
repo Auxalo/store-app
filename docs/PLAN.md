@@ -711,3 +711,14 @@ Sentry on the server only (errors only, scrubbed), browser crashes reported thro
 
 ### G. Verify on the real deployment
 `pnpm latency` (deployed URL, from Dhaka). Not yet measured against the deployed preview: that needs the `dev` branch deployed with the `bom1` setting.
+
+## Billing (branch `dev`)
+
+Manual subscriptions: shops pay by bKash / Nagad Send Money and type the TrxID; the operator approves in the panel.
+
+- **Rules** (`src/billing/state.ts`, shared by server and device): off / free / paid; trial, active, ending (7 days), overdue (grace days), locked. Dhaka days; renewals keep the day of the month. Lock and warning dates are stored with the billing, so the server checks them with the one cached read of the shop it already does (no extra database command, tested).
+- **Server**: `stores.billing` (operator only), `billingPayments` (TrxID unique across shops), `platformSettings` (plans, numbers, defaults). `requireActor` refuses a locked shop with 402 BILLING_DUE plus its billing; sync, PIN unlock, staff list and the billing endpoints stay open. Head and pull carry the billing to every device.
+- **Device**: the billing is kept in `syncMeta` with the server's clock (never earlier than the latest server time seen); the lock is checked every minute, so a device without internet locks on the day. Every screen goes to `/billing` while locked. Sidebar card (plan, days left, Renew) and banners.
+- **Operator panel**: overview, shops with billing filters, payments queue and CSV, activity, settings; per shop billing, devices (revoke) and notes.
+- **Also fixed**: a paused shop flickered back into the app in online mode; the service worker sometimes saved no pages at all (its list was built from HTML files that were not written yet during `next build`; it now lists the pages from `src/app`); a new online device's first head check failed until the next poll.
+- Tests: `src/billing/__tests__/state.test.ts`, `src/server/__tests__/billing*.test.ts`, isolation and restore additions, `tests/e2e/billing.spec.ts` (lock, pay, 48-hour opening, approve, offline lock).

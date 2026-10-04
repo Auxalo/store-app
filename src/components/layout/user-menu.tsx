@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import { useState } from "react";
+import { toast } from "sonner";
 import { signOut, useProfile } from "@/auth/use-auth";
 import { PinDialog } from "@/components/lock/pin-dialog";
 import {
@@ -60,20 +61,22 @@ export function UserMenu() {
   const f = useFormat();
   const { pending } = useSyncStatus();
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
+  // The count the person was warned about: the live number can fall to 0 while the dialog is open.
+  const [warnedPending, setWarnedPending] = useState(0);
   const [settingPin, setSettingPin] = useState(false);
   const lock = useActiveUser((st) => st.lock);
   const pinUsers = useLiveQuery(
     () =>
       getLocalDb()
-        .localUsers.filter((u) => u.isActive && !!u.pinHash)
+        .localUsers.filter((u) => u.isActive && (!!u.pinHash || !!u.hasPin))
         .count(),
     [],
     0,
   );
 
   async function doSignOut() {
-    await signOut();
-    router.replace("/login");
+    if (await signOut()) router.replace("/login");
+    else toast.error(t("account.signOutFailed"));
   }
 
   const initial = profile.name.trim().charAt(0).toUpperCase() || "?";
@@ -168,9 +171,12 @@ export function UserMenu() {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             variant="destructive"
-            onSelect={() =>
-              pending > 0 ? setConfirmingSignOut(true) : void doSignOut()
-            }
+            onSelect={() => {
+              if (pending > 0) {
+                setWarnedPending(pending);
+                setConfirmingSignOut(true);
+              } else void doSignOut();
+            }}
           >
             <LogOut aria-hidden />
             {t("common.logout")}
@@ -181,6 +187,7 @@ export function UserMenu() {
       <PinDialog
         userId={profile.userId}
         userName={profile.name}
+        role={profile.role}
         self
         open={settingPin}
         onClose={() => setSettingPin(false)}
@@ -194,8 +201,8 @@ export function UserMenu() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {t("account.signOutPendingBody", {
-                count: pending,
-                n: f.integer(pending),
+                count: warnedPending,
+                n: f.integer(warnedPending),
               })}
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -14,6 +14,8 @@ interface DeviceDoc {
   name: string;
   tokenHash: string;
   createdBy: string;
+  /** People who have entered their PIN online on this device: it may then hold their PIN hash. */
+  unlockedBy?: string[];
   createdAt: Date;
   lastSeenAt: Date;
   revokedAt?: Date | null;
@@ -86,8 +88,29 @@ export async function checkDevice(
   }
   return {
     ok: true,
-    device: { storeId: doc.storeId, deviceId: doc._id, code: doc.code },
+    device: {
+      storeId: doc.storeId,
+      deviceId: doc._id,
+      code: doc.code,
+      createdBy: doc.createdBy,
+      unlockedBy: doc.unlockedBy ?? [],
+    },
   };
+}
+
+/** Remembers that this person entered their PIN on this device (online), so it may hold their PIN hash. */
+export async function noteDeviceUnlock(
+  db: Db,
+  deviceId: string,
+  userId: string,
+): Promise<void> {
+  const result = await db
+    .collection<DeviceDoc>(COL.devices)
+    .updateOne(
+      { _id: deviceId, unlockedBy: { $ne: userId } },
+      { $addToSet: { unlockedBy: userId } },
+    );
+  if (result.modifiedCount > 0) caches.devices.delete(deviceId);
 }
 
 export interface Registration {

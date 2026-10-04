@@ -2,6 +2,7 @@ import {
   Banknote,
   Boxes,
   ChartColumn,
+  CreditCard,
   LayoutDashboard,
   type LucideIcon,
   Package,
@@ -35,7 +36,8 @@ export type NavKey =
   | "payments"
   | "reports"
   | "sync"
-  | "settings";
+  | "settings"
+  | "billing";
 
 export type NavGroupKey =
   | "main"
@@ -160,6 +162,14 @@ export const navItems: readonly NavItem[] = [
     group: "system",
     phase: 6,
   },
+  // Shown only when the shop has billing (see app-sidebar.tsx).
+  {
+    key: "billing",
+    href: "/billing",
+    icon: CreditCard,
+    group: "system",
+    phase: 9,
+  },
 ];
 
 export const navGroups: readonly NavGroupKey[] = [
@@ -181,6 +191,7 @@ const NAV_PERMISSION: Partial<Record<NavKey, Permission>> = {
   expenses: "expense.manage",
   reports: "report.view",
   settings: "settings.manage",
+  billing: "billing.manage",
 };
 
 /** The menu for a role. (Screens also check permissions themselves; this just hides dead ends.) */

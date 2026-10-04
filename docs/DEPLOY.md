@@ -17,7 +17,7 @@ A short runbook. The app is one Next.js project (pages plus `/api` routes) and o
 | `MONGODB_URI` | yes | Atlas connection string for a user that can read and write the one database. |
 | `MONGODB_DB` | no | Database name (default `store_app`). |
 | `BETTER_AUTH_SECRET` | yes | 32+ random characters (`openssl rand -base64 32`). Changing it signs everyone out. |
-| `BETTER_AUTH_URL` | yes in production | The public origin, e.g. `https://app.example.com`. The server refuses to start answering without it (Vercel preview deployments may leave it out). |
+| `BETTER_AUTH_URL` | yes in production | The public origin, e.g. `https://app.example.com`. The server refuses to start answering without it (Vercel preview deployments may leave it out). Requests from the very address they are sent to are always accepted, so opening the app on another address (a preview or alias) still signs out correctly. |
 | `SENTRY_DSN` | no | Turns on error reporting to Sentry (see section 15). Nothing is sent without it. |
 | `SKIP_RUNTIME_INDEXES` | no | Set to `1` after running `pnpm db:indexes` as part of a deploy: servers then skip the start-up index check. |
 | `RATE_LIMIT_READ_PER_MIN`, `RATE_LIMIT_WRITE_PER_MIN` | no | Per-device request limits (default 600 and 180). |
@@ -59,7 +59,7 @@ Never set `E2E_DISABLE_RATE_LIMIT` in production: it exists only for the automat
 - Every server action is checked against the signed-in person's role, read fresh from the database; every query is scoped to the person's store.
 - Passwords are handled by Better Auth. PINs are hashed on the device (PBKDF2, 310k rounds) and only the hash is stored on the server. A PIN is a counter convenience, not a replacement for the password (see `docs/PLAN.md`, Phase 6 notes).
 - Run `pnpm audit --prod` before each release; it is clean as of 2026-10-02.
-- **Offline mode trusts the device.** Offline, a PIN is checked on the device and the server cannot tell who actually pressed the buttons (it re-checks the role of the person named on each change, but not that they were the one holding the phone). Online mode does not have this gap: the server checks the PIN and signs who is working. For a shop where this matters (a cashier with access to the owner's phone), prefer online mode, or keep the phone's screen lock on.
+- **Offline work is signed.** Offline, a PIN is checked on the device. An owner's or manager's queued changes carry a signature made with a key only that person's PIN produces, and the server refuses them without it, so another person's device cannot send changes in their name. Owners' and managers' PINs are 6 digits, and their PIN hash reaches only devices they have signed in on (a manager or owner using a device for the first time needs the internet once to enter the PIN). What remains: on a counter where the owner has signed in, a determined person with hours could try to guess a 6-digit PIN from the hash on that device. Keep the phone's screen lock on, or use online mode. See docs/QA-REPORT.md part 5.
 - The online endpoints limit each device to 600 reads and 180 writes a minute (`RATE_LIMIT_READ_PER_MIN`, `RATE_LIMIT_WRITE_PER_MIN`) so a stuck client cannot flood the database. The count is kept in each server process, so it is a safety net, not a security boundary: put rate limiting in the proxy in front for that.
 - **Audit log.** Off by default (it can take a lot of space). When an owner turns it on, entries are kept for 7 days and MongoDB deletes older ones on its own (a TTL index, within about a minute of expiry).
 
@@ -69,6 +69,8 @@ Never set `E2E_DISABLE_RATE_LIMIT` in production: it exists only for the automat
 pnpm check                 # lint, types, translations, unit + integration + performance tests
 npx playwright test        # browser tests: offline, sync, POS, staff, reports, security, size budgets
 ```
+
+GitHub Actions (`.github/workflows/ci.yml`) runs the fast ones on every push to `main` or `dev` and on every pull request: lint, types, messages and unit tests. The slow ones (the browser suites in both modes, `pnpm build`, `pnpm test:perf`) are run on your machine before a release. Make the CI check required for merging into `main` (GitHub: Settings, Branches, branch protection).
 
 `pnpm check` includes a simulated shop day (3 devices, 200 random actions, flapping network) that must end with no duplicates and books that balance. Set `SEED=<number>` to replay a particular day.
 
@@ -132,3 +134,17 @@ Atlas keeps the whole cluster safe (continuous backup on M10 and up; daily snaps
 - **Errors.** Set `SENTRY_DSN` to get an alert when something breaks. Errors only: no performance traces, no request bodies, cookies or headers, and long numbers (phones, amounts) are blanked. Each report is tagged with the route, shop id, device id, app version and a request id, which also appears in the server's one-line JSON log of the failure. Browser crashes are sent through the server (`/api/client-error`) so the page does not carry Sentry's large browser library. `/api/health` shows the app version, the database round-trip time and whether error reporting is on.
 - **Region.** `vercel.json` pins the functions to `bom1` (Mumbai), next to an Atlas cluster in `ap-south-1`. After changing region, check Vercel → Settings → Functions. `pnpm latency --url https://your-site --user <username> --password <password> [--write]` times the main online calls from wherever you run it (run it from Dhaka). Targets: reads under 300 ms, a save under 600 ms.
 - **Storage.** Applied-operation records now live 45 days (they were 180 and held a full copy of every changed record); the audit log keeps 7 days when switched on; Better Auth's sessions expire on their own.
+
+## 16. Billing (bKash / Nagad, checked by hand)
+
+There is no payment gateway. A shop sends money with bKash or Nagad **Send Money** to the number in the operator settings (01772998823 by default), types the transaction id (TrxID) on its Billing page, and the operator checks it arrived and approves it.
+
+- **Modes per shop.** *Off*: no billing anywhere (every shop created before billing existed). *Free*: the shop never pays; its sidebar says "Free plan". *Paid*: trial (14 days by default for new shops) or a paid period, then **ending soon** (yellow banner, 7 days before), **overdue** (red banner with the lock date, 3 grace days by default), then **locked**.
+- **Locked.** People can still sign in, unlock with their PIN and sync (nothing typed on a device is lost), but every screen goes to the Billing page, and the server refuses the shop's data and saves (402 BILLING_DUE). An owner or manager can pay from there; a cashier is told to ask the owner. A device that is offline locks itself on the right day too (it remembers the dates from its last contact and the server's clock).
+- **Sending a payment** opens a locked shop for 48 hours (once per period) while the operator checks it. A transaction id is accepted once, by any shop. At most 3 payments wait at a time.
+- **Operator panel** (`/admin`): *Overview* (payments to check, money collected this and last month, expected monthly income, shops by state, and lists of shops locked, overdue, ending soon or quiet for 14 days); *Shops* (filter by state or paused, search by name, owner or phone, sort by end date); *Payments* (the queue to approve or reject, with a reason the shop sees; history by month; CSV for your accounts); *Activity*; *Settings* (plans and prices, payment numbers, how new shops start, trial, grace and reminder days, hours a locked shop opens after paying).
+- **One shop** (`/admin/shop`): *Billing* tab to switch off / free / paid, choose its plan, give it an agreed price or its own grace days, set the end date, give extra days, record a cash payment, and approve or reject its payments. Every change is in the activity log.
+- **Renewals** continue from the old end date if the shop pays before it locks, and start on the approval day if it was locked. A month keeps the day of the month (Jan 31 -> Feb 28 -> Mar 31). Days end at midnight, Dhaka time.
+- **The example plan prices** (৳500 / ৳2,700 / ৳5,000) are placeholders: set yours in *Settings* before turning billing on for anyone.
+- **Turning billing on for an existing shop**: its Billing tab -> *Paid* gives it the trial first; or set an end date.
+- Billing lives on the shop's own record, which only the operator changes (never in the shop's settings, which the shop can write). Restoring a shop from a backup keeps its current billing and pause.

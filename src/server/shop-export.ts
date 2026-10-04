@@ -227,6 +227,9 @@ export async function verifyExport(
   return { header, counts };
 }
 
+/** Fields of the shop record that belong to the operator, kept as they are by a restore. */
+const OPERATOR_FIELDS = ["billing", "status", "contactPhone", "adminNote"];
+
 /** Deletes every record of ONE shop (scoped by the shop in every collection). */
 export async function wipeShop(db: Db, storeId: string): Promise<void> {
   const ids = await userIds(db, storeId);
@@ -278,8 +281,36 @@ export async function restoreShop(
       throw new RestoreError("USERNAME_TAKEN", String(taken[0].username));
   }
 
+  // What the operator decided about the shop (billing, a pause, their notes) is not part of the
+  // shop's data: restoring an old backup must not bring back an old end date or undo a pause.
+  const keep: Document = {};
+  if (exists)
+    for (const field of OPERATOR_FIELDS)
+      if (exists[field] !== undefined) keep[field] = exists[field];
+
+  // Devices that were revoked and people who were deactivated stay that way: a backup older than
+  // the revocation would otherwise give a lost phone its access back.
+  const revokedDevices = exists
+    ? await db
+        .collection("devices")
+        .find({ storeId, revokedAt: { $ne: null } } as never)
+        .project({ revokedAt: 1 })
+        .toArray()
+    : [];
+  const inactiveUsers = exists
+    ? await db
+        .collection("user")
+        .find({ storeId, isActive: false } as never)
+        .project({ deactivatedAt: 1 })
+        .toArray()
+    : [];
+  const liveSeq = Number(exists?.syncSeq ?? 0);
+
   if (options.replace) await wipeShop(db, storeId);
 
+  // Every restored record gets a new, higher change number, so a device that was up to date before
+  // the restore downloads it again (its cursor is past the old numbers) and the counter never goes back.
+  let seq = liveSeq;
   const batches = new Map<string, Document[]>();
   const flush = async (name: string) => {
     const docs = batches.get(name);
@@ -294,14 +325,36 @@ export async function restoreShop(
     const doc = EJSON.deserialize(entry.d as never) as Document;
     if (entry.c === "stores") {
       storeDoc = doc;
+      seq = Math.max(liveSeq, Number(doc.syncSeq ?? 0));
       continue;
     }
+    if (typeof doc.syncSeq === "number") doc.syncSeq = ++seq;
     const batch = batches.get(entry.c) ?? [];
     batch.push(doc);
     batches.set(entry.c, batch);
     if (batch.length >= 500) await flush(entry.c);
   }
   for (const name of [...batches.keys()]) await flush(name);
-  if (storeDoc) await db.collection("stores").insertOne(storeDoc);
+  if (storeDoc)
+    await db
+      .collection("stores")
+      .insertOne({ ...storeDoc, ...keep, syncSeq: seq });
+  for (const d of revokedDevices)
+    await db
+      .collection("devices")
+      .updateOne(
+        { _id: d._id, revokedAt: null } as never,
+        { $set: { revokedAt: d.revokedAt ?? new Date() } } as never,
+      );
+  for (const u of inactiveUsers)
+    await db.collection("user").updateOne(
+      { _id: u._id },
+      {
+        $set: {
+          isActive: false,
+          deactivatedAt: u.deactivatedAt ?? new Date(),
+        },
+      },
+    );
   return verified;
 }

@@ -42,6 +42,29 @@ export function checkRateLimit(
   if (entry.count > limits()[kind]) throw new HttpError(429, "RATE_LIMITED");
 }
 
+const budgets = new Map<string, number[]>();
+
+/**
+ * At most `max` uses of `key` in `windowMs` (for rare actions, such as a shop sending a payment:
+ * a handful an hour). Like the limit above, it is counted in this process's memory.
+ */
+export function checkBudget(
+  key: string,
+  max: number,
+  windowMs: number,
+  now = Date.now(),
+): void {
+  if (process.env.E2E_DISABLE_RATE_LIMIT === "1") return;
+  const recent = (budgets.get(key) ?? []).filter((t) => now - t < windowMs);
+  if (recent.length >= max) throw new HttpError(429, "RATE_LIMITED");
+  recent.push(now);
+  budgets.set(key, recent);
+  if (budgets.size > 5_000)
+    for (const [k, times] of budgets)
+      if (times.every((t) => now - t >= windowMs)) budgets.delete(k);
+}
+
 export function resetRateLimits(): void {
   counters.clear();
+  budgets.clear();
 }

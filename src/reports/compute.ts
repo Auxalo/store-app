@@ -256,6 +256,9 @@ export function summarize(input: ReportInput): Summary {
     const day = dayKey(ret.createdAt, tz);
     if (!inRange(day)) continue;
     const sale = input.findSale(ret.refId);
+    // A cancelled sale is not counted at all, so neither are its returns (that would count the
+    // same goods and money twice).
+    if (sale && sale.status !== "active") continue;
     let returnedCost = 0;
     for (const line of ret.lines) {
       const item = sale?.items[line.itemIndex];
@@ -265,7 +268,7 @@ export function summarize(input: ReportInput): Summary {
       addProduct(
         item,
         -line.qty,
-        -lineTotal(line.unitAmount, line.qty),
+        -(line.amount ?? lineTotal(line.unitAmount, line.qty)),
         -lineCost,
       );
     }

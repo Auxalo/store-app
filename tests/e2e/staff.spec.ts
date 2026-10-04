@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import {
   addCashier,
+  addCategory,
   createProduct,
   indicator,
   openCart,
@@ -56,6 +57,17 @@ test("owner adds a cashier with a PIN; the cashier unlocks offline and is limite
   await expect(page.getByText("শুধু মালিক সেটিংস খুলতে পারেন।")).toBeVisible();
   await expect(page.locator('a[href="/purchases"]')).toHaveCount(0);
   await expect(page.locator('a[href="/pos"]').first()).toBeVisible();
+
+  // Typing the address of a screen the role may not use shows "no access", not the shop's numbers.
+  for (const path of ["/reports", "/dashboard", "/returns"]) {
+    await page.goto(path);
+    // A fresh page load locks the counter again.
+    await page.getByTestId("lock-user").filter({ hasText: "সাবিনা" }).click();
+    await tapPin(page, "1234");
+    await expect(page.getByTestId("no-access")).toBeVisible({
+      timeout: 15_000,
+    });
+  }
 });
 
 test("wrong PINs are counted, then the counter makes you wait", async ({
@@ -183,4 +195,134 @@ test("a deactivated person cannot sign in; a cut-off device cannot sync", async 
   ).toBeVisible();
   await expect(indicator(pageB, "issue")).toBeVisible({ timeout: 30_000 });
   await second.close();
+});
+
+test("a manager's PIN is checked on this device only after they have entered it online here", async ({
+  page,
+  context,
+}, testInfo) => {
+  test.skip(E2E_MODE === "online", "offline-mode behaviour");
+  const owner = `own${Date.now()}${testInfo.project.name}`;
+  await signUp(page, owner);
+
+  // The owner adds a manager with a PIN.
+  await page.goto("/settings/staff");
+  await page.getByTestId("add-staff").click();
+  await page.getByTestId("staff-name").fill("মিতা");
+  await page.getByTestId("staff-username").fill(`mgr${Date.now()}`);
+  await page.getByTestId("staff-password").fill("password123");
+  await page.getByTestId("staff-role").click();
+  await page.getByRole("option", { name: "ম্যানেজার" }).click();
+  await page.getByTestId("staff-pin-input").fill("482913");
+  await page.getByTestId("save-staff").click();
+  await expect(
+    page.getByTestId("staff-row").filter({ hasText: "মিতা" }),
+  ).toBeVisible();
+  await expect(indicator(page, "synced")).toBeVisible({ timeout: 20_000 });
+
+  // With no internet, this device cannot check her PIN yet: it does not hold her PIN hash.
+  await switchUser(page);
+  await context.setOffline(true);
+  await page.getByTestId("lock-user").filter({ hasText: "মিতা" }).click();
+  await tapPin(page, "482913");
+  await expect(page.getByTestId("lock-message")).toBeVisible();
+  await expect(page.getByTestId("lock-screen")).toBeVisible();
+
+  // Online, the server checks it, she is in, and the device may keep her hash from then on.
+  await context.setOffline(false);
+  await page
+    .getByTestId("lock-user")
+    .filter({ hasText: "মিতা" })
+    .click({
+      timeout: 3_000,
+    })
+    .catch(() => undefined);
+  await tapPin(page, "482913");
+  await expect(page.getByTestId("lock-screen")).toHaveCount(0, {
+    timeout: 15_000,
+  });
+
+  // Next time, offline, her PIN works.
+  await switchUser(page);
+  await context.setOffline(true);
+  await page.getByTestId("lock-user").filter({ hasText: "মিতা" }).click();
+  await tapPin(page, "482913");
+  await expect(page.getByTestId("lock-screen")).toHaveCount(0, {
+    timeout: 15_000,
+  });
+});
+
+test("an owner's offline work is signed with their PIN and accepted; the same action unsigned is refused", async ({
+  page,
+  context,
+}, testInfo) => {
+  test.skip(E2E_MODE === "online", "offline-mode behaviour");
+  const owner = `own${Date.now()}${testInfo.project.name}`;
+  await signUp(page, owner);
+  // The owner sets their own PIN, locks the counter and unlocks again (online).
+  await page.goto("/settings/staff");
+  await page
+    .getByTestId("staff-row")
+    .filter({ hasText: "মালিক" })
+    .getByTestId("staff-pin")
+    .click();
+  await page.getByTestId("pin-input").fill("482913");
+  await page.getByTestId("pin-confirm").fill("482913");
+  await page.getByTestId("save-pin").click();
+  await expect(page.getByTestId("pin-input")).toHaveCount(0);
+  await expect(indicator(page, "synced")).toBeVisible({ timeout: 20_000 });
+  await switchUser(page);
+  await page.getByTestId("lock-user").filter({ hasText: "মালিক" }).click();
+  await tapPin(page, "482913");
+  await expect(page.getByTestId("lock-screen")).toHaveCount(0);
+
+  // Without internet, the owner adds a category (an owner action).
+  await page.goto("/categories");
+  await page.getByTestId("lock-user").filter({ hasText: "মালিক" }).click();
+  await tapPin(page, "482913");
+  await context.setOffline(true);
+  await addCategory(page, "Signed", "সাইন করা");
+  await expect(page.getByText("Signed").first()).toBeVisible();
+
+  // Back online, it reaches the server (nothing is refused).
+  await context.setOffline(false);
+  await expect(indicator(page, "synced")).toBeVisible({ timeout: 30_000 });
+
+  // The same kind of action sent by hand without a signature, in the owner's name, is refused.
+  const cookies = await context.cookies();
+  const device = cookies.find((c) => c.name === "sa_device");
+  const deviceId = decodeURIComponent(device?.value ?? "").split(".")[0];
+  const staff = (await (await page.request.get("/api/staff")).json()) as {
+    staff: Array<{ id: string; role: string }>;
+  };
+  const ownerId = staff.staff.find((s) => s.role === "owner")?.id;
+  const response = await page.request.post("/api/sync/push", {
+    data: {
+      deviceId,
+      appVersion: "999.0.0",
+      ops: [
+        {
+          operationId: crypto.randomUUID(),
+          type: "setting.set",
+          schemaVersion: 1,
+          payload: {
+            key: "receipt.footer",
+            value: "forged",
+            baseVersion: 0,
+          },
+          actorUserId: ownerId,
+          deviceId,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    },
+  });
+  expect(response.ok()).toBe(true);
+  const body = (await response.json()) as {
+    results: Array<{ status: string; error?: string }>;
+  };
+  expect(body.results[0]).toMatchObject({
+    status: "rejected",
+    error: "PROOF_REQUIRED",
+  });
 });

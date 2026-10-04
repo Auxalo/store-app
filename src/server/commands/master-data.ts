@@ -137,6 +137,16 @@ export async function masterUpdate(
       $set: {
         ...effective,
         ...(cfg.derive ? cfg.derive({ ...doc, ...effective }) : {}),
+        // When and from what a selling price changed: a sale rung up offline at the old price
+        // before the change is still honoured (see saleCreate).
+        ...(cfg.collection === "products" &&
+        typeof effective.sellingPrice === "number" &&
+        effective.sellingPrice !== doc.sellingPrice
+          ? {
+              previousSellingPrice: doc.sellingPrice,
+              priceChangedAt: new Date().toISOString(),
+            }
+          : {}),
         ...Object.fromEntries(
           Object.keys(effective).map((field) => [
             `fieldVersions.${field}`,
@@ -167,6 +177,12 @@ export async function masterDelete(
   );
   if (!doc) return { status: "rejected", error: "NOT_FOUND" };
   if (doc.deletedAt) return applied(cfg, doc); // already deleted: idempotent
+  // Money still owed (or owed back) would drop out of every list and could no longer be settled.
+  if (
+    (cfg.collection === "customers" || cfg.collection === "suppliers") &&
+    Number(doc.balance ?? 0) !== 0
+  )
+    return { status: "rejected", error: "HAS_BALANCE" };
 
   const version = doc.version + 1;
   const syncSeq = await allocSeq(ctx.db, ctx.session, ctx.storeId);

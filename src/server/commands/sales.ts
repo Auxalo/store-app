@@ -1,5 +1,6 @@
 import { can } from "@/auth/permissions";
 import type { CommandPayload } from "@/commands/definitions";
+import { type EarlierReturn, returnedOf } from "@/lib/refund";
 import {
   computeTotals,
   lineAmount,
@@ -198,21 +199,65 @@ export async function saleCreate(
       : { status: "rejected", error: "ID_COLLISION" };
   }
 
+  const ids = [...new Set(p.lines.map((l) => l.productId))];
+  const products = await liveProducts(ctx, ids);
+
+  // A product that is not one of this shop's at all (made up, or another shop's) is refused, as
+  // the online path does. One deleted a moment ago still sells, without moving stock.
+  const absent = ids.filter((id) => !products.has(id));
+  if (
+    absent.length > 0 &&
+    (await ctx.db
+      .collection("products")
+      .countDocuments({ _id: { $in: absent }, storeId: ctx.storeId } as never, {
+        session: ctx.session,
+      })) !== absent.length
+  )
+    return { status: "rejected", error: "NOT_FOUND" };
+
+  // What an item is listed at and what it costs come from the shop's own records, never from the
+  // device: otherwise a device could claim the list price was whatever it charged, and sell below
+  // it without the price-override permission.
+  const lines = p.lines.map((l) => {
+    const product = products.get(l.productId);
+    return product
+      ? {
+          ...l,
+          listPrice: Number(product.sellingPrice ?? l.listPrice),
+          unitCost: Number(product.purchasePrice ?? 0),
+        }
+      : l;
+  });
+
+  // A line sold at the price the item had until the owner changed it, on a sale rung up before
+  // that change, was not an override: the cashier could not have known. It is honoured at the
+  // price the customer was charged (the goods have left), and flagged for the owner below.
+  const stale = new Set<number>();
+  lines.forEach((l, index) => {
+    const product = products.get(l.productId);
+    if (
+      product &&
+      l.unitPrice !== l.listPrice &&
+      product.previousSellingPrice === l.unitPrice &&
+      typeof product.priceChangedAt === "string" &&
+      product.priceChangedAt > ctx.opCreatedAt
+    )
+      stale.add(index);
+  });
+  for (const index of stale) lines[index].listPrice = lines[index].unitPrice;
+
   // Selling at a price other than the listed one needs its own permission.
-  const overridden = p.lines.filter((l) => l.unitPrice !== l.listPrice);
+  const overridden = lines.filter((l) => l.unitPrice !== l.listPrice);
   if (overridden.length > 0 && !can(ctx.role, "sale.priceOverride"))
     return { status: "rejected", error: "FORBIDDEN" };
 
-  const totals = computeTotals(p.lines, p.discount, p.tendered);
-  const products = await liveProducts(ctx, [
-    ...new Set(p.lines.map((l) => l.productId)),
-  ]);
+  const totals = computeTotals(lines, p.discount, p.tendered);
   const customer =
     totals.due > 0 ? await liveCustomer(ctx, p.customerId) : null;
   const perProduct = qtyByProduct(
-    p.lines.filter((l) => products.has(l.productId)),
+    lines.filter((l) => products.has(l.productId)),
   );
-  const stockLines = p.lines
+  const stockLines = lines
     .map((l, index) => ({ l, index }))
     .filter(({ l }) => products.has(l.productId));
 
@@ -241,8 +286,8 @@ export async function saleCreate(
     paymentMethod: p.paymentMethod,
     notes: p.notes,
     status: "active",
-    itemCount: p.lines.length,
-    items: p.lines.map((l, index) => ({
+    itemCount: lines.length,
+    items: lines.map((l, index) => ({
       id: saleRecordIds.item(p.id, index),
       productId: l.productId,
       productName: l.productName,
@@ -330,6 +375,18 @@ export async function saleCreate(
     docs.push(wire("ledgerEntries", entry));
   }
 
+  if (stale.size > 0) {
+    await writeAudit(ctx, {
+      action: "sale.stalePrice",
+      entity: "sale",
+      entityId: p.id,
+      newValue: [...stale].map((index) => ({
+        productId: lines[index].productId,
+        unitPrice: lines[index].unitPrice,
+        currentPrice: products.get(lines[index].productId)?.sellingPrice,
+      })),
+    });
+  }
   if (overridden.length > 0) {
     await writeAudit(ctx, {
       action: "sale.priceOverride",
@@ -359,15 +416,32 @@ export async function saleVoid(
   if (sale.status === "voided")
     return { status: "applied", docs: [wire("sales", sale)] }; // already done
 
+  // Goods already brought back by returns are in stock again, and money already taken off the
+  // customer's due is not owed any more: cancelling the sale reverses only what is left.
+  const earlierReturns = await ctx.db
+    .collection<EarlierReturn>("returns")
+    .find({ storeId: ctx.storeId, kind: "sale", refId: sale._id } as never, {
+      session: ctx.session,
+    })
+    .toArray();
+  const { restocked, credited } = returnedOf(earlierReturns);
+  const dueLeft = Math.max(0, sale.due - credited);
+
   const products = await liveProducts(ctx, [
     ...new Set(sale.items.map((i) => i.productId)),
   ]);
   const stockItems = sale.items
-    .map((item, index) => ({ item, index }))
-    .filter(({ item }) => products.has(item.productId));
-  const perProduct = qtyByProduct(stockItems.map(({ item }) => item));
+    .map((item, index) => ({
+      item,
+      index,
+      qty: item.qty - (restocked.get(index) ?? 0),
+    }))
+    .filter(({ item, qty }) => qty > 0 && products.has(item.productId));
+  const perProduct = qtyByProduct(
+    stockItems.map(({ item, qty }) => ({ productId: item.productId, qty })),
+  );
   const customer =
-    sale.due > 0 ? await liveCustomer(ctx, sale.customerId) : null;
+    dueLeft > 0 ? await liveCustomer(ctx, sale.customerId) : null;
 
   const count = 1 + stockItems.length + perProduct.size + (customer ? 2 : 0);
   let seq = await allocSeq(ctx.db, ctx.session, ctx.storeId, count);
@@ -391,22 +465,24 @@ export async function saleVoid(
   docs.push(wire("sales", voided ?? sale));
 
   if (stockItems.length > 0) {
-    const movements: StoredMovement[] = stockItems.map(({ item, index }) => ({
-      _id: saleRecordIds.voidMovement(sale._id, index),
-      storeId: ctx.storeId,
-      productId: item.productId,
-      type: "sale_return",
-      qtyDelta: item.qty,
-      note: sale.invoiceNo,
-      refType: "sale_void",
-      refId: sale._id,
-      createdAt: ctx.opCreatedAt,
-      updatedAt: ctx.opCreatedAt,
-      createdBy: ctx.actorUserId,
-      deviceId: ctx.deviceId,
-      version: 1,
-      syncSeq: seq++,
-    }));
+    const movements: StoredMovement[] = stockItems.map(
+      ({ item, index, qty }) => ({
+        _id: saleRecordIds.voidMovement(sale._id, index),
+        storeId: ctx.storeId,
+        productId: item.productId,
+        type: "sale_return",
+        qtyDelta: qty,
+        note: sale.invoiceNo,
+        refType: "sale_void",
+        refId: sale._id,
+        createdAt: ctx.opCreatedAt,
+        updatedAt: ctx.opCreatedAt,
+        createdBy: ctx.actorUserId,
+        deviceId: ctx.deviceId,
+        version: 1,
+        syncSeq: seq++,
+      }),
+    );
     await ctx.db
       .collection<StoredMovement>("stockMovements")
       .insertMany(movements, { session: ctx.session });
@@ -421,7 +497,7 @@ export async function saleVoid(
       .findOneAndUpdate(
         { _id: customer._id, storeId: ctx.storeId },
         {
-          $inc: { balance: -sale.due, version: 1 },
+          $inc: { balance: -dueLeft, version: 1 },
           $set: {
             syncSeq: seq++,
             "fieldVersions.balance": customer.version + 1,
@@ -437,7 +513,7 @@ export async function saleVoid(
       storeId: ctx.storeId,
       partyType: "customer",
       partyId: customer._id,
-      amountDelta: -sale.due,
+      amountDelta: -dueLeft,
       refType: "sale_void",
       refId: sale._id,
       note: sale.invoiceNo,

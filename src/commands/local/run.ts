@@ -1,3 +1,4 @@
+import { signOp } from "@/auth/op-proof";
 import { can } from "@/auth/permissions";
 import type { StoreDB } from "@/db/local/db";
 import type { OutboxOp } from "@/db/local/types";
@@ -56,6 +57,19 @@ export async function runCommand<T extends CommandType>(
       actorUserId: ctx.actorUserId,
       deviceId: ctx.deviceId,
       createdAt: now,
+      ...(ctx.proofKey
+        ? {
+            proof: signOp(ctx.proofKey, {
+              operationId,
+              type,
+              schemaVersion: OP_SCHEMA_VERSION,
+              payload,
+              actorUserId: ctx.actorUserId,
+              deviceId: ctx.deviceId,
+              createdAt: now,
+            }),
+          }
+        : {}),
       status: "pending",
       attempts: 0,
       nextAttemptAt: 0,

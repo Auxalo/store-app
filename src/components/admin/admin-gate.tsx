@@ -44,13 +44,48 @@ export function AdminGate({ children }: { children: ReactNode }) {
     await check();
   }
 
+  async function signOut() {
+    setError(null);
+    try {
+      const { error: failed } = await authClient.signOut();
+      if (failed?.status) {
+        setError("Could not sign out. Try again.");
+        return;
+      }
+    } catch {
+      setError("Could not sign out. Check your connection and try again.");
+      return;
+    }
+    setState("signedOut");
+  }
+
   if (state === "checking")
     return (
       <div className="flex justify-center py-20">
         <Loader2 className="animate-spin" aria-hidden />
       </div>
     );
-  if (state === "ok") return children;
+  if (state === "ok")
+    return (
+      <>
+        <div className="mb-4 flex items-center justify-end gap-3">
+          {error ? (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void signOut()}
+            data-testid="admin-sign-out"
+          >
+            Sign out
+          </Button>
+        </div>
+        {children}
+      </>
+    );
   return (
     <div
       className="mx-auto flex max-w-sm flex-col gap-4 py-10"
@@ -59,12 +94,12 @@ export function AdminGate({ children }: { children: ReactNode }) {
       {state === "denied" ? (
         <>
           <p className="text-sm">This account is not an operator account.</p>
-          <Button
-            variant="outline"
-            onClick={() =>
-              void authClient.signOut().then(() => setState("signedOut"))
-            }
-          >
+          {error ? (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
+          <Button variant="outline" onClick={() => void signOut()}>
             Sign out
           </Button>
         </>

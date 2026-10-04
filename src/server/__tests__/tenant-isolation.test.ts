@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { parseListParams, RESOURCES } from "@/data/spec";
 import { startMongo, type TestMongo } from "../../../tests/helpers/mongo";
+import { shopBillingView, submitPayment } from "../billing";
+import { clearStoreCaches } from "../cache";
 import {
   getRecord,
   listResource,
@@ -13,6 +15,8 @@ import {
 import { runOnlineCommand } from "../online-commands";
 import { serverSummary } from "../reports";
 import { handlePull } from "../sync/pull";
+
+vi.mock("server-only", () => ({}));
 
 /**
  * Two shops share one database. Whatever shop A does, nothing it reads or writes may be able to
@@ -56,6 +60,7 @@ const TENANT = new Set([
   "appliedOps",
   "auditLogs",
   "stores",
+  "billingPayments",
 ]);
 
 /**
@@ -455,6 +460,59 @@ describe("two shops in one database", () => {
       b.expense,
     ])
       expect(everything).not.toContain(mark);
+  }, 60_000);
+
+  it("shop A's billing page and payments are tied to shop A and show nothing of shop B", async () => {
+    const paid = {
+      mode: "paid",
+      planId: "m1",
+      paidOnce: true,
+      paidUntil: new Date("2030-01-01T00:00:00Z"),
+      lockAt: new Date("2030-01-04T00:00:00Z"),
+    };
+    for (const shop of [shopA, shopB])
+      await mongo.db
+        .collection<{ _id: string }>("stores")
+        .updateOne({ _id: shop }, { $set: { billing: paid } });
+    clearStoreCaches();
+    const payment = (trxId: string) => ({
+      method: "bkash" as const,
+      trxId,
+      sender: "01711000001",
+      amount: 50000,
+      planId: "m1",
+    });
+    await submitPayment(
+      mongo.db,
+      shopB,
+      { id: ownerB, name: "B" },
+      payment("BBBTRX0001"),
+    );
+
+    seen.length = 0;
+    const responses = [
+      await submitPayment(
+        mongo.db,
+        shopA,
+        { id: ownerA, name: "A" },
+        payment("AAATRX0001"),
+      ),
+      await shopBillingView(mongo.db, shopA, true),
+    ];
+    const loose = seen
+      .filter((s) => TENANT.has(s.collection))
+      .flatMap((s) =>
+        s.filters
+          .filter((f) => !tiedToShop(s.collection, f, shopA))
+          .map(
+            (f) => `${s.name} on ${s.collection}: ${names(f).slice(0, 120)}`,
+          ),
+      );
+    expect(loose, "database commands not tied to the shop").toEqual([]);
+    const everything = JSON.stringify(responses);
+    expect(everything).toContain("AAATRX0001");
+    expect(everything).not.toContain("BBBTRX0001");
+    expect(everything).not.toContain(shopB);
   }, 60_000);
 
   it("shop A cannot reach shop B's records with their real ids", async () => {

@@ -29,6 +29,8 @@ export interface LocalContext {
   actorUserId: string;
   role: Role;
   deviceId: string;
+  /** The signing key of the person working (made when they typed their PIN); see src/auth/op-proof.ts. */
+  proofKey?: string;
 }
 
 /**

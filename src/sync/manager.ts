@@ -1,4 +1,5 @@
 import { refreshStaff } from "@/auth/staff-cache";
+import { loadSavedBilling } from "@/billing/client";
 import { resolveDataMode } from "@/data/mode";
 import { useDataModeStore } from "@/data/mode-store";
 import { getLocalDb, type StoreDB } from "@/db/local/db";
@@ -31,12 +32,14 @@ async function exclusively(job: () => Promise<void>): Promise<void> {
   );
 }
 
-/** Wipes everything on this device except its identity. Used when a different store signs in. */
+/**
+ * Wipes everything on this device, its identity included. Used when a different store signs in.
+ * The server ties a device to the shop it was registered for, so the new shop gets a new device
+ * (otherwise it could never sync, and the old shop's invoice numbers could be issued again).
+ */
 async function resetForNewStore(db: StoreDB): Promise<void> {
-  const deviceId = await getDeviceId(db);
   await db.transaction("rw", db.tables, async () => {
     await Promise.all(db.tables.map((table) => table.clear()));
-    await setMeta(db, "deviceId", deviceId);
   });
 }
 
@@ -62,7 +65,7 @@ class SyncManager {
 
   async start(): Promise<void> {
     const db = this.db;
-    const deviceId = await getDeviceId(db);
+    let deviceId = await getDeviceId(db);
 
     const storedStore = await getMeta(db, "storeId");
     if (storedStore && storedStore !== this.session.storeId) {
@@ -76,9 +79,13 @@ class SyncManager {
         return;
       }
       await resetForNewStore(db);
+      deviceId = await getDeviceId(db); // a new one: this is another shop's device
     }
     await setMeta(db, "storeId", this.session.storeId);
+    await loadSavedBilling();
     await recoverInterrupted(db);
+    // The app was just opened: whatever was waiting out a delay is tried now.
+    await resetBackoff(db);
     useDataModeStore.getState().set(await resolveDataMode(db));
     // Ask the browser not to evict our data under storage pressure.
     void navigator.storage?.persist?.();
@@ -182,6 +189,8 @@ class SyncManager {
           error.status === 401
         ) {
           await this.registerDevice();
+          // The failed try put the queue on hold; now that the device is registered, ask again.
+          await resetBackoff(db);
           await sync();
         } else {
           throw error;

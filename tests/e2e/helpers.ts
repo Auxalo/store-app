@@ -98,8 +98,12 @@ export const tapProduct = (page: Page, text: string) =>
 /** On a phone the cart is a sheet behind the bottom bar; on a desktop it is always visible. */
 export async function openCart(page: Page) {
   const bar = page.getByTestId("view-cart");
+  const panel = page.getByTestId("cart-panel");
+  // Right after a page load the cart (and its bar) may still be loading from the device: wait for
+  // one of the two to appear before deciding whether to tap the bar.
+  await expect(bar.or(panel).first()).toBeVisible({ timeout: 15_000 });
   if (await bar.isVisible()) await bar.click();
-  await expect(page.getByTestId("cart-panel")).toBeVisible();
+  await expect(panel).toBeVisible();
 }
 
 /** Owner adds a cashier (optionally with a PIN) on the staff screen. */

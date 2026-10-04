@@ -5,6 +5,11 @@ import { passwordSchema, usernameSchema } from "./auth";
 export const pinHashSchema = z.object({
   salt: z.string().regex(/^[A-Za-z0-9+/]{22}==$/, "invalid salt"),
   hash: z.string().regex(/^[A-Za-z0-9+/]{43}=$/, "invalid hash"),
+  /** The signing key made from the same PIN (see src/auth/op-proof.ts). */
+  proof: z
+    .string()
+    .regex(/^[A-Za-z0-9+/]{43}=$/, "invalid proof")
+    .optional(),
 });
 
 /** Owners cannot be created or changed here: a store keeps the owner it was created with. */

@@ -1,6 +1,7 @@
 import type { StoreDB } from "@/db/local/db";
 import { getMeta, setMeta } from "@/db/local/meta";
 import { yearMonth } from "@/lib/doc-number";
+import { returnedOf } from "@/lib/refund";
 import {
   computeTotals,
   lineAmount,
@@ -91,6 +92,7 @@ export async function customerDelete(
 ) {
   const doc = await db.customers.get(input.id);
   if (!doc || doc.deletedAt) throw new NotFoundError("customer");
+  if (doc.balance !== 0) throw new Error("HAS_BALANCE");
   await db.customers.update(input.id, {
     deletedAt: now,
     version: doc.version + 1,
@@ -255,6 +257,21 @@ export async function saleVoid(
     (a, b) => Number(a.id.split(":i")[1]) - Number(b.id.split(":i")[1]),
   );
 
+  // Goods already brought back by returns are in stock again, and money already taken off the
+  // customer's due is not owed any more: cancelling the sale reverses only what is left.
+  const { restocked, credited } = returnedOf(
+    await db.returns
+      .where("refId")
+      .equals(sale.id)
+      .filter((r) => r.kind === "sale")
+      .toArray(),
+  );
+  const left = ordered.map((item, index) => ({
+    productId: item.productId,
+    qty: item.qty - (restocked.get(index) ?? 0),
+  }));
+  const dueLeft = Math.max(0, sale.due - credited);
+
   const live = new Set<string>();
   for (const productId of new Set(ordered.map((i) => i.productId))) {
     const product = await db.products.get(productId);
@@ -262,14 +279,14 @@ export async function saleVoid(
   }
   await db.stockMovements.bulkAdd(
     ordered.flatMap((item, index) =>
-      live.has(item.productId)
+      live.has(item.productId) && left[index].qty > 0
         ? [
             {
               id: saleRecordIds.voidMovement(sale.id, index),
               storeId: ctx.storeId,
               productId: item.productId,
               type: "sale_return" as const,
-              qtyDelta: item.qty,
+              qtyDelta: left[index].qty,
               note: sale.invoiceNo,
               refType: "sale_void",
               refId: sale.id,
@@ -281,15 +298,15 @@ export async function saleVoid(
         : [],
     ),
   );
-  for (const [productId, qty] of qtyByProduct(ordered)) {
+  for (const [productId, qty] of qtyByProduct(left.filter((l) => l.qty > 0))) {
     if (live.has(productId)) await moveStock(db, productId, qty, now);
   }
 
-  if (sale.due > 0 && sale.customerId) {
+  if (dueLeft > 0 && sale.customerId) {
     const customer = await db.customers.get(sale.customerId);
     if (customer && !customer.deletedAt) {
       await db.customers.update(customer.id, {
-        balance: customer.balance - sale.due,
+        balance: customer.balance - dueLeft,
         version: customer.version + 1,
         updatedAt: now,
       });
@@ -298,7 +315,7 @@ export async function saleVoid(
         storeId: ctx.storeId,
         partyType: "customer",
         partyId: customer.id,
-        amountDelta: -sale.due,
+        amountDelta: -dueLeft,
         refType: "sale_void",
         refId: sale.id,
         note: sale.invoiceNo,
@@ -323,7 +340,7 @@ export async function saleVoid(
   return {
     ...input,
     customerId: sale.customerId,
-    due: sale.due,
-    lines: ordered.map((i) => ({ productId: i.productId, qty: i.qty })),
+    due: dueLeft,
+    lines: left.filter((l) => l.qty > 0),
   };
 }

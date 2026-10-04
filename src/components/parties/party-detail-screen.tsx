@@ -57,7 +57,7 @@ export function PartyDetailScreen({ kind }: { kind: PartyKind }) {
   if (!party || loaded.status === "missing" || party.deletedAt) {
     return (
       <p className="py-10 text-center text-sm text-muted-foreground">
-        {t("products.notFound")}
+        {t("party.notFound")}
       </p>
     );
   }

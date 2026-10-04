@@ -21,8 +21,13 @@ export const saleReturnLine = z.object({
   productNameBn: text(120).default(""),
   unit: z.enum(UNIT_CODES),
   qty: z.number().int().min(1),
-  /** Refund per 1 unit: what the customer paid for it. */
+  /** Refund per 1 unit: what the customer paid for it (before any discount). */
   unitPrice: money,
+  /**
+   * What goes back for this whole line, after the line's discount and its share of the bill
+   * discount. The server works it out itself from the sale, whatever is sent here.
+   */
+  amount: money.optional(),
 });
 
 const saleReturnBase = z.object({
@@ -66,9 +71,15 @@ export const purchaseReturnPayload = purchaseReturnBase.extend({
 });
 
 export const returnTotal = (
-  lines: Array<{ qty: number; unitPrice?: number; unitCost?: number }>,
+  lines: Array<{
+    qty: number;
+    unitPrice?: number;
+    unitCost?: number;
+    amount?: number;
+  }>,
 ) =>
   lines.reduce(
-    (sum, l) => sum + lineTotal(l.unitPrice ?? l.unitCost ?? 0, l.qty),
+    (sum, l) =>
+      sum + (l.amount ?? lineTotal(l.unitPrice ?? l.unitCost ?? 0, l.qty)),
     0,
   );

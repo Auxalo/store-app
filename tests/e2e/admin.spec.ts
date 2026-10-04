@@ -56,7 +56,7 @@ test("an operator pauses, backs up and resets a shop; the shop cannot reach the 
     locale: "en-US",
   });
   const admin = await adminContext.newPage();
-  await admin.goto("/admin");
+  await admin.goto("/admin?tab=shops");
   await admin.getByPlaceholder("Username").fill(operator);
   await admin.getByPlaceholder("Password").fill("operator-pass-1");
   await admin.getByRole("button", { name: "Sign in" }).click();
@@ -129,13 +129,18 @@ test("an operator pauses, backs up and resets a shop; the shop cannot reach the 
 
   // What the operator did is on record.
   await admin.goto("/admin");
-  await admin.getByRole("button", { name: "Activity" }).click();
+  await admin.getByRole("tab", { name: "Activity" }).click();
   await expect(admin.getByTestId("admin-activity")).toContainText(
     "shop.suspend",
   );
   await expect(admin.getByTestId("admin-activity")).toContainText(
     "shop.export",
   );
+
+  // The operator can sign out, and the panel asks for a sign-in again.
+  await admin.getByTestId("admin-sign-out").click();
+  await expect(admin.getByTestId("admin-gate")).toBeVisible();
+  expect((await admin.request.get("/api/admin/shops")).status()).toBe(401);
   await fresh.close();
   await adminContext.close();
 });

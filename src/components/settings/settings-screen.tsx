@@ -31,9 +31,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useDataMode } from "@/data/mode-store";
 import { getLocalDb } from "@/db/local/db";
 import { useSetting } from "@/hooks/use-setting";
 import { download, toCsv } from "@/lib/export";
+import { parseDecimal } from "@/lib/numerals";
 import { type ReceiptPaper, usePreferences } from "@/stores/preferences";
 import { AuditToggleCard } from "./audit-toggle";
 
@@ -77,6 +79,8 @@ export function SettingsScreen() {
   );
   useEffect(() => setFooterText(footer.value), [footer.value]);
   useEffect(() => setIdleText(String(idle.value)), [idle.value]);
+  // In online mode the shop's data lives on the server, so this device has nothing to download.
+  const online = useDataMode() === "online";
 
   if (!can(role, "settings.manage"))
     return (
@@ -86,6 +90,8 @@ export function SettingsScreen() {
     );
 
   const saved = () => toast.success(t("settings.saved"));
+  // A save that fails must say so (it used to do nothing, and the person thought it was saved).
+  const failed = () => toast.error(t("common.somethingWrong"));
 
   async function exportAll() {
     setExporting(true);
@@ -122,13 +128,31 @@ export function SettingsScreen() {
     }
   }
 
+  // Amounts are kept in poisha and stock in thousandths inside; a spreadsheet gets taka and units.
+  const MONEY = new Set([
+    "purchasePrice",
+    "sellingPrice",
+    "balance",
+    "total",
+    "paid",
+    "due",
+  ]);
   async function exportCsv(
     table: "products" | "customers" | "suppliers" | "sales",
     columns: string[],
   ) {
-    const rows = (await getLocalDb().table(table).toArray()).filter(
-      (r) => !r.deletedAt,
-    );
+    const rows = (await getLocalDb().table(table).toArray())
+      .filter((r) => !r.deletedAt)
+      .map((r) => {
+        const row: Record<string, unknown> = { ...r };
+        for (const column of columns) {
+          if (typeof row[column] !== "number") continue;
+          if (MONEY.has(column)) row[column] = (row[column] as number) / 100;
+          else if (column === "stock")
+            row[column] = (row[column] as number) / 1000;
+        }
+        return row;
+      });
     download(
       `${table}-${new Date().toISOString().slice(0, 10)}.csv`,
       toCsv(rows, columns),
@@ -146,7 +170,7 @@ export function SettingsScreen() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              void profile.set(form).then(saved);
+              void profile.set(form).then(saved, failed);
             }}
           >
             <FieldGroup>
@@ -190,7 +214,7 @@ export function SettingsScreen() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                void footer.set(footerText).then(saved);
+                void footer.set(footerText).then(saved, failed);
               }}
             >
               <Field>
@@ -246,11 +270,15 @@ export function SettingsScreen() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              const minutes = Math.max(
-                0,
-                Math.min(1440, Math.round(Number(idleText) || 0)),
-              );
-              void idle.set(minutes).then(saved);
+              // Bangla digits count ("৫" is 5); anything that is not a number is not saved
+              // (it used to become 0, which turns the lock off).
+              const typed = parseDecimal(idleText);
+              if (Number.isNaN(typed)) {
+                toast.error(t("validation.invalidNumber"));
+                return;
+              }
+              const minutes = Math.max(0, Math.min(1440, Math.round(typed)));
+              void idle.set(minutes).then(saved, failed);
             }}
           >
             <Field>
@@ -332,14 +360,14 @@ export function SettingsScreen() {
         <CardHeader>
           <CardTitle className="text-base">{t("settings.export")}</CardTitle>
           <p className="text-sm text-muted-foreground">
-            {t("settings.exportHint")}
+            {online ? t("settings.exportOnlineHint") : t("settings.exportHint")}
           </p>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             onClick={() => void exportAll()}
-            disabled={exporting}
+            disabled={exporting || online}
             data-testid="export-json"
           >
             <Download aria-hidden />
@@ -347,6 +375,7 @@ export function SettingsScreen() {
           </Button>
           <Button
             variant="outline"
+            disabled={online}
             onClick={() =>
               void exportCsv("products", [
                 "name",
@@ -365,6 +394,7 @@ export function SettingsScreen() {
           </Button>
           <Button
             variant="outline"
+            disabled={online}
             onClick={() =>
               void exportCsv("customers", [
                 "name",
@@ -379,6 +409,7 @@ export function SettingsScreen() {
           </Button>
           <Button
             variant="outline"
+            disabled={online}
             onClick={() =>
               void exportCsv("sales", [
                 "invoiceNo",
