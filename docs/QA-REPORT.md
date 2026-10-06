@@ -268,3 +268,24 @@ A grouped section under today's numbers, for owners and managers (anyone who may
 - A payment cannot be edited; to fix a wrong amount, cancel it and enter the right one.
 
 Tests: `purchasing.test.ts` on the server (both directions, advance, once only, device cannot choose the amount or person, cashier refused, other shop's payment, audit), `src/sync/__tests__/purchasing.test.ts` on the device queue (immediate balance, convergence across devices, unsent cancellation surviving a pull, undo on refusal), and the browser test "collect a customer's due" in both modes.
+
+# Part 8: bugs from the Notion bug tracker (the 12 that mattered)
+
+From the tracker's 41 bugs, these were judged "must fix" or "fix soon" and are fixed. The rest are low (labels, small UI, confirmations) and stay on the list. Each has a test.
+
+| Bug | What was wrong | What it does now |
+|---|---|---|
+| BUG-31 (critical) | An owner with no PIN was locked out once a staff member got a PIN: the server wanted a PIN unlock, the owner has none, signing in again did not help, and the PIN screen blamed "internet". | Typing the password makes that person the one working on the device (`/api/actor/password`, also when a new device registers), but only for a sign-in from the last 5 minutes, so a shared counter's old session still cannot skip the PIN. The PIN screen says what really went wrong. |
+| BUG-32 (high) | A purchase cost of 0 or a negative one was accepted and overwrote the product's purchase price with ৳0. | A purchased item's cost must be more than ৳0 in the form, on the device and on the server, and a purchase never sets a product's cost to nothing. (Free stock is added by adjusting stock.) |
+| BUG-20 (high) | A fully returned sale could still be cancelled, which made its refunds vanish from Reports while /returns still listed them. | A sale that has come back in full cannot be cancelled (UI hidden, device and server refuse), and shows "Fully returned" (also BUG-4). A partly returned sale can still be cancelled and reverses only what is left, as before. |
+| BUG-1 (high) | On a short phone the Sell button of the cart sheet was cut off below the screen. The drawer's own 80vh limit beat the sheet's height, so the bottom of the cart was clipped. Reproduced at 360×640 (button ends at 662) and 320×568. | The sheet is sized to fit (up to 94% of the screen) and scrolls if still too small. Test at three phone sizes. |
+| BUG-22 | "How people paid" counted the whole sale (৳400 under bKash for ৳150 paid). | It sums the money received per method; what is owed shows as credit. |
+| BUG-3 (high) | "You need to be online to sign in" shown to people who were online: sign-in first checked the browser's online flag, which is wrong on some phones. | No pre-check: it tries, and shows the real error (network, server, or wrong password), logging the status to the console. |
+| BUG-35, BUG-25 | Reports > Profit showed "unpaid to suppliers" as of the day of each purchase; sale and purchase lists showed the due at that time, which looked stale after a payment. | The Profit tab shows what is owed to suppliers now (same as Dues). The lists and the sale page say "due at sale" / "owed at purchase"; payments are per customer, so the sale's own figure is a snapshot, and the page says so. |
+| BUG-5, BUG-23 | Sales list total (before returns) disagreed with Dashboard and Reports (after returns); the average bill used the total before returns. | The list says "Total before returns"; the average bill uses net sales. |
+| BUG-21 | A sale could need more than is in stock with no hint. | The cart line warns ("only X in stock"); selling is still allowed (stock may go below zero, as decided). |
+| BUG-15 | Stock could be adjusted below zero with no warning. | Removing more than is on hand is refused with a message; adding stock to fix a negative is fine. |
+| BUG-9 | The shop name differed between Settings and receipts (the name written in Settings) and the sidebar (the name used at sign-up). | The sidebar and account menu show the name written in Settings too. |
+| BUG-2 | A product picked in the cart "does not show" and a sold product "disappears" on some phones. | Could not be reproduced (the test picks, sells and checks the list on a 360 px phone). The cut-off cart sheet of BUG-1 is the likely cause of what was seen. If it still happens on a real phone, send the model and screen size. |
+
+Not changed on purpose: weighted-average cost (BUG-41, a design question), purchases and sales payments in the payment log (BUG-33/34), the 401 right after login (BUG-7, harmless).

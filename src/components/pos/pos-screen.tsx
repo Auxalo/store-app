@@ -110,12 +110,14 @@ export function PosScreen() {
             </Button>
           </div>
           <Drawer open={cartOpen} onOpenChange={setCartOpen}>
-            <DrawerContent className="max-h-[92dvh]">
+            {/* The drawer's own limit is 80vh and a plain max-h does not beat it, so the Sell button
+                was cut off on shorter phones: name the variant to replace it. */}
+            <DrawerContent className="data-[vaul-drawer-direction=bottom]:max-h-[94dvh]">
               <DrawerHeader className="sr-only">
                 <DrawerTitle>{t("pos.cart")}</DrawerTitle>
                 <DrawerDescription>{t("pos.cart")}</DrawerDescription>
               </DrawerHeader>
-              <div className="h-[82dvh] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+              <div className="h-[calc(92dvh-2.5rem)] overflow-y-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                 {cartPanel}
               </div>
             </DrawerContent>

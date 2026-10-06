@@ -159,6 +159,10 @@ test("online, a shop with PINs only lets the person who unlocked act, and only a
   const sabina = staff.body.staff.find(
     (s: { name: string }) => s.name === "সাবিনা",
   );
+  // The owner has just typed the password, so the owner is the working person (BUG-31). Locking the
+  // counter forgets that.
+  expect((await get(page, "/api/data/products")).status).toBe(200);
+  await post(page, "/api/actor/lock", {});
   const milk = (await get(page, "/api/data/products?q=milk")).body;
 
   // The shop uses PINs, so nobody acts online until they unlock.

@@ -153,3 +153,68 @@ test("stock cannot be adjusted below zero, and the counter warns when a sale nee
   await expect(page.getByTestId("below-zero")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "সংরক্ষণ" })).toBeEnabled();
 });
+
+test("on a short phone screen the whole cart, including the Sell button, can be reached (BUG-1)", async ({
+  page,
+}, testInfo) => {
+  await signUp(page, `short${Date.now()}${testInfo.project.name}`);
+  for (const [name, nameBn] of [
+    ["Fresh Milk", "ফ্রেশ দুধ"],
+    ["Miniket Rice", "মিনিকেট চাল"],
+    ["Soap", "সাবান"],
+  ] as const)
+    await createProduct(page, { name, nameBn, price: "50", stock: "10" });
+
+  for (const [width, height] of [
+    [360, 640],
+    [320, 568],
+    [412, 700],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await page.goto("/pos");
+    for (const nameBn of ["ফ্রেশ দুধ", "মিনিকেট চাল", "সাবান"])
+      await tapProduct(page, nameBn);
+    await openCart(page);
+    const sell = page.getByTestId("complete-sale");
+    await expect(sell).toBeVisible();
+    await sell.scrollIntoViewIfNeeded();
+    const box = await sell.boundingBox();
+    expect(box, `${width}x${height}`).not.toBeNull();
+    // Fully on screen: nothing hangs below the bottom edge.
+    expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(height);
+    // And it works from here.
+    if (width === 412) {
+      await sell.click();
+      await expect(page.locator("#print-receipt")).toBeVisible();
+    }
+  }
+});
+
+test("on a phone, picking a product shows it in the list at once, and it is still there after the sale (BUG-2)", async ({
+  page,
+}, testInfo) => {
+  await signUp(page, `pick${Date.now()}${testInfo.project.name}`);
+  await createProduct(page, {
+    name: "Fresh Milk",
+    nameBn: "ফ্রেশ দুধ",
+    price: "50",
+    stock: "10",
+  });
+  await page.setViewportSize({ width: 360, height: 740 });
+  await page.goto("/pos");
+
+  const row = page.getByTestId("picker-row").filter({ hasText: "ফ্রেশ দুধ" });
+  await expect(row).toContainText("১০ পিস");
+  await row.click();
+  await expect(row).toContainText("×১"); // the pick shows on the list right away
+  await expect(page.getByTestId("view-cart")).toContainText("১টি পণ্য");
+
+  await openCart(page);
+  await page.getByTestId("complete-sale").click();
+  await page.getByRole("button", { name: "নতুন বিক্রি" }).click();
+
+  // Sold: the product is still listed, with its new stock and no leftover mark.
+  await expect(row).toBeVisible();
+  await expect(row).toContainText("৯ পিস");
+  await expect(row).not.toContainText("×১");
+});
