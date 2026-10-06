@@ -56,7 +56,15 @@ export function PinDialog({
         headers: { "content-type": "application/json" },
         body: JSON.stringify(hashed),
       });
-      if (!response.ok) throw new Error(String(response.status));
+      if (!response.ok) {
+        // A refusal is not a missing connection: say what it is.
+        setError(
+          response.status === 401
+            ? t("pin.needsUnlock")
+            : t("common.somethingWrong"),
+        );
+        return;
+      }
       // The person who just set their own PIN can sign their work with it from now on.
       const { activeUserId, asAccount, setProof } = useActiveUser.getState();
       if (self && hashed.proof && (activeUserId === userId || asAccount))

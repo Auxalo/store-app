@@ -78,6 +78,31 @@ export function refundAmounts(
   });
 }
 
+/** How much of each line came back through returns, whether or not it went back into stock. */
+export function returnedQuantities(
+  returns: Array<{ lines: Array<{ itemIndex: number; qty: number }> }>,
+): Map<number, number> {
+  const back = new Map<number, number>();
+  for (const r of returns)
+    for (const l of r.lines)
+      back.set(l.itemIndex, (back.get(l.itemIndex) ?? 0) + l.qty);
+  return back;
+}
+
+/**
+ * Every line has come back in full. Such a sale has nothing left to cancel (the goods and the money
+ * were already reversed by the returns), and cancelling it would only make its returns disappear
+ * from the reports.
+ */
+export function isFullyReturned(
+  itemQtys: number[],
+  returns: Array<{ lines: Array<{ itemIndex: number; qty: number }> }>,
+): boolean {
+  if (itemQtys.length === 0) return false;
+  const back = returnedQuantities(returns);
+  return itemQtys.every((qty, index) => (back.get(index) ?? 0) >= qty);
+}
+
 export interface EarlierReturn {
   lines: Array<{ itemIndex: number; qty: number }>;
   settlement: "cash" | "credit";

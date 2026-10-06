@@ -233,4 +233,47 @@ test("return goods from a sale: stock goes back, and you cannot return more than
   await page.getByTestId("return-lines").getByLabel("ফেরতের পরিমাণ").fill("3");
   await expect(page.getByTestId("refund-total")).toHaveText("৳০");
   await expect(page.getByTestId("confirm-return")).toBeDisabled();
+
+  // Take the last 2 back too: the sale is "fully returned", so it can neither be returned again
+  // nor cancelled (cancelling would only make its returns vanish from the reports).
+  await page.getByTestId("return-lines").getByLabel("ফেরতের পরিমাণ").fill("2");
+  await page.getByTestId("confirm-return").click();
+  await expect(page.getByTestId("return-lines")).toBeHidden();
+  await expect(page.getByTestId("fully-returned")).toBeVisible();
+  await expect(page.getByTestId("return-items")).toHaveCount(0);
+  await expect(page.getByTestId("void-sale")).toHaveCount(0);
+});
+
+test("a purchase line needs a cost above zero before it can be saved", async ({
+  page,
+}, testInfo) => {
+  const username = `cost${Date.now()}${testInfo.project.name}`;
+  await signUp(page, username);
+  await createProduct(page, {
+    name: "Fresh Milk",
+    nameBn: "ফ্রেশ দুধ",
+    price: "50",
+    stock: "0",
+  });
+
+  await page.goto("/purchases/new");
+  await page.getByPlaceholder("পণ্য যোগ করুন: নাম বা বারকোড লিখুন").fill("দুধ");
+  await page.getByTestId("product-results").getByRole("button").first().click();
+  await page.getByLabel("পরিমাণ").fill("2");
+  await page.getByTestId("purchase-paid").fill("0");
+
+  // A cost of zero cannot be saved (it would also wipe the product's purchase price).
+  await page.getByLabel("প্রতিটির দাম").fill("0");
+  await expect(page.getByTestId("cost-missing")).toBeVisible();
+  await expect(page.getByTestId("save-purchase")).toBeDisabled();
+
+  // A minus sign is not taken as a cost either.
+  await page.getByLabel("প্রতিটির দাম").fill("-5");
+  await page.getByLabel("পরিমাণ").click();
+  await expect(page.getByTestId("save-purchase")).toBeDisabled();
+
+  await page.getByLabel("প্রতিটির দাম").fill("45");
+  await page.getByTestId("purchase-paid").fill("90"); // paid in full, so no supplier is needed
+  await expect(page.getByTestId("cost-missing")).toHaveCount(0);
+  await expect(page.getByTestId("save-purchase")).toBeEnabled();
 });

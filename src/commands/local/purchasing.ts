@@ -175,7 +175,11 @@ export async function purchaseCreate(
         : [],
     ),
   );
-  const lastCost = new Map(input.lines.map((l) => [l.productId, l.unitCost]));
+  const lastCost = new Map(
+    input.lines
+      .filter((l) => l.unitCost > 0)
+      .map((l) => [l.productId, l.unitCost]),
+  );
   for (const [productId, qty] of qtyByProduct(input.lines)) {
     if (!live.has(productId)) continue;
     const product = await db.products.get(productId);

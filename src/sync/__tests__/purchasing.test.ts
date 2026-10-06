@@ -668,3 +668,66 @@ describe("returns", () => {
     expect(await stock(d, milk)).toBe(9_000);
   });
 });
+
+describe("the cost of a purchased item on the device", () => {
+  it("refuses zero and negative costs and changes nothing", async () => {
+    const d = await newDevice();
+    const milk = await addProduct(d, 5_000, 4_000);
+    for (const unitCost of [0, -100]) {
+      await expect(
+        runCommand(d.db, d.ctx, "purchase.create", {
+          id: newId(),
+          supplierId: null,
+          date: today,
+          lines: [pLine(milk, 2_000, unitCost)],
+          paid: 0,
+          updateCosts: true,
+        }),
+      ).rejects.toThrow();
+    }
+    expect((await d.db.products.get(milk))?.purchasePrice).toBe(4_000);
+    expect((await d.db.products.get(milk))?.stock).toBe(5_000);
+    expect(await d.db.purchases.count()).toBe(0);
+  });
+});
+
+describe("cancelling a sale that has come back in full (device)", () => {
+  const back = (milk: string, qty: number) => [
+    {
+      itemIndex: 0,
+      productId: milk,
+      productName: "Fresh Milk",
+      productNameBn: "",
+      unit: "pcs" as const,
+      qty,
+      unitPrice: 5000,
+    },
+  ];
+
+  it("is refused on the device and nothing changes; a partly returned sale can still be cancelled", async () => {
+    const d = await newDevice();
+    const milk = await addProduct(d, 10_000);
+    const full = await sellTo(d, [sLine(milk, 3_000)]);
+    await runCommand(d.db, d.ctx, "saleReturn.create", {
+      id: newId(),
+      saleId: full,
+      lines: back(milk, 3_000),
+    });
+    expect(await stock(d, milk)).toBe(10_000);
+    await expect(
+      runCommand(d.db, d.ctx, "sale.void", { saleId: full, reason: "x" }),
+    ).rejects.toThrow(/FULLY_RETURNED/);
+    expect((await d.db.sales.get(full))?.status).toBe("active");
+    expect(await stock(d, milk)).toBe(10_000);
+
+    const part = await sellTo(d, [sLine(milk, 4_000)]);
+    await runCommand(d.db, d.ctx, "saleReturn.create", {
+      id: newId(),
+      saleId: part,
+      lines: back(milk, 1_000),
+    });
+    await runCommand(d.db, d.ctx, "sale.void", { saleId: part, reason: "x" });
+    expect((await d.db.sales.get(part))?.status).toBe("voided");
+    expect(await stock(d, milk)).toBe(10_000);
+  });
+});

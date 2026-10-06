@@ -18,8 +18,12 @@ export const purchaseLineInput = z.object({
   unit: z.enum(UNIT_CODES),
   /** Milli-units received. */
   qty: z.number().int().min(1).max(1_000_000_000_000),
-  /** Poisha paid per 1 unit. */
-  unitCost: money,
+  /** Poisha paid per 1 unit: more than zero (free stock is added by adjusting stock). */
+  unitCost: z
+    .number()
+    .int({ error: "invalidNumber" })
+    .min(1, { error: "invalidNumber" })
+    .max(10_000_000_000),
   discount: money.default(0),
 });
 export type PurchaseLineInput = z.infer<typeof purchaseLineInput>;

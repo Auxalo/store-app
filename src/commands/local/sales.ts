@@ -1,7 +1,7 @@
 import type { StoreDB } from "@/db/local/db";
 import { getMeta, setMeta } from "@/db/local/meta";
 import { yearMonth } from "@/lib/doc-number";
-import { returnedOf } from "@/lib/refund";
+import { isFullyReturned, returnedOf } from "@/lib/refund";
 import {
   computeTotals,
   lineAmount,
@@ -10,7 +10,7 @@ import {
 } from "@/lib/sale-math";
 import { derivedSearchFields } from "@/lib/search-fields";
 import type { CommandInput, CommandPayload } from "../definitions";
-import { AlreadyExistsError, NotFoundError } from "../errors";
+import { AlreadyExistsError, ConflictError, NotFoundError } from "../errors";
 import type { LocalContext } from "./registry";
 
 /**
@@ -259,13 +259,20 @@ export async function saleVoid(
 
   // Goods already brought back by returns are in stock again, and money already taken off the
   // customer's due is not owed any more: cancelling the sale reverses only what is left.
-  const { restocked, credited } = returnedOf(
-    await db.returns
-      .where("refId")
-      .equals(sale.id)
-      .filter((r) => r.kind === "sale")
-      .toArray(),
-  );
+  const earlierReturns = await db.returns
+    .where("refId")
+    .equals(sale.id)
+    .filter((r) => r.kind === "sale")
+    .toArray();
+  // Everything has already come back: there is nothing left to cancel.
+  if (
+    isFullyReturned(
+      ordered.map((item) => item.qty),
+      earlierReturns,
+    )
+  )
+    throw new ConflictError("FULLY_RETURNED");
+  const { restocked, credited } = returnedOf(earlierReturns);
   const left = ordered.map((item, index) => ({
     productId: item.productId,
     qty: item.qty - (restocked.get(index) ?? 0),

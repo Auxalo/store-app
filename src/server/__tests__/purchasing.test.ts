@@ -825,3 +825,38 @@ describe("cancelling a payment", () => {
     ).toBe(1);
   });
 });
+
+describe("the cost of a purchased item", () => {
+  it("must be more than zero: negative and zero costs are refused and the product's cost is untouched", async () => {
+    const milk = await addProduct(0);
+    const before = await costOf(milk);
+    for (const unitCost of [-500, 0]) {
+      const [result] = await push(
+        deviceA,
+        op(
+          "purchase.create",
+          purchase([pLine(milk, 2_000, unitCost)], { paid: 0 }).payload,
+        ),
+      );
+      expect(result).toMatchObject({
+        status: "rejected",
+        error: "INVALID_PAYLOAD",
+      });
+    }
+    expect(await costOf(milk)).toBe(before);
+    expect(await stockOf(milk)).toBe(0);
+  });
+
+  it("a normal purchase still sets the new cost", async () => {
+    const milk = await addProduct(0);
+    const [result] = await push(
+      deviceA,
+      op(
+        "purchase.create",
+        purchase([pLine(milk, 2_000, 4_800)], { paid: 9_600 }).payload,
+      ),
+    );
+    expect(result.status).toBe("applied");
+    expect(await costOf(milk)).toBe(4_800);
+  });
+});

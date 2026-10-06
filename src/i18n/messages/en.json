@@ -214,6 +214,7 @@
       "NO_CUSTOMER": "The sale has no customer to credit.",
       "NO_SUPPLIER": "The purchase has no supplier to credit.",
       "SALE_VOIDED": "The sale was cancelled.",
+      "FULLY_RETURNED": "Everything on this sale was already returned, so there is nothing left to cancel.",
       "INVALID_LINE": "A returned line does not match the original.",
       "DUPLICATE_SKU": "Another product already has this SKU.",
       "DUPLICATE_BARCODE": "Another product already has this barcode."
@@ -406,6 +407,7 @@
     "voided": "Cancelled",
     "dueBadge": "Due",
     "voidSale": "Cancel sale",
+    "fullyReturned": "Fully returned",
     "voidTitle": "Cancel this sale?",
     "voidBody": "Stock and any customer due will be put back. The sale stays in the records, marked as cancelled.",
     "voidReason": "Reason (optional)",
@@ -539,6 +541,7 @@
     "searchProduct": "Add a product: type a name or barcode",
     "qty": "Quantity",
     "unitCost": "Cost each",
+    "costRequired": "Enter what each item cost (more than zero) before saving.",
     "lineTotal": "Amount",
     "discount": "Discount",
     "paid": "Paid now",
@@ -653,6 +656,7 @@
     "invalidStrong": "An owner's or manager's PIN is 6 digits.",
     "saved": "PIN saved",
     "needsInternet": "You need internet to change a PIN.",
+    "needsUnlock": "Sign in again with your password, or enter your PIN, then try again.",
     "hasPin": "PIN is set",
     "noPin": "No PIN"
   },
