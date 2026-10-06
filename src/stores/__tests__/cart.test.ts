@@ -135,3 +135,13 @@ describe("the POS cart", () => {
     });
   });
 });
+
+describe("the stock a cart line remembers (for the not-enough-stock warning)", () => {
+  it("is the stock when the product was added, and stays through more taps", () => {
+    state().addProduct(product({ stock: 10_000 }));
+    state().addProduct(product({ stock: 10_000 }));
+    expect(state().lines).toHaveLength(1);
+    expect(state().lines[0].stock).toBe(10_000);
+    expect(state().lines[0].qty).toBe(2000);
+  });
+});

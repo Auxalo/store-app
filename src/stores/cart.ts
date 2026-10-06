@@ -22,6 +22,8 @@ export interface CartLine {
   unitPrice: number;
   unitCost: number;
   discount: number;
+  /** Milli-units in stock when the line was added: only for the "not enough in stock" warning. */
+  stock?: number;
 }
 
 interface CartContents {
@@ -146,6 +148,7 @@ export const useCart = create<CartState>()(
             // A cashier is not sent purchase prices; the server fills the cost in from its own records.
             unitCost: product.purchasePrice ?? 0,
             discount: 0,
+            stock: product.stock,
           };
           return { lines: [...s.lines, line] };
         }),

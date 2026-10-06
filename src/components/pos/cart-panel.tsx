@@ -58,6 +58,11 @@ export function CartPanel({
   const locale = usePreferences((s) => s.locale);
   const cart = useCart();
   const { totals, needsCustomer, canComplete, saving, complete } = sale;
+  // The same product can be on several lines: the warning looks at all of them together.
+  const inCart = (productId: string) =>
+    cart.lines
+      .filter((l) => l.productId === productId)
+      .reduce((sum, l) => sum + l.qty, 0);
 
   const canOverridePrice = can(role, "sale.priceOverride");
   const change =
@@ -180,6 +185,20 @@ export function CartPanel({
                 {line.unitPrice !== line.listPrice ? (
                   <p className="mt-1 text-xs text-amber-600">
                     {t("pos.overrideHint", { value: f.money(line.listPrice) })}
+                  </p>
+                ) : null}
+                {line.stock !== undefined &&
+                inCart(line.productId) > Math.max(line.stock, 0) ? (
+                  <p
+                    className="mt-1 text-xs text-amber-600"
+                    role="status"
+                    data-testid="stock-warning"
+                  >
+                    {line.stock <= 0
+                      ? t("pos.noStockHint")
+                      : t("pos.stockHint", {
+                          stock: `${f.qty(line.stock)} ${t(`units.${line.unit}` as never)}`,
+                        })}
                   </p>
                 ) : null}
               </li>

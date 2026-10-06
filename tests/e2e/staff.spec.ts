@@ -124,6 +124,11 @@ test("store name, address and footer appear on the receipt", async ({
   await expect(receipt).toContainText("আলো স্টোর");
   await expect(receipt).toContainText("মিরপুর, ঢাকা");
   await expect(receipt).toContainText("আবার আসবেন");
+
+  // The same name everywhere (BUG-9): the account menu shows the name written in Settings too.
+  await page.getByRole("button", { name: "নতুন বিক্রি" }).click();
+  await page.getByRole("button", { name: "অ্যাকাউন্ট" }).click();
+  await expect(page.getByRole("menu")).toContainText("আলো স্টোর");
 });
 
 test("a deactivated person cannot sign in; a cut-off device cannot sync", async ({

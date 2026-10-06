@@ -118,3 +118,38 @@ test("Reports > Profit shows what the shop owes suppliers now, after a payment",
     "ক্রয়ের সময় বাকি ৳৪০০",
   );
 });
+
+test("stock cannot be adjusted below zero, and the counter warns when a sale needs more than is in stock", async ({
+  page,
+}, testInfo) => {
+  await signUp(page, `stock${Date.now()}${testInfo.project.name}`);
+  await createProduct(page, {
+    name: "Fresh Milk",
+    nameBn: "ফ্রেশ দুধ",
+    price: "50",
+    stock: "3",
+  });
+
+  // Counter: the fourth tap is more than the 3 in stock. A warning appears; selling is still allowed.
+  await page.goto("/pos");
+  for (let i = 0; i < 3; i++) await tapProduct(page, "ফ্রেশ দুধ");
+  await openCart(page);
+  const cart = page.getByTestId("cart-panel");
+  await expect(cart.getByTestId("stock-warning")).toHaveCount(0);
+  await cart.getByLabel("পরিমাণ").fill("4");
+  await expect(cart.getByTestId("stock-warning")).toBeVisible();
+  await cart.getByLabel("পরিমাণ").fill("3");
+  await expect(cart.getByTestId("stock-warning")).toHaveCount(0);
+
+  // Adjust stock: removing 5 from 3 would leave less than nothing, so it cannot be saved.
+  await page.goto("/inventory");
+  const row = page.getByTestId("product-row").filter({ hasText: "ফ্রেশ দুধ" });
+  await row.getByRole("button", { name: "স্টক সমন্বয়" }).click();
+  await page.getByRole("tab", { name: "বাদ" }).click();
+  await page.getByLabel(/পরিমাণ/).fill("5");
+  await expect(page.getByTestId("below-zero")).toBeVisible();
+  await expect(page.getByRole("button", { name: "সংরক্ষণ" })).toBeDisabled();
+  await page.getByLabel(/পরিমাণ/).fill("2");
+  await expect(page.getByTestId("below-zero")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "সংরক্ষণ" })).toBeEnabled();
+});

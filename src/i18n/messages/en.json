@@ -323,6 +323,7 @@
     "note": "Note (optional)",
     "resulting": "Stock after: {value}",
     "noChange": "Stock is already {value}.",
+    "belowZero": "Stock cannot go below zero. There is only {value} on hand.",
     "reasons": {
       "adjustment": "Stock count / adjustment",
       "damage": "Damaged or expired",
@@ -390,6 +391,8 @@
     "decrease": "Less",
     "changeToGive": "Give back {value}",
     "overrideHint": "Price changed from {value}",
+    "stockHint": "Only {stock} in stock. You can still sell it; stock will go below zero.",
+    "noStockHint": "Out of stock. You can still sell it; stock will go below zero.",
     "shortcuts": "Shortcuts: / search · F9 complete · F4 customer · Esc clear",
     "saving": "Saving…",
     "unitPrice": "Unit price",
