@@ -56,7 +56,9 @@ export function ReportOverview({
   const label = t("kpi.vsPrevious");
   const margin =
     s.netSales > 0 ? Math.round((s.profit / s.netSales) * 100) : null;
-  const average = s.salesCount > 0 ? Math.round(s.total / s.salesCount) : 0;
+  // After returns, like the total beside it.
+  const average =
+    s.salesCount > 0 ? Math.round(Math.max(0, s.netSales) / s.salesCount) : 0;
   const ranked = [...s.byProduct].sort((a, b) => b.revenue - a.revenue);
   const top = ranked.slice(0, 5);
   const best = ranked[0];

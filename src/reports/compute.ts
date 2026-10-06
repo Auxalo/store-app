@@ -238,14 +238,17 @@ export function summarize(input: ReportInput): Summary {
       d.profit += sale.total - saleCost;
       d.count += 1;
     }
-    const pay = payments.get(sale.paymentMethod) ?? {
-      method: sale.paymentMethod,
-      total: 0,
-      count: 0,
-    };
-    pay.total += sale.total;
-    pay.count += 1;
-    payments.set(sale.paymentMethod, pay);
+    // How people paid is the money that came in, by method; what is still owed is the "credit" figure.
+    if (sale.paid > 0) {
+      const pay = payments.get(sale.paymentMethod) ?? {
+        method: sale.paymentMethod,
+        total: 0,
+        count: 0,
+      };
+      pay.total += sale.paid;
+      pay.count += 1;
+      payments.set(sale.paymentMethod, pay);
+    }
     for (const item of sale.items)
       addProduct(item, item.qty, lineShare(sale, item), costOf(item));
   }

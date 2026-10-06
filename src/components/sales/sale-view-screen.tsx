@@ -111,6 +111,14 @@ export function SaleViewScreen() {
         ) : null}
       </div>
 
+      {sale.due > 0 ? (
+        <p
+          className="text-xs text-muted-foreground"
+          data-testid="due-at-sale-note"
+        >
+          {t("sales.dueAtSaleNote")}
+        </p>
+      ) : null}
       <div
         className="rounded-xl border bg-muted/30 p-2"
         data-testid="receipt-preview"
