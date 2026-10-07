@@ -1,6 +1,6 @@
 import { can } from "@/auth/permissions";
 import type { CommandPayload } from "@/commands/definitions";
-import { type EarlierReturn, returnedOf } from "@/lib/refund";
+import { type EarlierReturn, isFullyReturned, returnedOf } from "@/lib/refund";
 import {
   computeTotals,
   lineAmount,
@@ -424,6 +424,15 @@ export async function saleVoid(
       session: ctx.session,
     })
     .toArray();
+  // Everything has already come back: there is nothing left to cancel, and cancelling would only
+  // make the returns disappear from the reports.
+  if (
+    isFullyReturned(
+      sale.items.map((i) => i.qty),
+      earlierReturns,
+    )
+  )
+    return { status: "rejected", error: "FULLY_RETURNED" };
   const { restocked, credited } = returnedOf(earlierReturns);
   const dueLeft = Math.max(0, sale.due - credited);
 

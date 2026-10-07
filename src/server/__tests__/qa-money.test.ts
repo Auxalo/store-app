@@ -574,7 +574,7 @@ describe("QA S5: a batch the server cannot accept", () => {
 });
 
 describe("QA C1 (more cases): cancelling a sale after returns", () => {
-  it("a sale whose goods all came back can still be cancelled, and nothing is put back twice", async () => {
+  it("a sale whose goods all came back cannot be cancelled (BUG-20), so nothing is reversed twice", async () => {
     const milk = await product(50_000);
     const rahim = await customer("Full Return");
     const saleId = await sell({
@@ -595,7 +595,7 @@ describe("QA C1 (more cases): cancelling a sale after returns", () => {
     expect(await balanceOf(rahim)).toBe(0);
 
     const voided = await run(asOwner(), "sale.void", { saleId, reason: "x" });
-    expect(voided.ok).toBe(true);
+    expect(voided.ok).toBe(false);
     expect(await stockOf(milk)).toBe(50_000);
     expect(await balanceOf(rahim)).toBe(0);
   });
@@ -639,5 +639,66 @@ describe("QA C1 (more cases): cancelling a sale after returns", () => {
     // ৳150.00 less ৳10.00 = ৳140.00 for 3 units.
     const parts = [await refund(1000), await refund(2000)];
     expect(parts[0] + parts[1]).toBe(14_000);
+  });
+});
+
+describe("BUG-20: a sale that has come back in full cannot be cancelled", () => {
+  it("is refused (online command and pushed operation), and nothing moves", async () => {
+    const milk = await product(100_000);
+    const saleId = await sell({
+      lines: [line(milk, { qty: 3000 })],
+      tendered: 15_000,
+    });
+    const back = await run(asOwner(), "saleReturn.create", {
+      id: randomUUID(),
+      saleId,
+      lines: [returnLine(milk, 3000, 5000)],
+      settlement: "cash",
+      restock: true,
+    });
+    expect(back.ok).toBe(true);
+    expect(await stockOf(milk)).toBe(100_000);
+
+    const voided = await run(asOwner(), "sale.void", { saleId, reason: "x" });
+    expect(voided.ok).toBe(false);
+    expect((await col("sales").findOne({ _id: saleId as never }))?.status).toBe(
+      "active",
+    );
+    expect(await stockOf(milk)).toBe(100_000);
+  });
+
+  it("counts a return that did not go back into stock as returned too", async () => {
+    const milk = await product(100_000);
+    const saleId = await sell({
+      lines: [line(milk, { qty: 2000 })],
+      tendered: 10_000,
+    });
+    await run(asOwner(), "saleReturn.create", {
+      id: randomUUID(),
+      saleId,
+      lines: [returnLine(milk, 2000, 5000)],
+      settlement: "cash",
+      restock: false,
+    });
+    const voided = await run(asOwner(), "sale.void", { saleId, reason: "x" });
+    expect(voided.ok).toBe(false);
+  });
+
+  it("a partly returned sale can still be cancelled (it reverses what is left)", async () => {
+    const milk = await product(100_000);
+    const saleId = await sell({
+      lines: [line(milk, { qty: 4000 })],
+      tendered: 20_000,
+    });
+    await run(asOwner(), "saleReturn.create", {
+      id: randomUUID(),
+      saleId,
+      lines: [returnLine(milk, 3000, 5000)],
+      settlement: "cash",
+      restock: true,
+    });
+    const voided = await run(asOwner(), "sale.void", { saleId, reason: "x" });
+    expect(voided.ok).toBe(true);
+    expect(await stockOf(milk)).toBe(100_000);
   });
 });

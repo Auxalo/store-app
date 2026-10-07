@@ -186,9 +186,11 @@ describe("reports: a device and the server agree", () => {
       fromA.profit,
     );
     expect(fromA.byDay.reduce((s, d) => s + d.sales, 0)).toBe(fromA.netSales);
+    // How people paid counts the money that came in (BUG-22): the bKash sale was ৳160.00 but only
+    // ৳60.00 was paid, the rest is owed and shows as credit, not as bKash.
     expect(fromA.byPayment.map((p) => [p.method, p.total])).toEqual([
-      ["bkash", 16_000],
       ["cash", 10_000],
+      ["bkash", 6_000],
     ]);
     expect(fromA.expensesByCategory).toEqual([
       { category: "rent", total: 20_000 },

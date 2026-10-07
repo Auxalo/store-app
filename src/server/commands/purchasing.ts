@@ -266,7 +266,11 @@ export async function purchaseCreate(
   }
   if (deltas.size > 0) {
     const newCost = p.updateCosts
-      ? new Map(p.lines.map((l) => [l.productId, l.unitCost]))
+      ? new Map(
+          p.lines
+            .filter((l) => l.unitCost > 0)
+            .map((l) => [l.productId, l.unitCost]),
+        )
       : undefined;
     docs.push(...(await moveProducts(ctx, products, deltas, seq, newCost)));
     seq += deltas.size;

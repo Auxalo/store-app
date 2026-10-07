@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { lineNets, refundAmounts, refundFor, returnedOf } from "../refund";
+import {
+  isFullyReturned,
+  lineNets,
+  refundAmounts,
+  refundFor,
+  returnedOf,
+} from "../refund";
 import { computeTotals } from "../sale-math";
 
 const item = (qty: number, unitPrice: number, discount = 0) => ({
@@ -108,5 +114,19 @@ describe("what earlier returns already did (cancelling must not repeat it)", () 
     ]);
     expect(done.restocked.size).toBe(0);
     expect(done.credited).toBe(0);
+  });
+});
+
+describe("a sale that has come back in full", () => {
+  const back = (itemIndex: number, qty: number) => ({
+    lines: [{ itemIndex, qty }],
+  });
+  it("is recognised only when every line is back", () => {
+    expect(isFullyReturned([3000], [back(0, 3000)])).toBe(true);
+    expect(isFullyReturned([3000], [back(0, 1000), back(0, 2000)])).toBe(true);
+    expect(isFullyReturned([3000, 1000], [back(0, 3000)])).toBe(false);
+    expect(isFullyReturned([3000], [back(0, 2999)])).toBe(false);
+    expect(isFullyReturned([3000], [])).toBe(false);
+    expect(isFullyReturned([], [])).toBe(false);
   });
 });

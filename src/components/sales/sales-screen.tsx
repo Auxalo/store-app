@@ -226,7 +226,7 @@ export function SalesScreen() {
                 ) : null}
                 {s.due > 0 && s.status === "active" ? (
                   <Badge variant="secondary">
-                    {t("sales.dueBadge")} {f.money(s.due)}
+                    {t("sales.dueAtSale")} {f.money(s.due)}
                   </Badge>
                 ) : null}
                 <span

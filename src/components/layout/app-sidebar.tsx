@@ -20,6 +20,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { navGroups, navItemsFor } from "@/config/nav";
+import { useShopName } from "@/hooks/use-shop-name";
 import { AppSidebarFooter } from "./app-sidebar-footer";
 
 /** Desktop sidebar; on phones it opens as a sheet from the bottom bar's "More" button. */
@@ -27,6 +28,7 @@ export function AppSidebar() {
   const t = useTranslations();
   const pathname = usePathname();
   const profile = useProfile();
+  const shopName = useShopName();
   const { setOpenMobile } = useSidebar();
   // Billing shows only for a shop that has it; while locked, every other entry leads to it.
   const billingMode = useBillingStore((s) => s.stamp?.mode ?? "off");
@@ -40,7 +42,7 @@ export function AppSidebar() {
             <SidebarMenuButton
               size="lg"
               asChild
-              tooltip={profile.storeName ?? t("app.name")}
+              tooltip={shopName ?? t("app.name")}
             >
               <Link href="/dashboard" onClick={() => setOpenMobile(false)}>
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -48,7 +50,7 @@ export function AppSidebar() {
                 </div>
                 <div className="grid flex-1 text-left leading-tight">
                   <span className="truncate font-medium">
-                    {profile.storeName ?? t("app.name")}
+                    {shopName ?? t("app.name")}
                   </span>
                   <span className="truncate text-xs text-muted-foreground">
                     {t("app.name")}

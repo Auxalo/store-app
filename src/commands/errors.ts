@@ -12,6 +12,14 @@ export class NotFoundError extends Error {
   }
 }
 
+/** The request is fine, but the record is in a state where it cannot be done. */
+export class ConflictError extends Error {
+  constructor(public readonly code: string) {
+    super(`CONFLICT:${code}`);
+    this.name = "ConflictError";
+  }
+}
+
 export class AlreadyExistsError extends Error {
   constructor(what: string) {
     super(`ALREADY_EXISTS:${what}`);

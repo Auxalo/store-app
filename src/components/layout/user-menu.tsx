@@ -43,6 +43,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { getLocalDb } from "@/db/local/db";
+import { useShopName } from "@/hooks/use-shop-name";
 import { useFormat } from "@/i18n/use-format";
 import type { NumeralSystem } from "@/lib/format";
 import { useActiveUser } from "@/stores/active-user";
@@ -54,6 +55,7 @@ export function UserMenu() {
   const t = useTranslations();
   const router = useRouter();
   const profile = useProfile();
+  const shopName = useShopName();
   const { theme = "system", setTheme } = useTheme();
   const numerals = usePreferences((s) => s.numerals);
   const setNumerals = usePreferences((s) => s.setNumerals);
@@ -101,7 +103,7 @@ export function UserMenu() {
             <span className="truncate text-sm font-medium">{profile.name}</span>
             <span className="truncate text-xs font-normal text-muted-foreground">
               {t(`role.${profile.role}`)}
-              {profile.storeName ? ` · ${profile.storeName}` : ""}
+              {shopName ? ` · ${shopName}` : ""}
             </span>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />

@@ -133,7 +133,7 @@ export function PurchaseViewScreen() {
               {f.money(p.paid)} · {t(`payment.${p.paymentMethod}`)}
             </Row>
             {p.due > 0 ? (
-              <Row label={t("purchases.due")}>{f.money(p.due)}</Row>
+              <Row label={t("purchases.dueAtPurchase")}>{f.money(p.due)}</Row>
             ) : null}
             {p.notes ? <Row label={t("purchases.notes")}>{p.notes}</Row> : null}
           </dl>

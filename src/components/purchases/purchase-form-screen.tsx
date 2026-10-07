@@ -91,7 +91,9 @@ export function PurchaseFormScreen() {
     [lines, discount, paid],
   );
   const needsSupplier = totals.due > 0 && !supplier.id;
-  const canSave = lines.length > 0 && !needsSupplier && !saving;
+  // Every item needs a cost above zero: a zero would also wipe the product's purchase price.
+  const costMissing = lines.some((l) => !(l.unitCost >= 1));
+  const canSave = lines.length > 0 && !needsSupplier && !costMissing && !saving;
 
   if (!can(role, "purchase.manage"))
     return (
@@ -383,6 +385,15 @@ export function PurchaseFormScreen() {
           {needsSupplier ? (
             <p className="text-xs text-destructive">
               {t("purchases.supplierForDue")}
+            </p>
+          ) : null}
+          {costMissing ? (
+            <p
+              className="text-xs text-destructive"
+              role="alert"
+              data-testid="cost-missing"
+            >
+              {t("purchases.costRequired")}
             </p>
           ) : null}
         </div>

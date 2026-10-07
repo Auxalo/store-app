@@ -35,15 +35,21 @@ export default function LoginPage() {
 
   const onSubmit = handleSubmit(async (values) => {
     setFormError(null);
-    if (!navigator.onLine) {
+    // No "are you online?" check first: the browser's own flag is wrong on some phones (VPNs, data
+    // savers, extensions), and it blocked people who were online. Try, and say what really happened.
+    let error: { status: number; message?: string } | null;
+    try {
+      ({ error } = await authClient.signIn.username({
+        username: values.username.trim().toLowerCase(),
+        password: values.password,
+      }));
+    } catch (thrown) {
+      console.warn("sign-in request failed", thrown);
       setFormError(t("needInternetToSignIn"));
       return;
     }
-    const { error } = await authClient.signIn.username({
-      username: values.username.trim().toLowerCase(),
-      password: values.password,
-    });
     if (error) {
+      console.warn("sign-in refused", error.status, error.message);
       setFormError(
         error.status === 0
           ? t("needInternetToSignIn")
@@ -53,6 +59,11 @@ export default function LoginPage() {
       );
       return;
     }
+    // Typing the password makes this person the one working on this device (matters for an owner
+    // with no PIN in a shop where staff have PINs). Best effort: a new device gets it on registering.
+    await fetch("/api/actor/password", { method: "POST" }).catch(
+      () => undefined,
+    );
     useActiveUser.getState().openAsAccount();
     router.replace("/");
   });

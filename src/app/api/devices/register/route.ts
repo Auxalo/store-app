@@ -2,6 +2,7 @@ import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuth } from "@/auth/server";
+import { isFreshSession, setPasswordActor } from "@/server/actor-grant";
 import { getSyncDeps } from "@/server/deps";
 import {
   checkDevice,
@@ -60,6 +61,12 @@ export async function POST(request: Request) {
     await noteDeviceUnlock(db, body.deviceId, user.id);
 
     const response = NextResponse.json({ code: registration.code });
+    // A device registered right after the password was typed: that person is the one working.
+    if (isFreshSession(session.session.createdAt))
+      setPasswordActor(response, request, {
+        userId: user.id,
+        deviceId: body.deviceId,
+      });
     if (registration.token) {
       response.cookies.set(
         DEVICE_COOKIE,

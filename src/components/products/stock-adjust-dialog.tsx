@@ -81,7 +81,10 @@ function Form({ product, onClose }: { product: Product; onClose: () => void }) {
           ? amount
           : -amount;
   const resulting = product.stock + delta;
-  const canSave = fits && delta !== 0 && !saving;
+  // Taking stock out cannot leave less than nothing (a typo is far likelier than a real need). Sales
+  // can still take it below zero, and adding stock to bring it back is always fine.
+  const belowZero = fits && delta < 0 && resulting < 0;
+  const canSave = fits && delta !== 0 && !belowZero && !saving;
 
   async function save() {
     if (!canSave) return;
@@ -143,6 +146,15 @@ function Form({ product, onClose }: { product: Product; onClose: () => void }) {
           {text !== "" && !fits ? (
             <FieldDescription className="text-destructive">
               {t("validation.tooManyDecimals")}
+            </FieldDescription>
+          ) : belowZero ? (
+            <FieldDescription
+              className="text-destructive"
+              data-testid="below-zero"
+            >
+              {t("inventory.belowZero", {
+                value: `${f.qty(product.stock)} ${unit}`,
+              })}
             </FieldDescription>
           ) : fits && delta !== 0 ? (
             <FieldDescription>

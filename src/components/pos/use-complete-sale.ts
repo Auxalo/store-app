@@ -40,7 +40,7 @@ export function useCompleteSale(onSold: (saleId: string) => void) {
     const input = {
       customerId: state.customerId,
       customerName: state.customerName,
-      lines: state.lines.map(({ key: _key, ...line }) => line),
+      lines: state.lines.map(({ key: _key, stock: _stock, ...line }) => line),
       discount: state.discount,
       tendered: state.tendered ?? total,
       paymentMethod: state.paymentMethod,

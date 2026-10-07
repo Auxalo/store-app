@@ -124,6 +124,11 @@ test("store name, address and footer appear on the receipt", async ({
   await expect(receipt).toContainText("আলো স্টোর");
   await expect(receipt).toContainText("মিরপুর, ঢাকা");
   await expect(receipt).toContainText("আবার আসবেন");
+
+  // The same name everywhere (BUG-9): the account menu shows the name written in Settings too.
+  await page.getByRole("button", { name: "নতুন বিক্রি" }).click();
+  await page.getByRole("button", { name: "অ্যাকাউন্ট" }).click();
+  await expect(page.getByRole("menu")).toContainText("আলো স্টোর");
 });
 
 test("a deactivated person cannot sign in; a cut-off device cannot sync", async ({
@@ -325,4 +330,37 @@ test("an owner's offline work is signed with their PIN and accepted; the same ac
     status: "rejected",
     error: "PROOF_REQUIRED",
   });
+});
+
+test("an owner with no PIN of their own is not locked out after staff get PINs and the owner signs in again", async ({
+  page,
+}, testInfo) => {
+  const owner = `own${Date.now()}${testInfo.project.name}`;
+  await signUp(page, owner);
+  await addCashier(page, "সাবিনা", `cash${Date.now()}`, "1234");
+
+  // The counter locks: only the cashier has a PIN, so the owner uses the password.
+  await switchUser(page);
+  await page.getByRole("button", { name: "পাসওয়ার্ড দিয়ে সাইন ইন" }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await signIn(page, owner);
+
+  // The owner is the working person again, so the server accepts what they do. Setting their own
+  // PIN (the way out of being asked for a password every time) goes to the server and works.
+  await expect(page.getByTestId("lock-screen")).toHaveCount(0);
+  await page.getByRole("button", { name: "অ্যাকাউন্ট" }).click();
+  await page.getByTestId("set-my-pin").click();
+  await page.getByTestId("pin-input").fill("482913");
+  await page.getByTestId("pin-confirm").fill("482913");
+  await page.getByTestId("save-pin").click();
+  await expect(page.getByTestId("pin-input")).toHaveCount(0, {
+    timeout: 15_000,
+  });
+  await expect(page.getByTestId("lock-screen")).toHaveCount(0);
+
+  // And the owner can now unlock by PIN like everyone else.
+  await switchUser(page);
+  await page.getByTestId("lock-user").filter({ hasText: "রহিম" }).click();
+  await tapPin(page, "482913");
+  await expect(page.getByTestId("lock-screen")).toHaveCount(0);
 });

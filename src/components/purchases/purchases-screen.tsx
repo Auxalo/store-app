@@ -147,7 +147,7 @@ export function PurchasesScreen() {
                 </span>
                 {p.due > 0 ? (
                   <Badge variant="secondary">
-                    {t("purchases.due")} {f.money(p.due)}
+                    {t("purchases.dueAtPurchase")} {f.money(p.due)}
                   </Badge>
                 ) : null}
                 <span className="shrink-0 font-semibold">

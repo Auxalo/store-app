@@ -20,11 +20,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCommand, useRecord } from "@/data/hooks";
 import type { Sale, SaleItem } from "@/db/local/types";
+import { isFullyReturned } from "@/lib/refund";
 
 export function SaleViewScreen() {
   const t = useTranslations();
@@ -50,6 +52,17 @@ export function SaleViewScreen() {
   const items = ((loaded.record as unknown as { items?: SaleItem[] }).items ??
     []) as SaleItem[];
 
+  // Everything has come back already: the return and cancel actions have nothing left to do.
+  const saleReturns = (loaded.extra.returns ?? []).filter(
+    (r) => r.kind === "sale",
+  ) as unknown as Array<{ lines: Array<{ itemIndex: number; qty: number }> }>;
+  const fullyReturned =
+    sale.status === "active" &&
+    isFullyReturned(
+      items.map((i) => Number(i.qty)),
+      saleReturns,
+    );
+
   async function voidSale() {
     try {
       await run("sale.void", { saleId: id, reason });
@@ -67,7 +80,14 @@ export function SaleViewScreen() {
           <Printer aria-hidden />
           {t("pos.printReceipt")}
         </Button>
-        {can(role, "sale.void") && sale.status === "active" ? (
+        {fullyReturned ? (
+          <Badge variant="secondary" data-testid="fully-returned">
+            {t("sales.fullyReturned")}
+          </Badge>
+        ) : null}
+        {can(role, "sale.void") &&
+        sale.status === "active" &&
+        !fullyReturned ? (
           <Button
             variant="outline"
             onClick={() => setReturning(true)}
@@ -77,7 +97,9 @@ export function SaleViewScreen() {
             {t("returns.title")}
           </Button>
         ) : null}
-        {can(role, "sale.void") && sale.status === "active" ? (
+        {can(role, "sale.void") &&
+        sale.status === "active" &&
+        !fullyReturned ? (
           <Button
             variant="outline"
             onClick={() => setVoiding(true)}
@@ -89,6 +111,14 @@ export function SaleViewScreen() {
         ) : null}
       </div>
 
+      {sale.due > 0 ? (
+        <p
+          className="text-xs text-muted-foreground"
+          data-testid="due-at-sale-note"
+        >
+          {t("sales.dueAtSaleNote")}
+        </p>
+      ) : null}
       <div
         className="rounded-xl border bg-muted/30 p-2"
         data-testid="receipt-preview"

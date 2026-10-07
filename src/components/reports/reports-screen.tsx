@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useCategories, useList } from "@/data/hooks";
+import { useCategories, useList, useTotals } from "@/data/hooks";
 import { useDataMode } from "@/data/mode-store";
 import { stockStatus } from "@/db/local/queries/products";
 import { useFormat } from "@/i18n/use-format";
@@ -140,6 +140,12 @@ export function ReportsScreen() {
   const stock = useStockHeader(tab === "stock");
   const stockList = useStockProducts(onlyLow, tab === "stock");
   const dues = useDues(tab === "dues");
+  // What the shop owes suppliers right now (all of it, not just this period's purchases).
+  const supplierOwedNow = useTotals(
+    "suppliers",
+    { balance: "owes" },
+    { enabled: tab === "profit" },
+  );
   const movements = useList(
     "stockMovements",
     { from: range.from, to: range.to },
@@ -363,7 +369,11 @@ export function ReportsScreen() {
             value={`${f.money(s.purchasesTotal)} · ${f.integer(s.purchasesCount)}`}
             testId="r-purchases"
           />
-          <Row label={t("purchasesDue")} value={f.money(s.purchasesDue)} />
+          <Row
+            label={t("purchasesDue")}
+            value={f.money(supplierOwedNow?.owed ?? 0)}
+            testId="r-owed-suppliers"
+          />
         </Section>
       </>
     );
