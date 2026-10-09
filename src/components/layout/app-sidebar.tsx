@@ -1,11 +1,12 @@
 "use client";
 
-import { Lock, Store } from "lucide-react";
+import { Lock } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useProfile } from "@/auth/use-auth";
 import { useBillingStatus, useBillingStore } from "@/billing/client";
+import { BrandLogo } from "@/components/shared/brand-logo";
 import {
   Sidebar,
   SidebarContent,
@@ -45,9 +46,7 @@ export function AppSidebar() {
               tooltip={shopName ?? t("app.name")}
             >
               <Link href="/dashboard" onClick={() => setOpenMobile(false)}>
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <Store className="size-4" aria-hidden />
-                </div>
+                <BrandLogo size={32} className="size-8" />
                 <div className="grid flex-1 text-left leading-tight">
                   <span className="truncate font-medium">
                     {shopName ?? t("app.name")}

@@ -3,8 +3,8 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "Store Manager",
-    short_name: "Store",
+    name: "Heshabe | হিসাবি",
+    short_name: "Heshabe",
     description:
       "Offline-first store management: sales, stock, purchases and accounts.",
     lang: "bn",

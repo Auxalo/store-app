@@ -1,12 +1,12 @@
 "use client";
 
-import { Store } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { type ReactNode, useEffect } from "react";
 import { can } from "@/auth/permissions";
 import { useAuth } from "@/auth/use-auth";
 import { LanguageSwitch } from "@/components/layout/language-switch";
+import { BrandLogo } from "@/components/shared/brand-logo";
 import { DeveloperLinks } from "@/components/shared/developer-links";
 import { FullScreenLoader } from "@/components/shared/full-screen-loader";
 import { homeFor } from "@/config/nav";
@@ -36,9 +36,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh flex-col px-4 pb-[env(safe-area-inset-bottom)]">
       <header className="flex items-center justify-between py-3">
         <div className="flex items-center gap-2 font-semibold">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Store className="size-4" aria-hidden />
-          </div>
+          <BrandLogo size={32} className="size-8" />
           {t("name")}
         </div>
         <LanguageSwitch />
