@@ -386,15 +386,24 @@ export function ReportsScreen() {
         <Section title={t("purchases")}>
           <Row
             label={t("purchases")}
-            value={`${f.money(s.purchasesTotal - s.purchaseReturns)} · ${f.integer(s.purchasesCount)}`}
+            // Everything bought, as on the Purchases list; what went back is its own line below.
+            value={`${f.money(s.purchasesTotal)} · ${f.integer(s.purchasesCount)}`}
             testId="r-purchases"
           />
           {s.purchaseReturns > 0 ? (
-            <Row
-              label={t("purchaseReturns")}
-              value={`−${f.money(s.purchaseReturns)}`}
-              testId="r-purchase-returns"
-            />
+            <>
+              <Row
+                label={t("purchaseReturns")}
+                value={`−${f.money(s.purchaseReturns)}`}
+                testId="r-purchase-returns"
+              />
+              <Row
+                label={t("netPurchases")}
+                value={f.money(s.purchasesTotal - s.purchaseReturns)}
+                bold
+                testId="r-net-purchases"
+              />
+            </>
           ) : null}
           <Row
             label={t("purchasesDue")}

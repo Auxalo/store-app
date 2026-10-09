@@ -23,7 +23,10 @@ export function useCompleteSale(onSold: (saleId: string) => void) {
 
   const totals = cartTotals(cart);
   const needsCustomer = totals.due > 0 && !cart.customerId;
-  const canComplete = cart.lines.length > 0 && !needsCustomer && !saving;
+  // A discount bigger than the goods would be quietly cut down to the total: say so, don't sell.
+  const discountTooBig = cart.discount > totals.subtotal;
+  const canComplete =
+    cart.lines.length > 0 && !needsCustomer && !discountTooBig && !saving;
 
   const complete = useCallback(async () => {
     const state = useCart.getState();
@@ -38,6 +41,7 @@ export function useCompleteSale(onSold: (saleId: string) => void) {
       credit,
     );
     if (due > 0 && !state.customerId) return;
+    if (state.discount > cartTotals(state).subtotal) return;
 
     const input = {
       customerId: state.customerId,
@@ -79,5 +83,12 @@ export function useCompleteSale(onSold: (saleId: string) => void) {
     }
   }, [run, onSold, t]);
 
-  return { complete, canComplete, saving, needsCustomer, totals };
+  return {
+    complete,
+    canComplete,
+    saving,
+    needsCustomer,
+    discountTooBig,
+    totals,
+  };
 }

@@ -165,8 +165,9 @@ export function DashboardScreen() {
     {
       key: "todayPurchases",
       icon: ShoppingBasket,
-      value: today && today.purchasesTotal - today.purchaseReturns,
-      change: vs((x) => x.purchasesTotal - x.purchaseReturns),
+      // Everything bought today, the same figure as the Purchases list (returns are in Reports).
+      value: today?.purchasesTotal,
+      change: vs((x) => x.purchasesTotal),
       sub: "",
     },
   ];

@@ -108,6 +108,7 @@ export async function localList(
   );
   const items = sorted.slice(0, limit);
   if (resource === "stockMovements") await addProductNames(db, items);
+  if (resource === "sales") await addReturnedTotals(db, items);
   return { items, total: sorted.length };
 }
 
@@ -124,6 +125,22 @@ async function addProductNames(db: StoreDB, items: Doc[]) {
     item.productName = p?.name ?? "";
     item.productNameBn = p?.nameBn ?? "";
   }
+}
+
+/**
+ * Same as the server: a return never changes its sale (the customer is credited instead), so each
+ * sale on the page carries what was taken back from it.
+ */
+async function addReturnedTotals(db: StoreDB, items: Doc[]) {
+  const ids = items.map((i) => String(i.id));
+  if (ids.length === 0) return;
+  const returns = await db.returns.where("refId").anyOf(ids).toArray();
+  const byId = new Map<string, number>();
+  for (const r of returns)
+    if (r.kind === "sale")
+      byId.set(r.refId, (byId.get(r.refId) ?? 0) + Number(r.total ?? 0));
+  for (const item of items as Array<Record<string, unknown>>)
+    item.returnedTotal = byId.get(String(item.id)) ?? 0;
 }
 
 /** Counts and sums over everything that matches (not one page). */

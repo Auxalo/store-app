@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { OP_SCHEMA_VERSION } from "@/commands/definitions";
+import { parseListParams } from "@/data/spec";
 import { saleRecordIds } from "@/lib/sale-math";
 import type { OpEnvelope, PushResult } from "@/schemas/sync";
 import { startMongo, type TestMongo } from "../../../tests/helpers/mongo";
+import { listResource } from "../data/service";
 import { handlePull } from "../sync/pull";
 import { handlePush } from "../sync/push";
 
@@ -185,6 +187,67 @@ describe("sale.create", () => {
     expect(
       await col("stockMovements").countDocuments({ refId: s.id, type: "sale" }),
     ).toBe(2);
+  });
+
+  it("keeps the cash handed over, and the list shows what a return took back from the sale", async () => {
+    const milk = await addProduct(10_000);
+    const customer = randomUUID();
+    await push(
+      deviceA,
+      op("customer.create", {
+        id: customer,
+        name: "রহিম",
+        phone: "",
+        address: "",
+        notes: "",
+      }),
+    );
+    // ৳100 sale, ৳500 handed over: paid in full, the rest is change.
+    const s = sale([line(milk, 2000)], {
+      customerId: customer,
+      customerName: "রহিম",
+      tendered: 50_000,
+    });
+    await push(deviceA, op("sale.create", s.payload));
+    expect(await col("sales").findOne({ _id: s.id as never })).toMatchObject({
+      paid: 10_000,
+      tendered: 50_000,
+    });
+
+    const [ret] = await push(
+      deviceA,
+      op("saleReturn.create", {
+        id: randomUUID(),
+        saleId: s.id,
+        returnNo: "R-T-2610-0001",
+        customerId: customer,
+        lines: [
+          {
+            itemIndex: 0,
+            productId: milk,
+            productName: "Milk",
+            productNameBn: "দুধ",
+            unit: "pcs",
+            qty: 1000,
+            unitPrice: 5000,
+          },
+        ],
+        restock: true,
+        cashBack: 5_000,
+      }),
+    );
+    expect(ret).toMatchObject({ status: "applied" });
+    const page = await listResource(
+      mongo.db,
+      "sales",
+      parseListParams("sales", {}),
+      { storeId, canSeeCost: true },
+      { limit: 100 },
+    );
+    const row = page.items.find((i) => (i as { id?: string }).id === s.id);
+    expect((row as { returnedTotal?: number }).returnedTotal).toBe(5_000);
+    const other = page.items.find((i) => (i as { id?: string }).id !== s.id);
+    expect((other as { returnedTotal?: number }).returnedTotal).toBe(0);
   });
 
   it("returns every record it changed so the device can update itself", async () => {

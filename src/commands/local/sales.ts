@@ -236,6 +236,7 @@ export async function saleCreate(
     discount: totals.discount,
     total: totals.total,
     creditUsed: totals.creditUsed,
+    tendered: input.tendered,
     paid: totals.paid,
     due: totals.due,
     paymentMethod: input.paymentMethod,

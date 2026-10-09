@@ -92,7 +92,14 @@ export function PurchaseFormScreen() {
   const needsSupplier = totals.due > 0 && !supplier.id;
   // Every item needs a cost above zero: a zero would also wipe the product's purchase price.
   const costMissing = lines.some((l) => !(l.unitCost >= 1));
-  const canSave = lines.length > 0 && !needsSupplier && !costMissing && !saving;
+  // A discount bigger than the goods would be quietly cut down to the total: say so, don't save.
+  const discountTooBig = (discount ?? 0) > totals.subtotal;
+  const canSave =
+    lines.length > 0 &&
+    !needsSupplier &&
+    !costMissing &&
+    !discountTooBig &&
+    !saving;
 
   if (!can(role, "purchase.manage"))
     return (
@@ -312,7 +319,19 @@ export function PurchaseFormScreen() {
                 value={discount}
                 onValue={setDiscount}
                 aria-label={t("purchases.discount")}
+                aria-invalid={discountTooBig}
               />
+              {discountTooBig ? (
+                <span
+                  className="text-destructive"
+                  role="alert"
+                  data-testid="discount-too-big"
+                >
+                  {t("purchases.discountTooBig", {
+                    value: f.money(totals.subtotal),
+                  })}
+                </span>
+              ) : null}
             </div>
             <div className="flex flex-col gap-1 text-xs text-muted-foreground">
               <span>{t("purchases.paid")} (৳)</span>

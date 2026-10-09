@@ -1,5 +1,8 @@
+import "fake-indexeddb/auto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { runCommand } from "@/commands/local/run";
+import { localList } from "@/data/local";
+import { parseListParams } from "@/data/spec";
 import { getMeta, setMeta } from "@/db/local/meta";
 import { newId } from "@/lib/ids";
 import { createDevice, type Device } from "../../../tests/helpers/devices";
@@ -144,6 +147,70 @@ describe("selling on one device", () => {
     expect(await d.db.sales.count()).toBe(0);
     expect(await stock(d, milk)).toBe(10_000);
     expect(await d.db.outbox.count()).toBe(before);
+  });
+});
+
+describe("what a sale remembers for its receipt and its list", () => {
+  it("keeps the cash handed over, so the receipt can show what was received and the change", async () => {
+    const a = await newDevice();
+    const b = await newDevice();
+    const milk = await addProduct(a, 10_000);
+    const id = await sell(a, [lineOf(milk, 2000)], { tendered: 50_000 });
+    // ৳100 sale, ৳500 handed over: the sale is paid in full and the ৳400 is change.
+    expect(await a.db.sales.get(id)).toMatchObject({
+      total: 10_000,
+      paid: 10_000,
+      tendered: 50_000,
+    });
+    await a.sync();
+    await b.sync();
+    expect(await b.db.sales.get(id)).toMatchObject({
+      paid: 10_000,
+      tendered: 50_000,
+    });
+  });
+
+  it("a sale in the list carries what came back from it (and only from sale returns)", async () => {
+    const d = await newDevice();
+    const milk = await addProduct(d, 10_000);
+    const customer = await addCustomer(d);
+    const id = await sell(d, [lineOf(milk, 3000)], {
+      customerId: customer,
+      customerName: "রহিম",
+      tendered: 5_000,
+    });
+    const untouched = await sell(d, [lineOf(milk, 1000)]);
+    await runCommand(d.db, d.ctx, "saleReturn.create", {
+      id: newId(),
+      saleId: id,
+      lines: [
+        {
+          itemIndex: 0,
+          productId: milk,
+          productName: "Fresh Milk",
+          productNameBn: "",
+          unit: "pcs",
+          qty: 1000,
+          unitPrice: 5000,
+        },
+      ],
+      settlement: "credit",
+    });
+    const page = await localList(
+      d.db,
+      "sales",
+      parseListParams("sales", {}),
+      50,
+      "Asia/Dhaka",
+    );
+    const by = new Map(
+      page.items.map((s) => [
+        String(s.id),
+        (s as { returnedTotal?: number }).returnedTotal,
+      ]),
+    );
+    expect(by.get(id)).toBe(5_000);
+    expect(by.get(untouched)).toBe(0);
   });
 });
 

@@ -76,8 +76,21 @@ export function ReturnsScreen() {
               n: f.integer(totals.count),
             })}
           </span>
-          <span className="font-semibold text-foreground">
-            {f.money(totals.total)}
+          <span
+            className="flex flex-col items-end font-semibold text-foreground sm:flex-row sm:gap-3"
+            data-testid="return-totals"
+          >
+            {filters.kind !== "purchase" && (totals.saleTotal ?? 0) > 0 ? (
+              <span>
+                {t("returns.saleTotal")} {f.money(totals.saleTotal ?? 0)}
+              </span>
+            ) : null}
+            {filters.kind !== "sale" && (totals.purchaseTotal ?? 0) > 0 ? (
+              <span>
+                {t("returns.purchaseTotal")}{" "}
+                {f.money(totals.purchaseTotal ?? 0)}
+              </span>
+            ) : null}
           </span>
         </div>
       ) : null}
