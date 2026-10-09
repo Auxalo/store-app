@@ -8,6 +8,7 @@ import { FullScreenLoader } from "@/components/shared/full-screen-loader";
 import { DataProvider } from "@/data/provider";
 import { useSyncStore } from "@/sync/store";
 import { OfflineGate } from "./offline-gate";
+import { StoreGate } from "./store-gate";
 import { SuspendedScreen } from "./suspended-screen";
 import { SyncProvider } from "./sync-provider";
 
@@ -30,13 +31,15 @@ export function AuthGate({ children }: { children: ReactNode }) {
   return (
     <ProfileProvider profile={auth.profile}>
       <SyncProvider>
-        <SuspendedGate>
-          <DataProvider>
-            <OfflineGate>
-              <ActiveUserGate>{children}</ActiveUserGate>
-            </OfflineGate>
-          </DataProvider>
-        </SuspendedGate>
+        <StoreGate>
+          <SuspendedGate>
+            <DataProvider>
+              <OfflineGate>
+                <ActiveUserGate>{children}</ActiveUserGate>
+              </OfflineGate>
+            </DataProvider>
+          </SuspendedGate>
+        </StoreGate>
       </SyncProvider>
     </ProfileProvider>
   );

@@ -6,7 +6,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { signOp } from "@/auth/op-proof";
+import { deviceSigningKey, signOp } from "@/auth/op-proof";
 import { hashPin } from "@/auth/pin";
 import { startMongo, type TestMongo } from "../../../tests/helpers/mongo";
 import { unlockActor } from "../actor";
@@ -136,6 +136,28 @@ describe("QA H2: whose name an offline operation carries", () => {
       status: "rejected",
       error: "PROOF_REQUIRED",
     });
+  });
+
+  it("the owner signed in with the password signs with the key the server gave this device", async () => {
+    const before = process.env.BETTER_AUTH_SECRET;
+    process.env.BETTER_AUTH_SECRET = SECRET;
+    try {
+      const device = await deviceOf(owner);
+      const key = deviceSigningKey(SECRET, owner, device.deviceId);
+      const ok = await push(device, settingOp(device.deviceId, owner, key));
+      expect(ok.results[0].status).toBe("applied");
+
+      // The key is for this person on this device only: another device's key, or the owner's key
+      // used to sign as someone else, is refused.
+      const other = await deviceOf(cashier);
+      const wrongDevice = await push(
+        other,
+        settingOp(other.deviceId, owner, key),
+      );
+      expect(wrongDevice.results[0].error).toBe("PROOF_REQUIRED");
+    } finally {
+      process.env.BETTER_AUTH_SECRET = before;
+    }
   });
 
   it("a cashier signing with their own key cannot pass as the owner", async () => {

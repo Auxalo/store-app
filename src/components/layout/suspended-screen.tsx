@@ -1,12 +1,10 @@
 "use client";
 
 import { Globe, MessageCircle, PauseCircle } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
-import { signOut } from "@/auth/use-auth";
 import { Button } from "@/components/ui/button";
 import { DEVELOPER } from "@/config/developer";
+import { useSignOut } from "./sign-out";
 
 /**
  * Shown instead of the app when the operator has paused this shop (for example a month not paid).
@@ -15,8 +13,7 @@ import { DEVELOPER } from "@/config/developer";
 export function SuspendedScreen() {
   const t = useTranslations("suspended");
   const td = useTranslations("developer");
-  const ta = useTranslations("account");
-  const router = useRouter();
+  const signOutFlow = useSignOut();
   return (
     <div
       className="flex min-h-dvh flex-col items-center justify-center gap-4 p-6 text-center"
@@ -48,17 +45,10 @@ export function SuspendedScreen() {
         </a>
       </div>
       <p className="max-w-sm text-xs text-muted-foreground">{t("safe")}</p>
-      <Button
-        variant="outline"
-        onClick={() => {
-          void signOut().then((done) => {
-            if (done) router.replace("/login");
-            else toast.error(ta("signOutFailed"));
-          });
-        }}
-      >
+      <Button variant="outline" onClick={signOutFlow.request}>
         {t("signOut")}
       </Button>
+      {signOutFlow.dialog}
     </div>
   );
 }

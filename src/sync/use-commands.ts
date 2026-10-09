@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import { ensureSigningKey } from "@/auth/signing-key";
 import { useProfile } from "@/auth/use-auth";
 import type { CommandArgs, CommandType } from "@/commands/definitions";
 import { runCommand } from "@/commands/local/run";
@@ -30,8 +31,11 @@ export function useCommands() {
         actorUserId: profile.userId,
         role: profile.role,
         deviceId: await getDeviceId(db),
-        // Signs the action so the server knows this person made it (src/auth/op-proof.ts).
-        proofKey: signingKey(profile.userId),
+        // Signs the action so the server knows this person made it (src/auth/op-proof.ts). A tab
+        // that has no key yet asks for it briefly; offline it saves unsigned and signs later.
+        proofKey:
+          signingKey(profile.userId) ??
+          (await ensureSigningKey(profile.userId, 1_500)),
       };
       const result = await runCommand(db, ctx, type, input);
       nudgeSync();

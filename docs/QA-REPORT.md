@@ -315,3 +315,15 @@ QA found that a return left the numbers inconsistent: Reports' "left unpaid" nev
 
 - A purchase does not use supplier credit explicitly (the supplier's balance already nets it, so what is owed is right; only the suggested "paid now" does not take it into account).
 - "Left unpaid" in Reports is what was unpaid when the sale was made, after returns; money collected later is a payment (Payments and the customer's page), because payments are per customer and not tied to a sale. The label now says so.
+
+# Part 10: signing out, switching shops, two tabs and reconnecting
+
+| QA finding | Cause | Fix |
+|---|---|---|
+| Another shop signing in on the same device saw the first shop's sales, customers and dashboard | When the first shop still had unsent work, the device kept its data (correct) but the app showed it to the next shop while waiting | The app shows nothing until the data on the device belongs to the shop that is signed in. If another shop's unsent work is there, a screen says whose account must sign in to send it (sign out keeps that work) |
+| The first shop's sale then failed with PROOF_REQUIRED and was lost | An owner or manager with a PIN who signed in with the password had no signing key, so their work was unsigned and refused | The server gives the person who just proved who they are (password, or PIN checked online) a signing key for this device; every tab can ask for it. Work queued unsigned is signed and sent again as soon as that person is known, so refused sales come back |
+| Two tabs: PIN in one tab, sale in the other, lost | Same cause: the key was only in the tab where the PIN was typed | Same fix: the other tab asks the server for the key |
+| "Offline" for 15–30 s after the internet came back | Sync waited for the browser's "online" event (late or missing on many phones) or for the retry delay | While the server cannot be reached, the app checks every 4 seconds and sends at once when it is back; a hanging request gives up after 20 seconds |
+| Signing out with unsent work could leave it stuck | Sign-out kept the shop's data on the device | Sign-out asks to send first ("Send now, then sign out"); without internet it explains, and deleting unsent work needs a second, explicit yes. After sign-out the shop's data is removed from the device (only its own identity stays), so the next person sees nothing |
+
+Tests: `tests/e2e/sync-session.spec.ts` (each finding, as QA described it), and the device key in `qa-security.test.ts`.

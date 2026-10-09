@@ -1,5 +1,5 @@
 import { type Db, type MongoClient, ObjectId } from "mongodb";
-import { verifyOpProof } from "@/auth/op-proof";
+import { deviceSigningKey, verifyOpProof } from "@/auth/op-proof";
 import { can, isRole, type Role } from "@/auth/permissions";
 import {
   COMMANDS,
@@ -107,10 +107,22 @@ async function actorIsProven(
 ): Promise<boolean> {
   // A cashier can do nothing but sell (checked above), and a forged sale only misnames who sold.
   if (actor.role === "cashier") return true;
+  const signed = { ...op, createdAt: signedAt };
+  // Signed with the key the server gave this person on this device (password or online PIN).
+  const secret = process.env.BETTER_AUTH_SECRET;
+  if (
+    op.proof &&
+    secret &&
+    verifyOpProof(
+      deviceSigningKey(secret, op.actorUserId, op.deviceId),
+      signed,
+      op.proof,
+    )
+  )
+    return true;
   if (actor.proofKeys.length > 0) {
     const proof = op.proof;
     if (!proof) return false;
-    const signed = { ...op, createdAt: signedAt };
     return actor.proofKeys.some((key) => verifyOpProof(key, signed, proof));
   }
   if (!(await pinsInUse(db, device.storeId))) return true;

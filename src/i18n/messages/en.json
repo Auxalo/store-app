@@ -238,8 +238,16 @@
   },
   "account": {
     "signOutPendingTitle": "Sign out with unsynced changes?",
-    "signOutPendingBody": "{count, plural, one {{n} change has} other {{n} changes have}} not reached the cloud yet. It stays safe on this device and syncs when you sign in again.",
+    "signOutPendingBody": "{count, plural, one {{n} change has} other {{n} changes have}} not reached the server yet. Signing out takes the shop's data off this device, so send them first.",
     "signOutConfirm": "Sign out anyway",
+    "signOutKeep": "Sign out (their unsent work stays on this device)",
+    "signOutSend": "Send now, then sign out",
+    "signOutSending": "Sending…",
+    "signOutStillPending": "{n} could not be sent. Check the internet, or see why on the Sync page.",
+    "signOutOpenSync": "Open Sync",
+    "signOutDiscard": "Sign out without sending",
+    "signOutDiscardWarning": "The {n} unsent changes will be deleted from this device and will never reach the shop's records.",
+    "signOutDiscardConfirm": "Delete {n} changes and sign out",
     "signOutFailed": "Could not sign out. Check your connection and try again."
   },
   "units": {

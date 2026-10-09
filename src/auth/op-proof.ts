@@ -75,7 +75,23 @@ function message(op: SignedOp): Uint8Array {
   );
 }
 
-/** Signs an action with a person's key (base64, from `deriveProofKey`). */
+/**
+ * A signing key for one person on one device, made by the server from its secret (nothing is
+ * stored). It is handed only to a device where that person has just proved who they are (their
+ * password, or their PIN checked online), so work they queue there can be signed even when they
+ * signed in with the password and never typed a PIN, and in every tab of that browser.
+ */
+export function deviceSigningKey(
+  secret: string,
+  userId: string,
+  deviceId: string,
+): string {
+  return toBase64(
+    hmac(sha256, text(secret), text(`op-device|${userId}|${deviceId}`)),
+  );
+}
+
+/** Signs an action with a person's key (base64, from `deriveProofKey` or `deviceSigningKey`). */
 export function signOp(keyBase64: string, op: SignedOp): string {
   return toBase64(hmac(sha256, fromBase64(keyBase64), message(op)));
 }
