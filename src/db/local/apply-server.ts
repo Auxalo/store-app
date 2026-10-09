@@ -1,4 +1,5 @@
 import type { SyncCollection } from "@/commands/definitions";
+import { resolveSplit } from "@/lib/refund";
 import { computeTotals, qtyByProduct } from "@/lib/sale-math";
 import { derivedSearchFields } from "@/lib/search-fields";
 import { purchaseTotals } from "@/schemas/purchase";
@@ -106,6 +107,7 @@ function overlaySale(doc: Doc, op: OutboxOp, sign: 1 | -1): Doc {
     lines: Array<{ productId: string; qty: number }>;
     discount?: number;
     tendered?: number;
+    creditUsed?: number;
   };
   const bump = { version: doc.version + 1, updatedAt: op.createdAt };
   const qty = qtyByProduct(p.lines).get(doc.id);
@@ -113,10 +115,18 @@ function overlaySale(doc: Doc, op: OutboxOp, sign: 1 | -1): Doc {
     return { ...doc, stock: (doc.stock as number) - sign * qty, ...bump };
 
   if (p.customerId === doc.id) {
-    const due =
+    // What the sale puts on the balance: its due plus the store credit it uses up (a cancellation
+    // carries that same figure as `due`).
+    const t =
       sign === 1
-        ? computeTotals(p.lines as never, p.discount ?? 0, p.tendered ?? 0).due
-        : (p.due ?? 0);
+        ? computeTotals(
+            p.lines as never,
+            p.discount ?? 0,
+            p.tendered ?? 0,
+            p.creditUsed ?? 0,
+          )
+        : null;
+    const due = t ? t.due + t.creditUsed : (p.due ?? 0);
     return due > 0
       ? { ...doc, balance: (doc.balance as number) + sign * due, ...bump }
       : doc;
@@ -171,7 +181,9 @@ function overlayReturn(doc: Doc, op: OutboxOp, kind: "sale" | "purchase"): Doc {
       unitPrice?: number;
       unitCost?: number;
     }>;
-    settlement: "cash" | "credit";
+    /** How much is handed back in cash; the rest comes off the balance. */
+    cashBack?: number;
+    settlement?: "cash" | "credit";
     restock?: boolean;
   };
   const bump = { version: doc.version + 1, updatedAt: op.createdAt };
@@ -184,12 +196,15 @@ function overlayReturn(doc: Doc, op: OutboxOp, kind: "sale" | "purchase"): Doc {
     return { ...doc, stock: (doc.stock as number) - qty, ...bump };
   }
   const partyId = kind === "sale" ? p.customerId : p.supplierId;
-  if (partyId === doc.id && p.settlement === "credit") {
-    return {
-      ...doc,
-      balance: (doc.balance as number) - returnTotal(p.lines),
-      ...bump,
-    };
+  if (partyId === doc.id) {
+    // Only the credited part (off what is owed, or kept as credit) moves the balance.
+    const { credited } = resolveSplit(returnTotal(p.lines), p, true);
+    if (credited > 0)
+      return {
+        ...doc,
+        balance: (doc.balance as number) - credited,
+        ...bump,
+      };
   }
   return doc;
 }

@@ -120,7 +120,7 @@ describe("QA C1: voiding a sale after a return", () => {
   // 4 sold on credit, 3 returned with the goods put back and the money taken off the due, then the
   // whole sale voided. Only the one unit that is still with the customer should be put back and
   // taken off their due; the 3 already returned must not be reversed a second time.
-  it("puts back only what was not already returned (stock ends where it started)", async () => {
+  it("after a partial return the sale cannot be cancelled; returning the rest ends where it started", async () => {
     const milk = await product(100_000);
     const rahim = await customer();
     const saleId = await sell({
@@ -143,11 +143,23 @@ describe("QA C1: voiding a sale after a return", () => {
     expect(await stockOf(milk)).toBe(99_000);
     expect(await balanceOf(rahim)).toBe(5_000);
 
+    // Cancelling now would reverse the 3 again, so it is refused: the rest is returned instead.
     const voided = await run(asOwner(), "sale.void", {
       saleId,
       reason: "customer changed mind",
     });
-    expect(voided.ok).toBe(true);
+    expect(voided.ok).toBe(false);
+    expect(await stockOf(milk)).toBe(99_000);
+    expect(await balanceOf(rahim)).toBe(5_000);
+
+    const rest = await run(asOwner(), "saleReturn.create", {
+      id: randomUUID(),
+      saleId,
+      lines: [returnLine(milk, 1000, 5000)],
+      settlement: "credit",
+      restock: true,
+    });
+    expect(rest.ok).toBe(true);
 
     // Everything is back to the start: 100 in stock, nothing owed.
     expect(await stockOf(milk)).toBe(100_000);
@@ -600,7 +612,7 @@ describe("QA C1 (more cases): cancelling a sale after returns", () => {
     expect(await balanceOf(rahim)).toBe(0);
   });
 
-  it("goods returned damaged (not put back) are put back when the sale is cancelled", async () => {
+  it("goods returned damaged stay out of stock, and the sale cannot be cancelled afterwards", async () => {
     const milk = await product(50_000);
     const saleId = await sell({
       lines: [line(milk, { qty: 2000 })],
@@ -613,9 +625,9 @@ describe("QA C1 (more cases): cancelling a sale after returns", () => {
       restock: false,
     });
     expect(await stockOf(milk)).toBe(48_000); // the damaged unit is not back in stock
-    await run(asOwner(), "sale.void", { saleId, reason: "x" });
-    // Cancelling the sale undoes the whole sale: all 2 units come back.
-    expect(await stockOf(milk)).toBe(50_000);
+    const voided = await run(asOwner(), "sale.void", { saleId, reason: "x" });
+    expect(voided.ok).toBe(false);
+    expect(await stockOf(milk)).toBe(48_000);
   });
 
   it("a refund after a bill discount stays right across two partial returns", async () => {
@@ -684,7 +696,7 @@ describe("BUG-20: a sale that has come back in full cannot be cancelled", () => 
     expect(voided.ok).toBe(false);
   });
 
-  it("a partly returned sale can still be cancelled (it reverses what is left)", async () => {
+  it("a partly returned sale cannot be cancelled either: the rest is returned instead", async () => {
     const milk = await product(100_000);
     const saleId = await sell({
       lines: [line(milk, { qty: 4000 })],
@@ -698,7 +710,161 @@ describe("BUG-20: a sale that has come back in full cannot be cancelled", () => 
       restock: true,
     });
     const voided = await run(asOwner(), "sale.void", { saleId, reason: "x" });
+    expect(voided.ok).toBe(false);
+    expect((await col("sales").findOne({ _id: saleId as never }))?.status).toBe(
+      "active",
+    );
+    expect(await stockOf(milk)).toBe(99_000);
+  });
+});
+
+describe("returns, dues and store credit add up (online commands)", () => {
+  const sumOf = async (days = 1) => {
+    const { serverSummary } = await import("../reports");
+    const day = new Date().toISOString().slice(0, 10);
+    void days;
+    return serverSummary(mongo.db, storeId, { from: day, to: day });
+  };
+  const opening = (partyId: string, amount: number) =>
+    run(asOwner(), "party.openingBalance", {
+      id: randomUUID(),
+      partyType: "customer",
+      partyId,
+      amount,
+      note: "",
+    });
+  const giveBack = (saleId: string, milk: string, qty: number, extra = {}) =>
+    run(asOwner(), "saleReturn.create", {
+      id: randomUUID(),
+      saleId,
+      lines: [returnLine(milk, qty, 5000)],
+      restock: true,
+      ...extra,
+    });
+
+  it("a sale uses the customer's store credit first, and says so", async () => {
+    const milk = await product();
+    const rahim = await customer("Credit user");
+    await opening(rahim, -5_000); // paid ৳50 ahead
+    const saleId = await sell({
+      customerId: rahim,
+      customerName: "Credit user",
+      lines: [line(milk, { qty: 4000 })], // ৳200
+      tendered: 15_000,
+      creditUsed: 5_000,
+    });
+    const sale = await col("sales").findOne({ _id: saleId as never });
+    expect(sale).toMatchObject({
+      total: 20_000,
+      creditUsed: 5_000,
+      paid: 15_000,
+      due: 0,
+    });
+    expect(await balanceOf(rahim)).toBe(0); // the credit is used up
+  });
+
+  it("credit that is not really there is not used: the rest becomes due", async () => {
+    const milk = await product();
+    const rahim = await customer("No credit");
+    const saleId = await sell({
+      customerId: rahim,
+      customerName: "No credit",
+      lines: [line(milk, { qty: 4000 })],
+      tendered: 15_000,
+      creditUsed: 5_000, // claimed, but the balance is 0
+    });
+    const sale = await col("sales").findOne({ _id: saleId as never });
+    expect(sale).toMatchObject({ creditUsed: 0, paid: 15_000, due: 5_000 });
+    expect(await balanceOf(rahim)).toBe(5_000);
+  });
+
+  it("cancelling a sale that used store credit gives the credit back", async () => {
+    const milk = await product();
+    const rahim = await customer("Cancel credit");
+    await opening(rahim, -5_000);
+    const saleId = await sell({
+      customerId: rahim,
+      customerName: "Cancel credit",
+      lines: [line(milk, { qty: 4000 })],
+      tendered: 15_000,
+      creditUsed: 5_000,
+    });
+    expect(await balanceOf(rahim)).toBe(0);
+    const voided = await run(asOwner(), "sale.void", { saleId, reason: "x" });
     expect(voided.ok).toBe(true);
-    expect(await stockOf(milk)).toBe(100_000);
+    expect(await balanceOf(rahim)).toBe(-5_000);
+  });
+
+  it("returns a credit sale: the due comes off, and Reports' 'left unpaid' follows (the reported bug)", async () => {
+    const milk = await product();
+    const rahim = await customer("Return credit sale");
+    const before = await sumOf();
+    const saleId = await sell({
+      customerId: rahim,
+      customerName: "Return credit sale",
+      lines: [line(milk, { qty: 4000 })],
+      tendered: 0,
+    });
+    expect(await balanceOf(rahim)).toBe(20_000);
+    // Refund the lot with nothing in cash: it all comes off what is owed.
+    const r = await giveBack(saleId, milk, 4000, { cashBack: 0 });
+    expect(r.ok).toBe(true);
+    expect(await balanceOf(rahim)).toBe(0);
+    const after = await sumOf();
+    expect(after.unpaid - before.unpaid).toBe(0);
+    expect(after.netSales - before.netSales).toBe(0);
+  });
+
+  it("a refund above the due leaves the customer paid ahead, and Reports agree with the customer page", async () => {
+    const milk = await product();
+    const rahim = await customer("Paid ahead");
+    await opening(rahim, -5_000);
+    const before = await sumOf();
+    const saleId = await sell({
+      customerId: rahim,
+      customerName: "Paid ahead",
+      lines: [line(milk, { qty: 4000 })],
+      tendered: 5_000, // ৳50 now, ৳150 owed (the ৳50 of credit stays in the balance)
+    });
+    expect(await balanceOf(rahim)).toBe(10_000);
+    const r = await giveBack(saleId, milk, 4000, { cashBack: 0 }); // keep it all as credit
+    expect(r.ok).toBe(true);
+    expect(await balanceOf(rahim)).toBe(-10_000);
+    const after = await sumOf();
+    const delta = (k: "netSales" | "received" | "unpaid" | "creditUsed") =>
+      after[k] - before[k];
+    expect(delta("received") + delta("creditUsed") + delta("unpaid")).toBe(
+      delta("netSales"),
+    );
+    expect(delta("unpaid")).toBe(15_000 - 20_000);
+  });
+
+  it("a walk-in sale is always refunded in cash, whatever the screen asked", async () => {
+    const milk = await product();
+    const saleId = await sell({
+      lines: [line(milk, { qty: 2000 })],
+      tendered: 10_000,
+    });
+    const r = await giveBack(saleId, milk, 2000, { cashBack: 0 });
+    expect(r.ok).toBe(true);
+    const doc = await col("returns").findOne({ refId: saleId } as never);
+    expect(doc).toMatchObject({ cashBack: 10_000, credited: 0 });
+  });
+
+  it("an older device that sends only 'credit' still works", async () => {
+    const milk = await product();
+    const rahim = await customer("Old device");
+    const saleId = await sell({
+      customerId: rahim,
+      customerName: "Old device",
+      lines: [line(milk, { qty: 2000 })],
+      tendered: 0,
+    });
+    const r = await giveBack(saleId, milk, 1000, { settlement: "credit" });
+    expect(r.ok).toBe(true);
+    expect(await balanceOf(rahim)).toBe(5_000);
+    expect(
+      await col("returns").findOne({ refId: saleId } as never),
+    ).toMatchObject({ credited: 5_000, cashBack: 0 });
   });
 });

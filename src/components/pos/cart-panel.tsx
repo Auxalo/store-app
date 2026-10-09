@@ -2,9 +2,11 @@
 
 import { Pause, Play, ShoppingCart, Trash2, User } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useEffect } from "react";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useRecord } from "@/data/hooks";
 import { useFormat } from "@/i18n/use-format";
 import { computeTotals, lineAmount } from "@/lib/sale-math";
 import { cn } from "@/lib/utils";
@@ -58,6 +61,16 @@ export function CartPanel({
   const locale = usePreferences((s) => s.locale);
   const cart = useCart();
   const { totals, needsCustomer, canComplete, saving, complete } = sale;
+  // The customer's balance, read fresh: a negative balance is store credit that pays first.
+  const buyer = useRecord("customers", cart.customerId);
+  const buyerBalance = (buyer.record as { balance?: number } | undefined)
+    ?.balance;
+  const setCredit = cart.setCredit;
+  useEffect(() => {
+    if (cart.customerId && buyerBalance !== undefined)
+      setCredit(Math.max(0, -buyerBalance));
+  }, [cart.customerId, buyerBalance, setCredit]);
+  const toPay = totals.total - totals.creditUsed;
   // The same product can be on several lines: the warning looks at all of them together.
   const inCart = (productId: string) =>
     cart.lines
@@ -220,6 +233,24 @@ export function CartPanel({
           </span>
         </Button>
 
+        {cart.customerId && cart.credit > 0 ? (
+          <div
+            className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-2 text-sm"
+            data-testid="store-credit"
+          >
+            <Checkbox
+              id="use-credit"
+              checked={cart.useCredit}
+              onCheckedChange={(v) => cart.setUseCredit(v === true)}
+              disabled={saving}
+              data-testid="use-credit"
+            />
+            <label htmlFor="use-credit" className="min-w-0 flex-1">
+              {t("pos.useCredit", { value: f.money(cart.credit) })}
+            </label>
+          </div>
+        ) : null}
+
         <div className="grid grid-cols-2 gap-2">
           <div className="flex flex-col gap-1 text-xs text-muted-foreground">
             <span>{t("pos.discount")} (৳)</span>
@@ -261,7 +292,7 @@ export function CartPanel({
               aria-label={t("pos.received")}
               value={cart.tendered}
               onValue={(v) => cart.setTendered(v)}
-              placeholder={String(totals.total / 100)}
+              placeholder={String(toPay / 100)}
               className="h-9 text-sm md:h-8"
               data-testid="received-input"
             />
@@ -275,7 +306,7 @@ export function CartPanel({
               >
                 {t("pos.exact")}
               </Button>
-              {suggestions(totals.total).map((amount) => (
+              {suggestions(toPay).map((amount) => (
                 <Button
                   key={amount}
                   size="sm"
@@ -300,6 +331,11 @@ export function CartPanel({
             <dt>{t("pos.total")}</dt>
             <dd data-testid="cart-total">{f.money(totals.total)}</dd>
           </div>
+          {totals.creditUsed > 0 ? (
+            <Row label={t("pos.paidFromCredit")} testId="credit-used">
+              −{f.money(totals.creditUsed)}
+            </Row>
+          ) : null}
           {change > 0 ? (
             <Row label={t("pos.change")} strong testId="change">
               {f.money(change)}

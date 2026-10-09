@@ -166,8 +166,8 @@ export function DashboardScreen() {
     {
       key: "todayPurchases",
       icon: ShoppingBasket,
-      value: today?.purchasesTotal,
-      change: vs((x) => x.purchasesTotal),
+      value: today && today.purchasesTotal - today.purchaseReturns,
+      change: vs((x) => x.purchasesTotal - x.purchaseReturns),
       sub: "",
     },
   ];

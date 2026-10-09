@@ -14,7 +14,9 @@ export interface SaleTotals {
   /** Cart-level discount actually applied (never more than the subtotal). */
   discount: number;
   total: number;
-  /** Amount received now, capped at the total (change is not part of the sale). */
+  /** Paid from the customer's store credit (money they had paid ahead), never more than the total. */
+  creditUsed: number;
+  /** Amount received now, capped at what is left after store credit (change is not part of the sale). */
   paid: number;
   due: number;
 }
@@ -32,12 +34,22 @@ export function computeTotals(
   lines: SaleLineAmounts[],
   cartDiscount: number,
   tendered: number,
+  creditUsed = 0,
 ): SaleTotals {
   const subtotal = lines.reduce((sum, line) => sum + lineAmount(line), 0);
   const discount = Math.min(Math.max(0, cartDiscount), subtotal);
   const total = subtotal - discount;
-  const paid = Math.min(Math.max(0, tendered), total);
-  return { subtotal, discount, total, paid, due: total - paid };
+  // Store credit pays first; money received covers the rest; what is left is the due.
+  const credit = Math.min(Math.max(0, creditUsed), total);
+  const paid = Math.min(Math.max(0, tendered), total - credit);
+  return {
+    subtotal,
+    discount,
+    total,
+    creditUsed: credit,
+    paid,
+    due: total - credit - paid,
+  };
 }
 
 /** Quantity of each product across all lines (the same product may appear on several lines). */

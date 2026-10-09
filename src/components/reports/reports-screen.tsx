@@ -101,8 +101,10 @@ export function ReportsScreen() {
 
   const [tab, setTab] = useState<Tab>("sales");
   const [rangeState, setRangeState] = useState<RangeState>(() => {
+    // Opens on today, the same figure the dashboard shows first. (It opened on the last 7 days,
+    // and "today" on one screen was then compared with a week on the other.)
     const today = presetRange("today", timeZone);
-    return { preset: "days7", custom: today };
+    return { preset: "today", custom: today };
   });
   const dataMode = useDataMode();
   const [source, setSource] = useState<ReportSource>("device");
@@ -207,8 +209,30 @@ export function ReportsScreen() {
             bold
             testId="r-net"
           />
-          <Row label={t("paid")} value={f.money(s.paid)} />
-          <Row label={t("credit")} value={f.money(s.due)} />
+          <Row
+            label={t("paid")}
+            value={f.money(s.received)}
+            testId="r-received"
+          />
+          {s.creditUsed > 0 ? (
+            <Row
+              label={t("creditUsed")}
+              value={f.money(s.creditUsed)}
+              testId="r-credit-used"
+            />
+          ) : null}
+          <Row
+            label={t("credit")}
+            value={f.money(Math.max(0, s.unpaid))}
+            testId="r-unpaid"
+          />
+          {s.unpaid < 0 ? (
+            <Row
+              label={t("creditGiven")}
+              value={f.money(-s.unpaid)}
+              testId="r-credit-given"
+            />
+          ) : null}
         </Section>
         <Section
           title={t("byDay")}
@@ -366,9 +390,16 @@ export function ReportsScreen() {
         <Section title={t("purchases")}>
           <Row
             label={t("purchases")}
-            value={`${f.money(s.purchasesTotal)} · ${f.integer(s.purchasesCount)}`}
+            value={`${f.money(s.purchasesTotal - s.purchaseReturns)} · ${f.integer(s.purchasesCount)}`}
             testId="r-purchases"
           />
+          {s.purchaseReturns > 0 ? (
+            <Row
+              label={t("purchaseReturns")}
+              value={`−${f.money(s.purchaseReturns)}`}
+              testId="r-purchase-returns"
+            />
+          ) : null}
           <Row
             label={t("purchasesDue")}
             value={f.money(supplierOwedNow?.owed ?? 0)}

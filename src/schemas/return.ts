@@ -34,6 +34,11 @@ const saleReturnBase = z.object({
   id: idSchema,
   saleId: idSchema,
   lines: z.array(saleReturnLine).min(1).max(200),
+  /**
+   * How much of the refund is handed back in cash; the rest comes off what the customer owes (or
+   * stays as store credit). Left out by older devices, which said only "cash" or "credit" below.
+   */
+  cashBack: money.optional(),
   settlement: z.enum(SETTLEMENTS).default("cash"),
   /** Put the goods back into stock (not for damaged goods). */
   restock: z.boolean().default(true),
@@ -61,6 +66,8 @@ const purchaseReturnBase = z.object({
   id: idSchema,
   purchaseId: idSchema,
   lines: z.array(purchaseReturnLine).min(1).max(200),
+  /** Cash received back from the supplier; the rest comes off what the shop owes them (or stays as credit). */
+  cashBack: money.optional(),
   settlement: z.enum(SETTLEMENTS).default("credit"),
   notes: text(300).default(""),
 });

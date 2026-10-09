@@ -1,7 +1,6 @@
 import type { StoreDB } from "@/db/local/db";
 import { getMeta, setMeta } from "@/db/local/meta";
 import { yearMonth } from "@/lib/doc-number";
-import { isFullyReturned, returnedOf } from "@/lib/refund";
 import {
   computeTotals,
   lineAmount,
@@ -127,7 +126,17 @@ export async function saleCreate(
   if (await db.sales.get(input.id)) throw new AlreadyExistsError("sale");
 
   const invoiceNo = await nextInvoiceNo(db, ctx.deviceId, now);
-  const totals = computeTotals(input.lines, input.discount, input.tendered);
+  // Store credit can only pay what the customer really has paid ahead.
+  const payer = input.customerId
+    ? await db.customers.get(input.customerId)
+    : undefined;
+  const credit = payer && !payer.deletedAt ? Math.max(0, -payer.balance) : 0;
+  const totals = computeTotals(
+    input.lines,
+    input.discount,
+    input.tendered,
+    Math.min(input.creditUsed, credit),
+  );
 
   // Lines: a snapshot of what was sold, and (when the product still exists) the stock leaving.
   const live = new Set<string>();
@@ -177,12 +186,14 @@ export async function saleCreate(
     if (live.has(productId)) await moveStock(db, productId, -qty, now);
   }
 
-  // Whatever was not paid becomes the customer's due, recorded in the ledger.
-  if (totals.due > 0 && input.customerId) {
+  // Whatever was not paid becomes the customer's due, and store credit that paid for it is used
+  // up: both move the balance up, and both are one ledger entry.
+  const owed = totals.due + totals.creditUsed;
+  if (owed > 0 && input.customerId) {
     const customer = await db.customers.get(input.customerId);
     if (customer && !customer.deletedAt) {
       await db.customers.update(customer.id, {
-        balance: customer.balance + totals.due,
+        balance: customer.balance + owed,
         version: customer.version + 1,
         updatedAt: now,
       });
@@ -191,7 +202,7 @@ export async function saleCreate(
         storeId: ctx.storeId,
         partyType: "customer",
         partyId: customer.id,
-        amountDelta: totals.due,
+        amountDelta: owed,
         refType: "sale",
         refId: input.id,
         note: invoiceNo,
@@ -224,6 +235,7 @@ export async function saleCreate(
     subtotal: totals.subtotal,
     discount: totals.discount,
     total: totals.total,
+    creditUsed: totals.creditUsed,
     paid: totals.paid,
     due: totals.due,
     paymentMethod: input.paymentMethod,
@@ -238,7 +250,7 @@ export async function saleCreate(
     deletedAt: null,
   });
 
-  return { ...input, invoiceNo, customerPhone };
+  return { ...input, creditUsed: totals.creditUsed, invoiceNo, customerPhone };
 }
 
 /** Cancelling a sale never edits it: it adds reversing movements and ledger entries and flags the sale. */
@@ -259,25 +271,20 @@ export async function saleVoid(
 
   // Goods already brought back by returns are in stock again, and money already taken off the
   // customer's due is not owed any more: cancelling the sale reverses only what is left.
+  // Once anything has come back, the rest also comes back as a return (it keeps stock, dues and
+  // cash right and every figure in the reports adding up); a cancellation would reverse it twice.
   const earlierReturns = await db.returns
     .where("refId")
     .equals(sale.id)
     .filter((r) => r.kind === "sale")
     .toArray();
-  // Everything has already come back: there is nothing left to cancel.
-  if (
-    isFullyReturned(
-      ordered.map((item) => item.qty),
-      earlierReturns,
-    )
-  )
-    throw new ConflictError("FULLY_RETURNED");
-  const { restocked, credited } = returnedOf(earlierReturns);
-  const left = ordered.map((item, index) => ({
+  if (earlierReturns.length > 0) throw new ConflictError("HAS_RETURNS");
+  const left = ordered.map((item) => ({
     productId: item.productId,
-    qty: item.qty - (restocked.get(index) ?? 0),
+    qty: item.qty,
   }));
-  const dueLeft = Math.max(0, sale.due - credited);
+  // What the sale put on the customer's balance: its due, and the store credit it used up.
+  const dueLeft = sale.due + (sale.creditUsed ?? 0);
 
   const live = new Set<string>();
   for (const productId of new Set(ordered.map((i) => i.productId))) {

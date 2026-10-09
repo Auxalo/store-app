@@ -12,8 +12,7 @@ import { Input } from "@/components/ui/input";
 import { useCommand, useRecord } from "@/data/hooks";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
-import { lineNets, refundFor } from "@/lib/refund";
-import { cn } from "@/lib/utils";
+import { creditShare, defaultSplit, lineNets, refundFor } from "@/lib/refund";
 import { returnTotal } from "@/schemas/return";
 import { usePreferences } from "@/stores/preferences";
 
@@ -103,13 +102,22 @@ export function ReturnDialog({
       itemQty: Number(item.qty),
       returnedBefore: returned.get(itemIndex) ?? 0,
     }));
-    return { partyId, candidates };
+    // What this sale paid with store credit, and how much of the sale has been refunded already.
+    const refundedBefore = (loaded.extra.returns ?? [])
+      .filter((r) => r.kind === kind)
+      .reduce((sum, r) => sum + Number(r.total ?? 0), 0);
+    return {
+      partyId,
+      candidates,
+      creditUsed: Number(parent.creditUsed ?? 0),
+      saleTotal: Number(parent.total ?? 0),
+      refundedBefore,
+    };
   }, [kind, loaded.record, loaded.extra]);
 
   const [qtys, setQtys] = useState<Record<number, number>>({});
-  const [settlement, setSettlement] = useState<"cash" | "credit">(
-    kind === "sale" ? "cash" : "credit",
-  );
+  // The rest of the refund, after what they owe is cleared, is cash unless kept as their credit.
+  const [keepAsCredit, setKeepAsCredit] = useState(false);
   const [restock, setRestock] = useState(true);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
@@ -123,8 +131,32 @@ export function ReturnDialog({
       ? refundFor(c.net, c.itemQty, c.returnedBefore, qtys[c.itemIndex])
       : returnTotal([{ qty: qtys[c.itemIndex], unitCost: c.amount }]);
   const total = chosen.reduce((sum, c) => sum + refundOf(c), 0);
-  const needsParty = settlement === "credit" && !data?.partyId;
-  const canSave = chosen.length > 0 && !needsParty && !saving;
+  // How the refund is settled: what the customer (or the shop, for a supplier) still owes comes off
+  // first, so cash never leaves the till for money that is also still owed.
+  const party = useRecord(
+    kind === "sale" ? "customers" : "suppliers",
+    open ? (data?.partyId ?? null) : null,
+  );
+  const balance = Number(
+    (party.record as { balance?: number } | undefined)?.balance ?? 0,
+  );
+  const hasParty = !!data?.partyId;
+  const share =
+    kind === "sale" && data
+      ? creditShare(data.creditUsed, data.saleTotal, data.refundedBefore, total)
+      : 0;
+  const split = defaultSplit(total, balance, {
+    hasParty,
+    keepAsCredit: keepAsCredit && hasParty,
+    creditShare: share,
+  });
+  // Of what is credited: first what they owe, and the rest stays as their store credit.
+  const offDue = Math.min(
+    split.credited - Math.min(share, split.credited),
+    Math.max(0, balance),
+  );
+  const keptAsCredit = split.credited - offDue;
+  const canSave = chosen.length > 0 && !saving;
   const nothingLeft = data && candidates.every((c) => c.remaining <= 0);
   const name = (c: Candidate) =>
     locale === "bn" && c.productNameBn ? c.productNameBn : c.productName;
@@ -149,7 +181,8 @@ export function ReturnDialog({
           id: newId(),
           saleId: refId,
           lines: lines as never,
-          settlement,
+          cashBack: split.cashBack,
+          settlement: split.credited > 0 ? "credit" : "cash",
           restock,
           notes,
         });
@@ -158,7 +191,8 @@ export function ReturnDialog({
           id: newId(),
           purchaseId: refId,
           lines: lines as never,
-          settlement,
+          cashBack: split.cashBack,
+          settlement: split.credited > 0 ? "credit" : "cash",
           notes,
         });
       setQtys({});
@@ -221,37 +255,99 @@ export function ReturnDialog({
                 ))}
             </ul>
 
-            <Field>
+            <Field data-testid="refund-split">
               <FieldLabel>{t("returns.settlement")}</FieldLabel>
-              <div className="grid grid-cols-2 gap-2">
-                {(["cash", "credit"] as const).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setSettlement(s)}
-                    className={cn(
-                      "rounded-lg border px-3 py-2 text-sm",
-                      settlement === s
-                        ? "border-primary bg-primary/10 font-medium"
-                        : "hover:bg-muted",
-                    )}
-                    aria-pressed={settlement === s}
-                    data-testid={`settle-${s}`}
-                  >
-                    {s === "cash"
-                      ? t("returns.settleCash")
-                      : kind === "sale"
-                        ? t("returns.settleCredit")
-                        : t("returns.settleCreditSupplier")}
-                  </button>
-                ))}
-              </div>
-              {needsParty ? (
-                <p className="text-xs text-destructive">
-                  {kind === "sale"
-                    ? t("returns.creditNeedsCustomer")
-                    : t("returns.creditNeedsSupplier")}
+              {hasParty ? (
+                <p
+                  className="text-xs text-muted-foreground"
+                  data-testid="party-balance-now"
+                >
+                  {balance > 0
+                    ? t(
+                        kind === "sale"
+                          ? "returns.balanceOwes"
+                          : "returns.balanceOwesSupplier",
+                        { value: f.money(balance) },
+                      )
+                    : balance < 0
+                      ? t(
+                          kind === "sale"
+                            ? "returns.balanceCredit"
+                            : "returns.balanceCreditSupplier",
+                          { value: f.money(-balance) },
+                        )
+                      : t("returns.balanceClear")}
                 </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {t(
+                    kind === "sale"
+                      ? "returns.walkInCash"
+                      : "returns.noSupplierCash",
+                  )}
+                </p>
+              )}
+              <ul className="flex flex-col gap-1 rounded-lg border bg-muted/30 p-2 text-sm">
+                {offDue > 0 ? (
+                  <li
+                    className="flex justify-between gap-2"
+                    data-testid="split-off"
+                  >
+                    <span>
+                      {t(
+                        kind === "sale"
+                          ? "returns.splitOff"
+                          : "returns.splitOffSupplier",
+                      )}
+                    </span>
+                    <span className="font-medium">{f.money(offDue)}</span>
+                  </li>
+                ) : null}
+                {keptAsCredit > 0 ? (
+                  <li
+                    className="flex justify-between gap-2"
+                    data-testid="split-kept"
+                  >
+                    <span>
+                      {t(
+                        kind === "sale"
+                          ? "returns.splitKept"
+                          : "returns.splitKeptSupplier",
+                      )}
+                    </span>
+                    <span className="font-medium">{f.money(keptAsCredit)}</span>
+                  </li>
+                ) : null}
+                <li
+                  className="flex justify-between gap-2"
+                  data-testid="split-cash"
+                >
+                  <span>
+                    {t(
+                      kind === "sale"
+                        ? "returns.splitCash"
+                        : "returns.splitCashSupplier",
+                    )}
+                  </span>
+                  <span className="font-medium">{f.money(split.cashBack)}</span>
+                </li>
+              </ul>
+              {hasParty ? (
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="keep-credit"
+                    checked={keepAsCredit}
+                    onCheckedChange={(v) => setKeepAsCredit(v === true)}
+                    data-testid="keep-credit"
+                  />
+                  <FieldLabel htmlFor="keep-credit">
+                    {t(
+                      kind === "sale"
+                        ? "returns.keepAsCredit"
+                        : "returns.keepAsCreditSupplier",
+                    )}
+                  </FieldLabel>
+                </div>
               ) : null}
             </Field>
 

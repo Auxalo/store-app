@@ -1,7 +1,7 @@
 import type { StoreDB } from "@/db/local/db";
 import { divRound } from "@/lib/money";
 import { lineTotal } from "@/lib/qty";
-import { refundAmounts } from "@/lib/refund";
+import { refundAmounts, resolveSplit } from "@/lib/refund";
 import { qtyByProduct } from "@/lib/sale-math";
 import { derivedSearchFields } from "@/lib/search-fields";
 import { purchaseTotals } from "@/schemas/purchase";
@@ -428,7 +428,11 @@ export async function saleReturnCreate(
   if (await db.returns.get(rawInput.id)) throw new AlreadyExistsError("return");
   const sale = await db.sales.get(rawInput.saleId);
   if (!sale || sale.status === "voided") throw new NotFoundError("sale");
-  if (rawInput.settlement === "credit" && !sale.customerId)
+  if (
+    rawInput.cashBack === undefined &&
+    rawInput.settlement === "credit" &&
+    !sale.customerId
+  )
     throw new Error("NO_CUSTOMER");
 
   const items = (
@@ -455,6 +459,8 @@ export async function saleReturnCreate(
 
   const returnNo = await nextDocNo(db, ctx.deviceId, now, "R");
   const total = returnTotal(input.lines);
+  // Part comes off what the customer owes (or stays as their credit), the rest is handed back.
+  const split = resolveSplit(total, rawInput, !!sale.customerId);
 
   if (input.restock) {
     const live = await liveProductIds(
@@ -493,13 +499,13 @@ export async function saleReturnCreate(
         });
     }
   }
-  if (input.settlement === "credit" && sale.customerId) {
+  if (split.credited > 0 && sale.customerId) {
     await adjustParty(
       db,
       ctx,
       "customer",
       sale.customerId,
-      -total,
+      -split.credited,
       {
         type: "sale_return",
         id: input.id,
@@ -530,7 +536,9 @@ export async function saleReturnCreate(
       amount: l.amount,
     })),
     total,
-    settlement: input.settlement,
+    cashBack: split.cashBack,
+    credited: split.credited,
+    settlement: split.credited > 0 ? "credit" : "cash",
     restock: input.restock,
     notes: input.notes,
     createdAt: now,
@@ -539,7 +547,13 @@ export async function saleReturnCreate(
     deviceId: ctx.deviceId,
     version: 1,
   });
-  return { ...input, returnNo, customerId: sale.customerId };
+  return {
+    ...input,
+    cashBack: split.cashBack,
+    settlement: split.credited > 0 ? "credit" : "cash",
+    returnNo,
+    customerId: sale.customerId,
+  };
 }
 
 export async function purchaseReturnCreate(
@@ -551,7 +565,11 @@ export async function purchaseReturnCreate(
   if (await db.returns.get(input.id)) throw new AlreadyExistsError("return");
   const purchase = await db.purchases.get(input.purchaseId);
   if (!purchase) throw new NotFoundError("purchase");
-  if (input.settlement === "credit" && !purchase.supplierId)
+  if (
+    input.cashBack === undefined &&
+    input.settlement === "credit" &&
+    !purchase.supplierId
+  )
     throw new Error("NO_SUPPLIER");
 
   const items = (
@@ -561,6 +579,7 @@ export async function purchaseReturnCreate(
 
   const returnNo = await nextDocNo(db, ctx.deviceId, now, "PR");
   const total = returnTotal(input.lines);
+  const split = resolveSplit(total, input, !!purchase.supplierId);
   const live = await liveProductIds(
     db,
     input.lines.map((l) => l.productId),
@@ -597,13 +616,13 @@ export async function purchaseReturnCreate(
         updatedAt: now,
       });
   }
-  if (input.settlement === "credit" && purchase.supplierId) {
+  if (split.credited > 0 && purchase.supplierId) {
     await adjustParty(
       db,
       ctx,
       "supplier",
       purchase.supplierId,
-      -total,
+      -split.credited,
       {
         type: "purchase_return",
         id: input.id,
@@ -633,7 +652,9 @@ export async function purchaseReturnCreate(
       unitAmount: l.unitCost,
     })),
     total,
-    settlement: input.settlement,
+    cashBack: split.cashBack,
+    credited: split.credited,
+    settlement: split.credited > 0 ? "credit" : "cash",
     restock: false,
     notes: input.notes,
     createdAt: now,
@@ -642,5 +663,11 @@ export async function purchaseReturnCreate(
     deviceId: ctx.deviceId,
     version: 1,
   });
-  return { ...input, returnNo, supplierId: purchase.supplierId };
+  return {
+    ...input,
+    cashBack: split.cashBack,
+    settlement: split.credited > 0 ? "credit" : "cash",
+    returnNo,
+    supplierId: purchase.supplierId,
+  };
 }

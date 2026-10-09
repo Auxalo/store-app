@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { can } from "@/auth/permissions";
 import { requireActor } from "@/server/actor-request";
+import { storeTimeZone } from "@/server/data/service";
 import { getSyncDeps } from "@/server/deps";
 import { errorResponse } from "@/server/http";
 import { hideProfit, serverSummaryCached } from "@/server/reports";
@@ -25,7 +26,14 @@ export async function GET(request: Request) {
     if ((Date.parse(to) - Date.parse(from)) / 86_400_000 > MAX_DAYS)
       return NextResponse.json({ code: "RANGE_TOO_LARGE" }, { status: 400 });
     const { db } = await getSyncDeps();
-    const summary = await serverSummaryCached(db, actor.storeId, { from, to });
+    // The shop's own time zone, as the dashboard uses, so the same day means the same hours.
+    const timeZone = await storeTimeZone(db, actor.storeId);
+    const summary = await serverSummaryCached(
+      db,
+      actor.storeId,
+      { from, to },
+      timeZone,
+    );
     // Cost and profit are for people who may see them.
     if (!can(actor.role, "profit.view"))
       return NextResponse.json({ summary: hideProfit(summary) });

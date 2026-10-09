@@ -303,7 +303,7 @@ describe("QA C1 and C2 on the device (offline mode, the default for new devices)
     unitPrice,
   });
 
-  it("C1: voiding a sale after a return puts back only the goods not already returned", async () => {
+  it("C1: cancelling a partly returned sale is refused; returning the rest ends where it started", async () => {
     const d = await ownerDevice();
     const milk = await addProduct(d, 100_000);
     const rahim = await addCustomer(d);
@@ -325,13 +325,23 @@ describe("QA C1 and C2 on the device (offline mode, the default for new devices)
     expect((await d.db.products.get(milk))?.stock).toBe(99_000);
     expect((await d.db.customers.get(rahim))?.balance).toBe(5_000);
 
-    await runCommand(d.db, d.ctx, "sale.void", { saleId, reason: "x" });
+    await expect(
+      runCommand(d.db, d.ctx, "sale.void", { saleId, reason: "x" }),
+    ).rejects.toThrow(/HAS_RETURNS/);
+    expect((await d.db.products.get(milk))?.stock).toBe(99_000);
 
+    await runCommand(d.db, d.ctx, "saleReturn.create", {
+      id: newId(),
+      saleId,
+      lines: [returnLine(milk, 1000, 5000)],
+      settlement: "credit",
+      restock: true,
+    });
     expect((await d.db.products.get(milk))?.stock).toBe(100_000);
     expect((await d.db.customers.get(rahim))?.balance).toBe(0);
   });
 
-  it("C1: the same wrong result reaches the server", async () => {
+  it("C1: the server ends with the same stock and balance after the return of the rest", async () => {
     const d = await ownerDevice();
     const milk = await addProduct(d, 100_000);
     const rahim = await addCustomer(d);
@@ -343,17 +353,19 @@ describe("QA C1 and C2 on the device (offline mode, the default for new devices)
       lines: [lineOf(milk, { qty: 4000 })],
       tendered: 0,
     });
-    await runCommand(d.db, d.ctx, "saleReturn.create", {
-      id: newId(),
-      saleId,
-      lines: [returnLine(milk, 3000, 5000)],
-      settlement: "credit",
-      restock: true,
-    });
-    await runCommand(d.db, d.ctx, "sale.void", { saleId, reason: "x" });
+    for (const qty of [3000, 1000])
+      await runCommand(d.db, d.ctx, "saleReturn.create", {
+        id: newId(),
+        saleId,
+        lines: [returnLine(milk, qty, 5000)],
+        settlement: "credit",
+        restock: true,
+      });
     await d.sync();
     const product = await col("products").findOne({ _id: milk as never });
     expect(product?.stock).toBe(100_000);
+    const customer = await col("customers").findOne({ _id: rahim as never });
+    expect(customer?.balance).toBe(0);
   });
 
   it("C2: returning a sale that had a bill discount refunds what was paid", async () => {

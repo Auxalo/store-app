@@ -212,7 +212,8 @@ export const preparePayload: {
     return {
       ...input,
       customerId: (sale.customerId as string | null) ?? null,
-      due: Number(sale.due ?? 0),
+      // What the sale put on the balance: its due plus the store credit it used up.
+      due: Number(sale.due ?? 0) + Number(sale.creditUsed ?? 0),
       lines: items.map((i) => ({ productId: i.productId, qty: i.qty })),
     };
   },
@@ -236,7 +237,11 @@ export const preparePayload: {
     const sale = await find(ctx, "sales", input.saleId);
     if (!sale || sale.status === "voided")
       throw new PrepareRejection("NOT_FOUND");
-    if (input.settlement === "credit" && !sale.customerId)
+    if (
+      input.cashBack === undefined &&
+      input.settlement === "credit" &&
+      !sale.customerId
+    )
       throw new PrepareRejection("NO_CUSTOMER");
     return {
       ...input,
@@ -252,7 +257,11 @@ export const preparePayload: {
   "purchaseReturn.create": async (ctx, input) => {
     const purchase = await find(ctx, "purchases", input.purchaseId);
     if (!purchase) throw new PrepareRejection("NOT_FOUND");
-    if (input.settlement === "credit" && !purchase.supplierId)
+    if (
+      input.cashBack === undefined &&
+      input.settlement === "credit" &&
+      !purchase.supplierId
+    )
       throw new PrepareRejection("NO_SUPPLIER");
     return {
       ...input,

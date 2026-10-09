@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  creditShare,
+  defaultSplit,
   isFullyReturned,
   lineNets,
   refundAmounts,
   refundFor,
+  resolveSplit,
   returnedOf,
+  returnSplit,
 } from "../refund";
 import { computeTotals } from "../sale-math";
 
@@ -128,5 +132,101 @@ describe("a sale that has come back in full", () => {
     expect(isFullyReturned([3000], [back(0, 2999)])).toBe(false);
     expect(isFullyReturned([3000], [])).toBe(false);
     expect(isFullyReturned([], [])).toBe(false);
+  });
+});
+
+describe("how a refund is settled", () => {
+  it("clears what is owed first and hands back only the rest", () => {
+    const has = { hasParty: true };
+    expect(defaultSplit(60_000, 56_000, has)).toEqual({
+      credited: 56_000,
+      cashBack: 4_000,
+    });
+    expect(defaultSplit(20_000, 56_000, has)).toEqual({
+      credited: 20_000,
+      cashBack: 0,
+    });
+    // Nothing owed, or already paid ahead: all cash, unless kept as credit.
+    expect(defaultSplit(20_000, 0, has)).toEqual({
+      credited: 0,
+      cashBack: 20_000,
+    });
+    expect(defaultSplit(20_000, -5_000, has)).toEqual({
+      credited: 0,
+      cashBack: 20_000,
+    });
+    expect(defaultSplit(20_000, 0, { ...has, keepAsCredit: true })).toEqual({
+      credited: 20_000,
+      cashBack: 0,
+    });
+    // A walk-in sale has nobody to credit.
+    expect(
+      defaultSplit(20_000, 0, { hasParty: false, keepAsCredit: true }),
+    ).toEqual({ credited: 0, cashBack: 20_000 });
+  });
+
+  it("gives back the store credit a sale used as credit, not as cash", () => {
+    const has = { hasParty: true, creditShare: 5_000 };
+    expect(defaultSplit(20_000, 0, has)).toEqual({
+      credited: 5_000,
+      cashBack: 15_000,
+    });
+    // and still clears a due first
+    expect(defaultSplit(20_000, 8_000, has)).toEqual({
+      credited: 13_000,
+      cashBack: 7_000,
+    });
+  });
+
+  it("spreads the credit used over the returns of a sale, adding up exactly", () => {
+    // a ৳200 sale that used ৳50 of store credit, returned in three parts
+    const parts = [6_000, 7_001, 6_999];
+    let before = 0;
+    let given = 0;
+    for (const part of parts) {
+      given += creditShare(5_000, 20_000, before, part);
+      before += part;
+    }
+    expect(before).toBe(20_000);
+    expect(given).toBe(5_000);
+    expect(creditShare(0, 20_000, 0, 5_000)).toBe(0);
+  });
+
+  it("resolves the split a return is saved with, old or new", () => {
+    expect(resolveSplit(10_000, { cashBack: 4_000 }, true)).toEqual({
+      cashBack: 4_000,
+      credited: 6_000,
+    });
+    // never more cash than the refund, never negative
+    expect(resolveSplit(10_000, { cashBack: 99_999 }, true)).toEqual({
+      cashBack: 10_000,
+      credited: 0,
+    });
+    expect(resolveSplit(10_000, { cashBack: -5 }, true)).toEqual({
+      cashBack: 0,
+      credited: 10_000,
+    });
+    // older devices: all cash or all credit
+    expect(resolveSplit(10_000, { settlement: "credit" }, true)).toEqual({
+      cashBack: 0,
+      credited: 10_000,
+    });
+    expect(resolveSplit(10_000, { settlement: "cash" }, true)).toEqual({
+      cashBack: 10_000,
+      credited: 0,
+    });
+    // nobody to credit: cash
+    expect(resolveSplit(10_000, { cashBack: 0 }, false)).toEqual({
+      cashBack: 10_000,
+      credited: 0,
+    });
+    expect(returnSplit({ total: 10_000, cashBack: 2_500 })).toEqual({
+      cashBack: 2_500,
+      credited: 7_500,
+    });
+    expect(returnSplit({ total: 10_000, settlement: "credit" })).toEqual({
+      cashBack: 0,
+      credited: 10_000,
+    });
   });
 });

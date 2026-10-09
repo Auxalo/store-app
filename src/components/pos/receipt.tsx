@@ -116,6 +116,12 @@ export function Receipt({ sale, items, storeName }: ReceiptProps) {
           />
         ) : null}
         <Line label={t("total")} value={f.money(sale.total, "always")} bold />
+        {(sale.creditUsed ?? 0) > 0 ? (
+          <Line
+            label={t("paidFromCredit")}
+            value={f.money(sale.creditUsed ?? 0, "always")}
+          />
+        ) : null}
         <Line label={t("paid")} value={f.money(sale.paid, "always")} />
         {sale.due > 0 ? (
           <Line label={t("due")} value={f.money(sale.due, "always")} bold />
