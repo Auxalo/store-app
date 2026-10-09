@@ -22,19 +22,16 @@ test("the online read endpoints search, page, look up and total a real shop", as
   await signUp(page, `api${Date.now()}${testInfo.project.name}`);
   await createProduct(page, {
     name: "Miniket Rice",
-    nameBn: "মিনিকেট চাল",
     price: "75",
     stock: "100",
   });
   await createProduct(page, {
     name: "Nazirshail Rice",
-    nameBn: "",
     price: "85",
     stock: "0",
   });
   await createProduct(page, {
-    name: "Salt",
-    nameBn: "লবণ",
+    name: "লবণ",
     price: "42",
     stock: "20",
   });
@@ -49,7 +46,7 @@ test("the online read endpoints search, page, look up and total a real shop", as
   ]);
   const bangla = await get(
     page,
-    `/api/data/products?q=${encodeURIComponent("চাল")}`,
+    `/api/data/products?q=${encodeURIComponent("লবণ")}`,
   );
   expect(bangla.body.items).toHaveLength(1);
 
@@ -142,7 +139,6 @@ test("online, a shop with PINs only lets the person who unlocked act, and only a
   await signUp(page, `pin${Date.now()}${testInfo.project.name}`);
   await createProduct(page, {
     name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
     price: "50",
     cost: "40",
     stock: "10",

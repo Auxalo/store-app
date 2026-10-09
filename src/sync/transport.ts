@@ -29,6 +29,9 @@ export interface SyncTransport {
   pull(cursor: number, limit?: number): Promise<PullResponse>;
 }
 
+/** A request that hangs (a weak signal, a captive portal) gives up after this, so sync can retry. */
+const REQUEST_TIMEOUT_MS = 20_000;
+
 async function request<T>(
   fetchImpl: typeof fetch,
   input: string,
@@ -36,7 +39,14 @@ async function request<T>(
 ): Promise<T> {
   let response: Response;
   try {
-    response = await fetchImpl(input, { credentials: "same-origin", ...init });
+    response = await fetchImpl(input, {
+      credentials: "same-origin",
+      signal:
+        typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
+          ? AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+          : undefined,
+      ...init,
+    });
   } catch {
     throw new TransportError("network");
   }

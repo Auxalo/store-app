@@ -30,10 +30,12 @@ export function useCompleteSale(onSold: (saleId: string) => void) {
     // Read from the store, not from this render: a second press in the same moment (a double tap,
     // the shortcut held down) must see that a sale is already on its way.
     if (state.lines.length === 0 || state.saving) return;
-    const { total, due } = computeTotals(
+    const credit = state.customerId && state.useCredit ? state.credit : 0;
+    const { total, due, creditUsed } = computeTotals(
       state.lines,
       state.discount,
       state.tendered ?? Number.MAX_SAFE_INTEGER,
+      credit,
     );
     if (due > 0 && !state.customerId) return;
 
@@ -42,7 +44,9 @@ export function useCompleteSale(onSold: (saleId: string) => void) {
       customerName: state.customerName,
       lines: state.lines.map(({ key: _key, stock: _stock, ...line }) => line),
       discount: state.discount,
-      tendered: state.tendered ?? total,
+      // "Exactly the total" means what is left after store credit has paid its part.
+      tendered: state.tendered ?? total - creditUsed,
+      creditUsed,
       paymentMethod: state.paymentMethod,
       notes: state.notes,
     };

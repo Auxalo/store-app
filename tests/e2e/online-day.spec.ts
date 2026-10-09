@@ -20,8 +20,7 @@ test("an online shop day: buy stock, sell for cash and on credit, collect, retur
 
   // Morning: a product with no stock, and a supplier.
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     stock: "0",
   });

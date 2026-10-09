@@ -24,10 +24,10 @@ test("a new owner is guided through setup: products, customers with dues, suppli
   await paste(
     page,
     [
-      "Name\tBangla name\tCategory\tUnit\tPurchase price\tSelling price\tStock",
-      "Miniket Rice\tমিনিকেট চাল\tচাল-ডাল\tkg\t68\t75\t100",
-      "Salt\t\tমসলা\tpacket\t36\t42\t20",
-      "Free Gift\t\t\tpcs\t0\t10\t5",
+      "Name\tCategory\tUnit\tPurchase price\tSelling price\tStock",
+      "মিনিকেট চাল\tচাল-ডাল\tkg\t68\t75\t100",
+      "Salt\tমসলা\tpacket\t36\t42\t20",
+      "Free Gift\t\tpcs\t0\t10\t5",
     ].join("\n"),
   );
   await expect(page.getByTestId("setup-row")).toHaveCount(3);

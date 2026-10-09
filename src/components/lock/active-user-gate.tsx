@@ -2,6 +2,7 @@
 
 import { useLiveQuery } from "dexie-react-hooks";
 import { type ReactNode, useEffect, useMemo } from "react";
+import { ensureSigningKey } from "@/auth/signing-key";
 import { ProfileProvider, useProfile } from "@/auth/use-auth";
 import { LockScreen } from "@/components/lock/lock-screen";
 import { FullScreenLoader } from "@/components/shared/full-screen-loader";
@@ -62,6 +63,21 @@ export function ActiveUserGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (users !== undefined && !pinsInUse && !asAccount) openAsAccount();
   }, [users, pinsInUse, asAccount, openAsAccount]);
+
+  // Whoever is working can sign their work from now on (and anything they queued unsigned is
+  // signed and sent). Also when the internet comes back.
+  const workingId = locked
+    ? null
+    : asAccount
+      ? session.userId
+      : (activeUserId ?? null);
+  useEffect(() => {
+    if (!workingId) return;
+    void ensureSigningKey(workingId);
+    const again = () => void ensureSigningKey(workingId);
+    window.addEventListener("online", again);
+    return () => window.removeEventListener("online", again);
+  }, [workingId]);
 
   // The person who was working was deactivated or lost their PIN: ask again.
   useEffect(() => {

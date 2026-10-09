@@ -66,7 +66,6 @@ const makeFormSchema = (showsCost: boolean) =>
   z
     .object({
       name: z.string().trim().min(1, { error: "required" }).max(120),
-      nameBn: z.string().trim().max(120),
       sku: z.string().trim().max(60),
       barcode: z.string().trim().max(60),
       categoryId: z.string(),
@@ -149,7 +148,6 @@ function ProductForm({ product }: { product?: Product }) {
     resolver: zodResolver(makeFormSchema(canSeeCost)),
     defaultValues: {
       name: product?.name ?? "",
-      nameBn: product?.nameBn ?? "",
       sku: product?.sku ?? "",
       barcode: product?.barcode ?? "",
       categoryId: product?.categoryId ?? NONE,
@@ -207,7 +205,9 @@ function ProductForm({ product }: { product?: Product }) {
 
     const next = {
       name: v.name,
-      nameBn: v.nameBn,
+      // One name, in whichever language the shop writes it. (An older separate Bangla name is
+      // cleared on the next save, so the product is shown and found by this one name only.)
+      nameBn: "",
       sku: v.sku,
       barcode: v.barcode,
       categoryId: v.categoryId === NONE ? null : v.categoryId,
@@ -306,8 +306,12 @@ function ProductForm({ product }: { product?: Product }) {
         {product ? t("products.editTitle") : t("products.newTitle")}
       </h2>
       <FieldGroup>
-        {text("name", t("products.name"), { autoFocus: !product }, true)}
-        {text("nameBn", t("products.nameBn"), { lang: "bn" })}
+        {text(
+          "name",
+          t("products.name"),
+          { autoFocus: !product, placeholder: t("products.namePlaceholder") },
+          true,
+        )}
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Controller

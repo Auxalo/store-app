@@ -1,7 +1,7 @@
 import type { CommandPayload } from "@/commands/definitions";
 import { divRound } from "@/lib/money";
 import { lineTotal } from "@/lib/qty";
-import { refundAmounts } from "@/lib/refund";
+import { refundAmounts, resolveSplit } from "@/lib/refund";
 import { qtyByProduct } from "@/lib/sale-math";
 import { derivedSearchFields } from "@/lib/search-fields";
 import { purchaseTotals } from "@/schemas/purchase";
@@ -583,7 +583,11 @@ export async function saleReturnCreate(
   if (!sale) return { status: "rejected", error: "NOT_FOUND" };
   if (sale.status === "voided")
     return { status: "rejected", error: "SALE_VOIDED" };
-  if (payload.settlement === "credit" && !sale.customerId)
+  if (
+    payload.cashBack === undefined &&
+    payload.settlement === "credit" &&
+    !sale.customerId
+  )
     return { status: "rejected", error: "NO_CUSTOMER" };
   const { problem, returned } = await returnProblem(
     ctx,
@@ -613,6 +617,8 @@ export async function saleReturnCreate(
   };
 
   const total = returnTotal(p.lines);
+  // The device's split stands (the cash really changed hands); it is only kept within the refund.
+  const split = resolveSplit(total, p, !!sale.customerId);
   const products = p.restock
     ? await liveProducts(ctx, [...new Set(p.lines.map((l) => l.productId))])
     : new Map<string, StoredDoc>();
@@ -623,7 +629,7 @@ export async function saleReturnCreate(
     stockRows.map((r) => ({ productId: r.productId, qty: r.delta })),
   );
   const customer =
-    p.settlement === "credit"
+    split.credited > 0
       ? await liveParty(ctx, "customer", sale.customerId)
       : null;
 
@@ -654,7 +660,9 @@ export async function saleReturnCreate(
       amount: l.amount,
     })),
     total,
-    settlement: p.settlement,
+    cashBack: split.cashBack,
+    credited: split.credited,
+    settlement: split.credited > 0 ? "credit" : "cash",
     restock: p.restock,
     notes: p.notes,
     ...stamp(ctx),
@@ -687,7 +695,7 @@ export async function saleReturnCreate(
         ctx,
         "customer",
         customer,
-        -total,
+        -split.credited,
         {
           type: "sale_return",
           id: p.id,
@@ -729,7 +737,11 @@ export async function purchaseReturnCreate(
       { session: ctx.session },
     );
   if (!purchase) return { status: "rejected", error: "NOT_FOUND" };
-  if (p.settlement === "credit" && !purchase.supplierId)
+  if (
+    p.cashBack === undefined &&
+    p.settlement === "credit" &&
+    !purchase.supplierId
+  )
     return { status: "rejected", error: "NO_SUPPLIER" };
   const { problem } = await returnProblem(
     ctx,
@@ -741,6 +753,7 @@ export async function purchaseReturnCreate(
   if (problem) return { status: "rejected", error: problem };
 
   const total = returnTotal(p.lines);
+  const split = resolveSplit(total, p, !!purchase.supplierId);
   const products = await liveProducts(ctx, [
     ...new Set(p.lines.map((l) => l.productId)),
   ]);
@@ -751,7 +764,7 @@ export async function purchaseReturnCreate(
   for (const r of stockRows)
     deltas.set(r.productId, (deltas.get(r.productId) ?? 0) + r.delta);
   const supplier =
-    p.settlement === "credit"
+    split.credited > 0
       ? await liveParty(ctx, "supplier", purchase.supplierId)
       : null;
 
@@ -781,7 +794,9 @@ export async function purchaseReturnCreate(
       unitAmount: l.unitCost,
     })),
     total,
-    settlement: p.settlement,
+    cashBack: split.cashBack,
+    credited: split.credited,
+    settlement: split.credited > 0 ? "credit" : "cash",
     restock: false,
     notes: p.notes,
     ...stamp(ctx),
@@ -814,7 +829,7 @@ export async function purchaseReturnCreate(
         ctx,
         "supplier",
         supplier,
-        -total,
+        -split.credited,
         {
           type: "purchase_return",
           id: p.id,

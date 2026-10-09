@@ -32,6 +32,10 @@ interface CartContents {
   customerName: string;
   /** Cart-level discount in poisha. */
   discount: number;
+  /** The chosen customer's store credit (what they paid ahead), in poisha. Refreshed from their record. */
+  credit: number;
+  /** Pay with that store credit first (on by default; the cashier can untick it). */
+  useCredit: boolean;
   /** Money received, or null for "exactly the total". */
   tendered: number | null;
   paymentMethod: PaymentMethod;
@@ -65,7 +69,9 @@ interface CartState extends CartContents {
   setQty: (key: string, qty: number) => void;
   setUnitPrice: (key: string, unitPrice: number) => void;
   removeLine: (key: string) => void;
-  setCustomer: (id: string | null, name: string) => void;
+  setCustomer: (id: string | null, name: string, credit?: number) => void;
+  setCredit: (credit: number) => void;
+  setUseCredit: (use: boolean) => void;
   setDiscount: (discount: number) => void;
   setTendered: (tendered: number | null) => void;
   setPaymentMethod: (method: PaymentMethod) => void;
@@ -81,6 +87,8 @@ const empty: CartContents = {
   customerId: null,
   customerName: "",
   discount: 0,
+  credit: 0,
+  useCredit: true,
   tendered: null,
   paymentMethod: "cash",
   notes: "",
@@ -91,6 +99,8 @@ const contentsOf = (s: CartContents): CartContents => ({
   customerId: s.customerId,
   customerName: s.customerName,
   discount: s.discount,
+  credit: s.credit,
+  useCredit: s.useCredit,
   tendered: s.tendered,
   paymentMethod: s.paymentMethod,
   notes: s.notes,
@@ -140,7 +150,7 @@ export const useCart = create<CartState>()(
             key: newId(),
             productId: product.id,
             productName: product.name,
-            productNameBn: product.nameBn,
+            productNameBn: "",
             unit: product.unit,
             qty,
             listPrice: product.sellingPrice,
@@ -175,8 +185,15 @@ export const useCart = create<CartState>()(
         set((s) =>
           s.saving ? {} : { lines: s.lines.filter((l) => l.key !== key) },
         ),
-      setCustomer: (customerId, customerName) =>
-        set((s) => (s.saving ? {} : { customerId, customerName })),
+      setCustomer: (customerId, customerName, credit = 0) =>
+        set((s) =>
+          s.saving
+            ? {}
+            : { customerId, customerName, credit: customerId ? credit : 0 },
+        ),
+      setCredit: (credit) =>
+        set((s) => (s.saving || s.credit === credit ? {} : { credit })),
+      setUseCredit: (useCredit) => set((s) => (s.saving ? {} : { useCredit })),
       setDiscount: (discount) => set((s) => (s.saving ? {} : { discount })),
       setTendered: (tendered) => set((s) => (s.saving ? {} : { tendered })),
       setPaymentMethod: (paymentMethod) =>
@@ -240,5 +257,6 @@ export function cartTotals(s: CartContents) {
     s.lines,
     s.discount,
     s.tendered ?? Number.MAX_SAFE_INTEGER,
+    s.customerId && s.useCredit ? s.credit : 0,
   );
 }

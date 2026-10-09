@@ -30,8 +30,7 @@ describe("products", () => {
     withFields(
       "products",
       product("p1", {
-        name: "Miniket Rice",
-        nameBn: "মিনিকেট চাল",
+        name: "Miniket Rice মিনিকেট চাল",
         sku: "A0001",
         barcode: "111",
         categoryId: "grain",

@@ -2,24 +2,27 @@ import { describe, expect, it } from "vitest";
 import { derivedSearchFields, queryTokens } from "../search-fields";
 
 describe("derived search fields", () => {
-  it("products are found by name, Bangla name, SKU and barcode, and sort by a normalised name", () => {
+  it("products are found by their one name (Bangla or English), SKU and barcode, and sort by a normalised name", () => {
     const f = derivedSearchFields("products", {
       name: "Miniket Rice",
-      nameBn: "মিনিকেট চাল",
       sku: "A0042",
       barcode: "8941234",
     });
     expect(f.searchWords).toEqual(
-      expect.arrayContaining([
-        "miniket",
-        "rice",
-        "মিনিকেট",
-        "চাল",
-        "a0042",
-        "8941234",
-      ]),
+      expect.arrayContaining(["miniket", "rice", "a0042", "8941234"]),
     );
     expect(f.nameKey).toBe("miniket rice");
+
+    const bn = derivedSearchFields("products", { name: "মিনিকেট চাল" });
+    expect(bn.searchWords).toEqual(expect.arrayContaining(["মিনিকেট", "চাল"]));
+  });
+
+  it("an old separate Bangla name is no longer searched (the product has one name)", () => {
+    const f = derivedSearchFields("products", {
+      name: "Miniket Rice",
+      nameBn: "মিনিকেট চাল",
+    });
+    expect(f.searchWords).not.toContain("চাল");
   });
 
   it("customers and suppliers are found by name and phone (Bangla digits too)", () => {

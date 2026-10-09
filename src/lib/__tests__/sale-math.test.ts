@@ -26,6 +26,7 @@ describe("sale math", () => {
       subtotal: 12_500,
       discount: 500,
       total: 12_000,
+      creditUsed: 0,
       paid: 12_000,
       due: 0,
     });
@@ -83,5 +84,35 @@ describe("sale math", () => {
         saleRecordIds.ledger("S1"),
       ]).size,
     ).toBe(3);
+  });
+});
+
+describe("store credit in a sale", () => {
+  const lines = [{ qty: 4000, unitPrice: 5000, discount: 0 }]; // ৳200
+  it("pays first; money received covers the rest; what is left is the due", () => {
+    expect(computeTotals(lines, 0, 15_000, 5_000)).toMatchObject({
+      total: 20_000,
+      creditUsed: 5_000,
+      paid: 15_000,
+      due: 0,
+    });
+    expect(computeTotals(lines, 0, 0, 5_000)).toMatchObject({
+      creditUsed: 5_000,
+      paid: 0,
+      due: 15_000,
+    });
+  });
+  it("never uses more credit than the sale is worth, and ignores money beyond what is left", () => {
+    expect(computeTotals(lines, 0, 99_999, 99_999)).toMatchObject({
+      creditUsed: 20_000,
+      paid: 0,
+      due: 0,
+    });
+    expect(computeTotals(lines, 0, 99_999, 5_000)).toMatchObject({
+      creditUsed: 5_000,
+      paid: 15_000,
+      due: 0,
+    });
+    expect(computeTotals(lines, 0, 0, -50)).toMatchObject({ creditUsed: 0 });
   });
 });

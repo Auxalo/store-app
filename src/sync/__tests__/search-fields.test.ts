@@ -96,7 +96,7 @@ describe("search fields across device and server", () => {
     const product = await col("products").findOne({ _id: productId as never });
     expect(product?.nameKey).toBe("miniket rice");
     expect(product?.searchWords).toEqual(
-      expect.arrayContaining(["miniket", "চাল"]),
+      expect.arrayContaining(["miniket", "rice"]),
     );
     const sale = await col("sales").findOne({ _id: saleId as never });
     expect(sale?.customerPhone).toBe("01711000001");

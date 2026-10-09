@@ -1,6 +1,6 @@
 import { can } from "@/auth/permissions";
 import type { CommandPayload } from "@/commands/definitions";
-import { type EarlierReturn, isFullyReturned, returnedOf } from "@/lib/refund";
+import type { EarlierReturn } from "@/lib/refund";
 import {
   computeTotals,
   lineAmount,
@@ -42,6 +42,7 @@ interface StoredSale {
   subtotal: number;
   discount: number;
   total: number;
+  creditUsed?: number;
   paid: number;
   due: number;
   paymentMethod: string;
@@ -251,9 +252,17 @@ export async function saleCreate(
   if (overridden.length > 0 && !can(ctx.role, "sale.priceOverride"))
     return { status: "rejected", error: "FORBIDDEN" };
 
-  const totals = computeTotals(lines, p.discount, p.tendered);
-  const customer =
-    totals.due > 0 ? await liveCustomer(ctx, p.customerId) : null;
+  // Store credit can only pay what the customer has paid ahead right now (an offline device may
+  // have used credit that was spent elsewhere meanwhile: the rest then simply becomes due).
+  const buyer = await liveCustomer(ctx, p.customerId);
+  const credit = buyer ? Math.max(0, -Number(buyer.balance ?? 0)) : 0;
+  const totals = computeTotals(
+    lines,
+    p.discount,
+    p.tendered,
+    Math.min(p.creditUsed, credit),
+  );
+  const customer = totals.due + totals.creditUsed > 0 ? buyer : null;
   const perProduct = qtyByProduct(
     lines.filter((l) => products.has(l.productId)),
   );
@@ -281,6 +290,7 @@ export async function saleCreate(
     subtotal: totals.subtotal,
     discount: totals.discount,
     total: totals.total,
+    creditUsed: totals.creditUsed,
     paid: totals.paid,
     due: totals.due,
     paymentMethod: p.paymentMethod,
@@ -342,7 +352,7 @@ export async function saleCreate(
       .findOneAndUpdate(
         { _id: customer._id, storeId: ctx.storeId },
         {
-          $inc: { balance: totals.due, version: 1 },
+          $inc: { balance: totals.due + totals.creditUsed, version: 1 },
           $set: {
             syncSeq: seq++,
             "fieldVersions.balance": customer.version + 1,
@@ -358,7 +368,7 @@ export async function saleCreate(
       storeId: ctx.storeId,
       partyType: "customer",
       partyId: customer._id,
-      amountDelta: totals.due,
+      amountDelta: totals.due + totals.creditUsed,
       refType: "sale",
       refId: p.id,
       note: p.invoiceNo,
@@ -424,17 +434,13 @@ export async function saleVoid(
       session: ctx.session,
     })
     .toArray();
-  // Everything has already come back: there is nothing left to cancel, and cancelling would only
-  // make the returns disappear from the reports.
-  if (
-    isFullyReturned(
-      sale.items.map((i) => i.qty),
-      earlierReturns,
-    )
-  )
-    return { status: "rejected", error: "FULLY_RETURNED" };
-  const { restocked, credited } = returnedOf(earlierReturns);
-  const dueLeft = Math.max(0, sale.due - credited);
+  // Once anything has come back, the rest also comes back as a return (it keeps stock, dues and
+  // cash right and every figure in the reports adding up); a cancellation would reverse it twice.
+  if (earlierReturns.length > 0)
+    return { status: "rejected", error: "HAS_RETURNS" };
+  const restocked = new Map<number, number>();
+  // What the sale put on the customer's balance: its due, and the store credit it used up.
+  const dueLeft = sale.due + (sale.creditUsed ?? 0);
 
   const products = await liveProducts(ctx, [
     ...new Set(sale.items.map((i) => i.productId)),

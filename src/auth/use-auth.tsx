@@ -104,7 +104,9 @@ export function useProfile(): CachedProfile {
  * refused: the session is then still alive, so going to the sign-in page would only bounce the
  * person straight back in. The caller says so instead of pretending.
  */
-export async function signOut(): Promise<boolean> {
+export async function signOut(
+  options: { keepData?: boolean } = {},
+): Promise<boolean> {
   // The server forgets who was working (the PIN person's cookie lasts 12 hours otherwise).
   await fetch("/api/actor/lock", { method: "POST" }).catch(() => undefined);
   try {
@@ -114,5 +116,15 @@ export async function signOut(): Promise<boolean> {
     /* offline: still clear this device */
   }
   clearProfile();
+  // The shop's data leaves with the person, so the next one to sign in sees nothing of it. (Only
+  // kept when it belongs to a shop that still has to send it: see StoreGate.)
+  // (Loaded only here, so the sign-in page does not carry the device database code.)
+  if (!options.keepData) {
+    const [{ getLocalDb }, { clearShopData }] = await Promise.all([
+      import("@/db/local/db"),
+      import("@/db/local/wipe"),
+    ]);
+    await clearShopData(getLocalDb()).catch(() => undefined);
+  }
   return true;
 }

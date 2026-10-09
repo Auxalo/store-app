@@ -51,6 +51,8 @@ const saleBase = z.object({
   discount: money.default(0),
   /** Money handed over; anything above the total is change and is not recorded. */
   tendered: money.default(0),
+  /** Paid from the customer's store credit (what they had paid ahead). Needs a customer. */
+  creditUsed: money.default(0),
   paymentMethod: z.enum(PAYMENT_METHODS).default("cash"),
   notes: text(300).default(""),
 });
@@ -60,8 +62,13 @@ const needsCustomerForDue = (
   sale: z.infer<typeof saleBase>,
   ctx: z.RefinementCtx,
 ) => {
-  const { due } = computeTotals(sale.lines, sale.discount, sale.tendered);
-  if (due > 0 && !sale.customerId)
+  const { due, creditUsed } = computeTotals(
+    sale.lines,
+    sale.discount,
+    sale.tendered,
+    sale.creditUsed,
+  );
+  if ((due > 0 || creditUsed > 0) && !sale.customerId)
     ctx.addIssue({
       code: "custom",
       path: ["customerId"],

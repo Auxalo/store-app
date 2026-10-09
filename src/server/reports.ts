@@ -84,6 +84,7 @@ export async function serverSummary(
           total: 1,
           paid: 1,
           due: 1,
+          creditUsed: 1,
           paymentMethod: 1,
           "items.productId": 1,
           "items.productName": 1,

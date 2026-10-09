@@ -55,7 +55,6 @@ export function PurchaseFormScreen() {
   const run = useCommand();
   const lookup = useProductLookup();
   const { role } = useProfile();
-  const locale = usePreferences((s) => s.locale);
   const timeZone = usePreferences((s) => s.timeZone);
 
   const [lines, setLines] = useState<Line[]>([]);
@@ -135,7 +134,7 @@ export function PurchaseFormScreen() {
         lines: lines.map((l) => ({
           productId: l.product.id,
           productName: l.product.name,
-          productNameBn: l.product.nameBn,
+          productNameBn: "",
           unit: l.product.unit,
           qty: l.qty,
           unitCost: l.unitCost,
@@ -154,8 +153,7 @@ export function PurchaseFormScreen() {
     }
   }
 
-  const name = (p: Product) =>
-    locale === "bn" && p.nameBn ? p.nameBn : p.name;
+  const name = (p: Product) => p.name;
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">

@@ -92,6 +92,8 @@ export interface Sale {
   subtotal: number;
   discount: number;
   total: number;
+  /** Paid from the customer's store credit. Absent on older sales (none). */
+  creditUsed?: number;
   paid: number;
   due: number;
   paymentMethod: PaymentMethod;
@@ -272,6 +274,11 @@ export interface ReturnDoc {
   partyName: string;
   lines: ReturnLine[];
   total: number;
+  /** Handed over in cash (a sale return) or received in cash from the supplier (a purchase return). */
+  cashBack?: number;
+  /** Taken off what the customer owes (or what the shop owes the supplier), or kept as their credit. */
+  credited?: number;
+  /** "credit" when any of it was credited; kept for older devices. */
   settlement: "cash" | "credit";
   restock: boolean;
   notes: string;

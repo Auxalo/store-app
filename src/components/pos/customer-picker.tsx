@@ -47,8 +47,9 @@ export function CustomerPicker({
   );
   const customers = list.items as Customer[];
 
-  const choose = (id: string | null, label: string) => {
-    setCustomer(id, label);
+  const choose = (id: string | null, label: string, balance = 0) => {
+    // A customer who paid ahead has store credit, which pays for this sale first.
+    setCustomer(id, label, Math.max(0, -balance));
     onOpenChange(false);
   };
 
@@ -163,7 +164,7 @@ export function CustomerPicker({
               <Row
                 key={c.id}
                 selected={selectedId === c.id}
-                onClick={() => choose(c.id, c.name)}
+                onClick={() => choose(c.id, c.name, c.balance)}
                 title={c.name}
                 subtitle={c.phone}
                 badge={

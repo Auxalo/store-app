@@ -9,6 +9,7 @@ import type {
 } from "@/db/local/types";
 import { DEFAULT_TIME_ZONE } from "@/lib/constants";
 import { lineTotal } from "@/lib/qty";
+import { returnSplit } from "@/lib/refund";
 
 /**
  * Report maths as plain functions over plain records, so the same code gives the same answer on a
@@ -121,8 +122,24 @@ export interface Summary {
   /** What customers were charged. */
   total: number;
   paid: number;
-  /** Money left owing from these sales. */
+  /** Money left owing from these sales when they were made. */
   due: number;
+  /** Paid from customers' store credit. */
+  creditUsed: number;
+  /** Cash handed back to customers for returns in this period. */
+  cashBack: number;
+  /** Refunds that came off what customers owed (or were kept as their credit). */
+  credited: number;
+  /** Money that came in: received at the sales, less cash handed back. */
+  received: number;
+  /**
+   * Still owed from these sales once returns took their part off: `due - credited`. Negative means
+   * returns created store credit beyond what was owed.
+   * (netSales = received + creditUsed + unpaid, always.)
+   */
+  unpaid: number;
+  /** Goods sent back to suppliers (what they were worth). */
+  purchaseReturns: number;
   returns: number;
   /** total − returns. */
   netSales: number;
@@ -217,6 +234,7 @@ export function summarize(input: ReportInput): Summary {
   let total = 0;
   let paid = 0;
   let due = 0;
+  let creditUsed = 0;
   let cost = 0;
 
   for (const sale of input.sales) {
@@ -230,6 +248,7 @@ export function summarize(input: ReportInput): Summary {
     total += sale.total;
     paid += sale.paid;
     due += sale.due;
+    creditUsed += sale.creditUsed ?? 0;
     cost += saleCost;
 
     const d = days.get(day);
@@ -254,10 +273,17 @@ export function summarize(input: ReportInput): Summary {
   }
 
   let returns = 0;
+  let cashBack = 0;
+  let credited = 0;
+  let purchaseReturns = 0;
   for (const ret of input.returns) {
-    if (ret.kind !== "sale") continue;
     const day = dayKey(ret.createdAt, tz);
     if (!inRange(day)) continue;
+    if (ret.kind === "purchase") {
+      purchaseReturns += ret.total;
+      continue;
+    }
+    if (ret.kind !== "sale") continue;
     const sale = input.findSale(ret.refId);
     // A cancelled sale is not counted at all, so neither are its returns (that would count the
     // same goods and money twice).
@@ -276,6 +302,9 @@ export function summarize(input: ReportInput): Summary {
       );
     }
     returns += ret.total;
+    const split = returnSplit(ret);
+    cashBack += split.cashBack;
+    credited += split.credited;
     cost -= returnedCost;
     const d = days.get(day);
     if (d) {
@@ -315,6 +344,12 @@ export function summarize(input: ReportInput): Summary {
     total,
     paid,
     due,
+    creditUsed,
+    cashBack,
+    credited,
+    received: paid - cashBack,
+    unpaid: due - credited,
+    purchaseReturns,
     returns,
     netSales,
     cost,

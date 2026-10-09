@@ -47,12 +47,7 @@ export function derivedSearchFields(
   switch (collection) {
     case "products":
       return {
-        searchWords: searchWords(
-          str(doc.name),
-          str(doc.nameBn),
-          str(doc.sku),
-          str(doc.barcode),
-        ),
+        searchWords: searchWords(str(doc.name), str(doc.sku), str(doc.barcode)),
         nameKey: normalizeSearch(str(doc.name)),
       };
     case "customers":

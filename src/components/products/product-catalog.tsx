@@ -104,10 +104,7 @@ export function ProductCatalog({ mode }: { mode: "products" | "inventory" }) {
     if (hasMore && lastIndex >= items.length - 12) loadMore();
   }, [lastIndex, items.length, hasMore, loadMore]);
 
-  const name = (p: Product) =>
-    locale === "bn" && p.nameBn ? p.nameBn : p.name;
-  const otherName = (p: Product) =>
-    locale === "bn" ? (p.nameBn ? p.name : "") : p.nameBn;
+  const name = (p: Product) => p.name;
   const filtered =
     q !== "" ||
     filters.category !== ALL ||
@@ -250,7 +247,6 @@ export function ProductCatalog({ mode }: { mode: "products" | "inventory" }) {
                     <p className="truncate font-medium">{name(p)}</p>
                     <p className="truncate text-xs text-muted-foreground">
                       {[
-                        otherName(p),
                         p.sku,
                         p.categoryId ? categoryName.get(p.categoryId) : "",
                       ]

@@ -15,8 +15,7 @@ test("reports count money received and current dues, and lists say what a due me
 }, testInfo) => {
   await signUp(page, `bugs${Date.now()}${testInfo.project.name}`);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     cost: "40",
     stock: "20",
@@ -50,12 +49,10 @@ test("reports count money received and current dues, and lists say what a due me
   await expect(page.getByTestId("payment-split")).not.toContainText("৳২০০");
   await expect(page.getByTestId("kpi-count")).toContainText("গড় বিল ৳১০০");
 
-  // The customer pays the ৳50: the sale's own figure still says what it was when the sale was made.
+  // The return (৳100) cleared the ৳50 still owed first and handed back the other ৳50 in cash, so the
+  // customer owes nothing, while the sale's own figure still says what it was when it was made.
   await page.goto("/customers");
   await page.getByTestId("party-row").filter({ hasText: "রহিম" }).click();
-  await page.getByTestId("record-payment").click();
-  await page.getByTestId("payment-amount").fill("50");
-  await page.getByTestId("save-payment").click();
   await expect(page.getByTestId("party-balance-total")).toHaveText("৳০");
   await page.goto("/sales");
   await expect(page.getByTestId("sale-row")).toContainText(
@@ -70,8 +67,7 @@ test("Reports > Profit shows what the shop owes suppliers now, after a payment",
 }, testInfo) => {
   await signUp(page, `owed${Date.now()}${testInfo.project.name}`);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     cost: "40",
     stock: "0",
@@ -124,8 +120,7 @@ test("stock cannot be adjusted below zero, and the counter warns when a sale nee
 }, testInfo) => {
   await signUp(page, `stock${Date.now()}${testInfo.project.name}`);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     stock: "3",
   });
@@ -158,12 +153,8 @@ test("on a short phone screen the whole cart, including the Sell button, can be 
   page,
 }, testInfo) => {
   await signUp(page, `short${Date.now()}${testInfo.project.name}`);
-  for (const [name, nameBn] of [
-    ["Fresh Milk", "ফ্রেশ দুধ"],
-    ["Miniket Rice", "মিনিকেট চাল"],
-    ["Soap", "সাবান"],
-  ] as const)
-    await createProduct(page, { name, nameBn, price: "50", stock: "10" });
+  for (const name of ["ফ্রেশ দুধ", "মিনিকেট চাল", "সাবান"])
+    await createProduct(page, { name, price: "50", stock: "10" });
 
   for (const [width, height] of [
     [360, 640],
@@ -195,8 +186,7 @@ test("on a phone, picking a product shows it in the list at once, and it is stil
 }, testInfo) => {
   await signUp(page, `pick${Date.now()}${testInfo.project.name}`);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     stock: "10",
   });

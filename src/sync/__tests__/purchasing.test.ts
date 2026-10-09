@@ -704,7 +704,7 @@ describe("cancelling a sale that has come back in full (device)", () => {
     },
   ];
 
-  it("is refused on the device and nothing changes; a partly returned sale can still be cancelled", async () => {
+  it("is refused on the device and nothing changes, and so is cancelling a partly returned sale", async () => {
     const d = await newDevice();
     const milk = await addProduct(d, 10_000);
     const full = await sellTo(d, [sLine(milk, 3_000)]);
@@ -716,7 +716,7 @@ describe("cancelling a sale that has come back in full (device)", () => {
     expect(await stock(d, milk)).toBe(10_000);
     await expect(
       runCommand(d.db, d.ctx, "sale.void", { saleId: full, reason: "x" }),
-    ).rejects.toThrow(/FULLY_RETURNED/);
+    ).rejects.toThrow(/HAS_RETURNS/);
     expect((await d.db.sales.get(full))?.status).toBe("active");
     expect(await stock(d, milk)).toBe(10_000);
 
@@ -726,8 +726,263 @@ describe("cancelling a sale that has come back in full (device)", () => {
       saleId: part,
       lines: back(milk, 1_000),
     });
-    await runCommand(d.db, d.ctx, "sale.void", { saleId: part, reason: "x" });
-    expect((await d.db.sales.get(part))?.status).toBe("voided");
-    expect(await stock(d, milk)).toBe(10_000);
+    await expect(
+      runCommand(d.db, d.ctx, "sale.void", { saleId: part, reason: "x" }),
+    ).rejects.toThrow(/HAS_RETURNS/);
+    expect((await d.db.sales.get(part))?.status).toBe("active");
+    expect(await stock(d, milk)).toBe(7_000);
+  });
+});
+
+describe("returns, store credit and the way a refund is settled (device)", () => {
+  const unit = (milk: string, qty: number) => [
+    {
+      itemIndex: 0,
+      productId: milk,
+      productName: "Fresh Milk",
+      productNameBn: "",
+      unit: "pcs" as const,
+      qty,
+      unitPrice: 5000,
+    },
+  ];
+  const serverBalance = async (collection: string, id: string) =>
+    (await mongo.db.collection(collection).findOne({ _id: id as never }))
+      ?.balance;
+
+  it("a sale uses the customer's store credit, and the device and the server agree", async () => {
+    const d = await newDevice();
+    const milk = await addProduct(d, 100_000);
+    const customer = await addCustomer(d);
+    await runCommand(d.db, d.ctx, "party.openingBalance", {
+      id: newId(),
+      partyType: "customer",
+      partyId: customer,
+      amount: -5_000, // paid ৳50 ahead
+    });
+    const saleId = await sellTo(d, [sLine(milk, 4_000)], {
+      customerId: customer,
+      customerName: "রহিম",
+      tendered: 15_000,
+      creditUsed: 5_000,
+    });
+    expect(await d.db.sales.get(saleId)).toMatchObject({
+      total: 20_000,
+      creditUsed: 5_000,
+      paid: 15_000,
+      due: 0,
+    });
+    expect((await d.db.customers.get(customer))?.balance).toBe(0);
+    await d.sync();
+    expect(await serverBalance("customers", customer)).toBe(0);
+    expect(
+      await mongo.db.collection("sales").findOne({ _id: saleId as never }),
+    ).toMatchObject({ creditUsed: 5_000, paid: 15_000, due: 0 });
+  });
+
+  it("credit the device does not really have is not used", async () => {
+    const d = await newDevice();
+    const milk = await addProduct(d, 100_000);
+    const customer = await addCustomer(d);
+    const saleId = await sellTo(d, [sLine(milk, 4_000)], {
+      customerId: customer,
+      customerName: "রহিম",
+      tendered: 15_000,
+      creditUsed: 5_000,
+    });
+    expect(await d.db.sales.get(saleId)).toMatchObject({
+      creditUsed: 0,
+      due: 5_000,
+    });
+    expect((await d.db.customers.get(customer))?.balance).toBe(5_000);
+  });
+
+  it("the due comes off first: a credit sale returned in full leaves nothing owed, nothing handed back", async () => {
+    const d = await newDevice();
+    const milk = await addProduct(d, 100_000);
+    const customer = await addCustomer(d);
+    const saleId = await sellTo(d, [sLine(milk, 4_000)], {
+      customerId: customer,
+      customerName: "রহিম",
+      tendered: 0,
+    });
+    expect((await d.db.customers.get(customer))?.balance).toBe(20_000);
+    await runCommand(d.db, d.ctx, "saleReturn.create", {
+      id: newId(),
+      saleId,
+      lines: unit(milk, 4_000),
+      cashBack: 0,
+    });
+    expect((await d.db.customers.get(customer))?.balance).toBe(0);
+    expect((await d.db.returns.toArray())[0]).toMatchObject({
+      total: 20_000,
+      cashBack: 0,
+      credited: 20_000,
+      settlement: "credit",
+    });
+    await d.sync();
+    expect(await serverBalance("customers", customer)).toBe(0);
+  });
+
+  it("a part cash, part off-the-due refund posts only the credited part to the ledger", async () => {
+    const d = await newDevice();
+    const milk = await addProduct(d, 100_000);
+    const customer = await addCustomer(d);
+    const saleId = await sellTo(d, [sLine(milk, 4_000)], {
+      customerId: customer,
+      customerName: "রহিম",
+      tendered: 10_000, // ৳100 now, ৳100 owed
+    });
+    await runCommand(d.db, d.ctx, "saleReturn.create", {
+      id: newId(),
+      saleId,
+      lines: unit(milk, 4_000),
+      cashBack: 10_000, // the ৳100 owed comes off, ৳100 goes back in cash
+    });
+    const ret = (await d.db.returns.toArray())[0];
+    expect(ret).toMatchObject({ cashBack: 10_000, credited: 10_000 });
+    expect((await d.db.customers.get(customer))?.balance).toBe(0);
+    await d.sync();
+    expect(await serverBalance("customers", customer)).toBe(0);
+    expect(
+      await mongo.db.collection("returns").findOne({ _id: ret.id as never }),
+    ).toMatchObject({ cashBack: 10_000, credited: 10_000 });
+  });
+
+  it("the server keeps the split the device made, even if the balance moved meanwhile", async () => {
+    const a = await newDevice();
+    const b = await newDevice();
+    const milk = await addProduct(a, 100_000);
+    const customer = await addCustomer(a);
+    const saleId = await sellTo(a, [sLine(milk, 4_000)], {
+      customerId: customer,
+      customerName: "রহিম",
+      tendered: 0,
+    }); // owes ৳200
+    await a.sync();
+    await b.sync();
+
+    // A's screen offered "all off the due"; meanwhile B collected the whole ৳200.
+    a.faults.offline = true;
+    await runCommand(a.db, a.ctx, "saleReturn.create", {
+      id: newId(),
+      saleId,
+      lines: unit(milk, 4_000),
+      cashBack: 0,
+    });
+    await runCommand(b.db, b.ctx, "payment.collect", {
+      id: newId(),
+      partyId: customer,
+      amount: 20_000,
+    });
+    await b.sync();
+    a.faults.offline = false;
+    await a.sync();
+    await b.sync();
+    // Nothing is refused: the customer ends ৳200 ahead, as both really happened.
+    expect(await serverBalance("customers", customer)).toBe(-20_000);
+    expect((await a.db.customers.get(customer))?.balance).toBe(-20_000);
+    expect(await pending(a)).toBe(0);
+  });
+
+  it("an unsent return keeps only its credited part on the balance when someone else's changes arrive", async () => {
+    const a = await newDevice();
+    const b = await newDevice();
+    const milk = await addProduct(a, 100_000);
+    const customer = await addCustomer(a);
+    const saleId = await sellTo(a, [sLine(milk, 4_000)], {
+      customerId: customer,
+      customerName: "রহিম",
+      tendered: 0,
+    }); // owes ৳200
+    await a.sync();
+    await b.sync();
+
+    a.faults.offline = true;
+    await runCommand(a.db, a.ctx, "saleReturn.create", {
+      id: newId(),
+      saleId,
+      lines: unit(milk, 4_000),
+      cashBack: 8_000, // ৳120 comes off what is owed, ৳80 is handed back
+    });
+    expect((await a.db.customers.get(customer))?.balance).toBe(8_000);
+    await runCommand(b.db, b.ctx, "payment.collect", {
+      id: newId(),
+      partyId: customer,
+      amount: 2_000,
+    });
+    await b.sync();
+    a.faults.offline = false;
+    await pullAll(a.db, a.transport);
+    // The server says ৳180 is owed; A's own unsent return takes ৳120 off that, not the whole ৳200.
+    expect((await a.db.customers.get(customer))?.balance).toBe(6_000);
+    await a.sync();
+    expect(await serverBalance("customers", customer)).toBe(6_000);
+    expect((await a.db.customers.get(customer))?.balance).toBe(6_000);
+  });
+
+  it("a refund of a sale that used store credit gives that credit back, as credit", async () => {
+    const d = await newDevice();
+    const milk = await addProduct(d, 100_000);
+    const customer = await addCustomer(d);
+    await runCommand(d.db, d.ctx, "party.openingBalance", {
+      id: newId(),
+      partyType: "customer",
+      partyId: customer,
+      amount: -5_000,
+    });
+    const saleId = await sellTo(d, [sLine(milk, 4_000)], {
+      customerId: customer,
+      customerName: "রহিম",
+      tendered: 15_000,
+      creditUsed: 5_000,
+    });
+    // What the screen offers: ৳50 back as credit, ৳150 in cash.
+    await runCommand(d.db, d.ctx, "saleReturn.create", {
+      id: newId(),
+      saleId,
+      lines: unit(milk, 4_000),
+      cashBack: 15_000,
+    });
+    expect((await d.db.customers.get(customer))?.balance).toBe(-5_000);
+    await d.sync();
+    expect(await serverBalance("customers", customer)).toBe(-5_000);
+  });
+
+  it("a purchase return settles like a sale return: part off what we owe, part cash from the supplier", async () => {
+    const d = await newDevice();
+    const milk = await addProduct(d, 0);
+    const supplier = await addSupplier(d);
+    const purchaseId = await buy(d, [pLine(milk, 10_000, 4500)], {
+      supplierId: supplier,
+      supplierName: "X",
+      paid: 0,
+    }); // we owe ৳450
+    expect((await d.db.suppliers.get(supplier))?.balance).toBe(45_000);
+    await runCommand(d.db, d.ctx, "purchaseReturn.create", {
+      id: newId(),
+      purchaseId,
+      lines: [
+        {
+          itemIndex: 0,
+          productId: milk,
+          productName: "Fresh Milk",
+          productNameBn: "",
+          unit: "pcs",
+          qty: 10_000,
+          unitCost: 4500,
+        },
+      ],
+      cashBack: 15_000, // ৳150 received in cash, ৳300 comes off what we owe
+    });
+    expect((await d.db.suppliers.get(supplier))?.balance).toBe(15_000);
+    const ret = (await d.db.returns.toArray())[0];
+    expect(ret).toMatchObject({
+      total: 45_000,
+      cashBack: 15_000,
+      credited: 30_000,
+    });
+    await d.sync();
+    expect(await serverBalance("suppliers", supplier)).toBe(15_000);
   });
 });

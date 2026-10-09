@@ -379,7 +379,6 @@ export function SettingsScreen() {
             onClick={() =>
               void exportCsv("products", [
                 "name",
-                "nameBn",
                 "sku",
                 "barcode",
                 "unit",

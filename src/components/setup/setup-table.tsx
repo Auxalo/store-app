@@ -248,7 +248,7 @@ export function SetupTable({ kind, rows, onRows, onSaved }: SetupTableProps) {
           await run("product.create", {
             id: newId(),
             name: p.name,
-            nameBn: p.nameBn,
+            nameBn: "",
             categoryId: p.category
               ? (plan.idFor.get(normalizeSearch(p.category)) ?? null)
               : null,

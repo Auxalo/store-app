@@ -35,8 +35,7 @@ test("buy stock on credit, pay the supplier, and see it all on a second device",
   const username = `buy${Date.now()}${testInfo.project.name}`;
   await signUp(page, username);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     stock: "0",
   });
@@ -109,8 +108,7 @@ test("collect a customer's due after a credit sale", async ({
 }, testInfo) => {
   await signUp(page, `due${Date.now()}${testInfo.project.name}`);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     stock: "10",
   });
@@ -193,8 +191,7 @@ test("return goods from a sale: stock goes back, and you cannot return more than
 }, testInfo) => {
   await signUp(page, `ret${Date.now()}${testInfo.project.name}`);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     stock: "10",
   });
@@ -250,8 +247,7 @@ test("a purchase line needs a cost above zero before it can be saved", async ({
   const username = `cost${Date.now()}${testInfo.project.name}`;
   await signUp(page, username);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     stock: "0",
   });

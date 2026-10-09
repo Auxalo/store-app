@@ -26,14 +26,12 @@ test("a sale made offline: instant, receipt, stock down, then synced to a second
   const username = `pos${Date.now()}${testInfo.project.name}`;
   await signUp(page, username);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     stock: "10",
   });
   await createProduct(page, {
-    name: "Miniket Rice",
-    nameBn: "মিনিকেট চাল",
+    name: "মিনিকেট চাল",
     price: "120",
     stock: "20",
   });
@@ -122,8 +120,7 @@ test("selling on credit adds to the customer's due; cancelling the sale puts eve
 }, testInfo) => {
   await signUp(page, `credit${Date.now()}${testInfo.project.name}`);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     stock: "10",
   });
@@ -185,8 +182,7 @@ test("a barcode typed (or scanned) into the search box adds the product", async 
 }, testInfo) => {
   await signUp(page, `scan${Date.now()}${testInfo.project.name}`);
   await createProduct(page, {
-    name: "Tea",
-    nameBn: "চা",
+    name: "চা",
     price: "30",
     stock: "5",
     barcode: "8901234567890",
@@ -204,8 +200,7 @@ test("a barcode typed (or scanned) into the search box adds the product", async 
 test("the cart survives a reload", async ({ page }, testInfo) => {
   await signUp(page, `cart${Date.now()}${testInfo.project.name}`);
   await createProduct(page, {
-    name: "Tea",
-    nameBn: "চা",
+    name: "চা",
     price: "30",
     stock: "5",
   });
@@ -257,8 +252,7 @@ test("tapping a product opens no keyboard on a phone, and keeps the search ready
 }, testInfo) => {
   await signUp(page, `kbd${Date.now()}${testInfo.project.name}`);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     stock: "10",
   });

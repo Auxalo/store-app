@@ -1,14 +1,12 @@
 "use client";
 
 import { ArrowLeft, Lock } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 import { lockoutState } from "@/auth/lockout";
 import { deriveProofKey, verifyPin } from "@/auth/pin";
 import { refreshStaff } from "@/auth/staff-cache";
-import { signOut } from "@/auth/use-auth";
+import { useSignOut } from "@/components/layout/sign-out";
 import { PinPad } from "@/components/lock/pin-pad";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -33,7 +31,6 @@ interface LockScreenProps {
 export function LockScreen({ users, storeName, onUnlock }: LockScreenProps) {
   const t = useTranslations();
   const f = useFormat();
-  const router = useRouter();
   const [selected, setSelected] = useState<LocalUser | null>(null);
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
@@ -148,10 +145,9 @@ export function LockScreen({ users, storeName, onUnlock }: LockScreenProps) {
     setBusy(false);
   }
 
-  async function signInAgain() {
-    if (await signOut()) router.replace("/login");
-    else toast.error(t("account.signOutFailed"));
-  }
+  // Signing in again with the password is a sign-out: anything unsent is sent first.
+  const signOutFlow = useSignOut();
+  const signInAgain = signOutFlow.request;
 
   const waitSeconds =
     lock && lock.waitMs > 0 ? Math.ceil(lock.waitMs / 1000) : 0;
@@ -250,13 +246,10 @@ export function LockScreen({ users, storeName, onUnlock }: LockScreenProps) {
         </ul>
       )}
 
-      <Button
-        variant="link"
-        className="text-xs"
-        onClick={() => void signInAgain()}
-      >
+      <Button variant="link" className="text-xs" onClick={signInAgain}>
         {t("lock.signInAgain")}
       </Button>
+      {signOutFlow.dialog}
     </div>
   );
 }

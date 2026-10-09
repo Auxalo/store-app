@@ -5,6 +5,7 @@ import { useDataModeStore } from "@/data/mode-store";
 import { getLocalDb, type StoreDB } from "@/db/local/db";
 import { getDeviceId, getMeta, setMeta } from "@/db/local/meta";
 import { APP_VERSION } from "@/lib/app-version";
+import { useConnectivity } from "@/stores/connectivity";
 import { recoverInterrupted, resetBackoff, syncOnce } from "./engine";
 import { syncOnlineOnce } from "./online-cycle";
 import { pruneIfDue } from "./prune";
@@ -13,6 +14,8 @@ import { type SyncProblem, useSyncStore } from "./store";
 import { createFetchTransport, TransportError } from "./transport";
 
 const PERIODIC_MS = 60_000;
+/** While the server cannot be reached, how often to check whether it is back. */
+const PROBE_MS = 4_000;
 const NUDGE_DEBOUNCE_MS = 1_000;
 const STAFF_EVERY_MS = 5 * 60_000;
 
@@ -58,6 +61,7 @@ class SyncManager {
   private stopped = false;
   private nudgeTimer?: ReturnType<typeof setTimeout>;
   private wakeTimer?: ReturnType<typeof setTimeout>;
+  private probeTimer?: ReturnType<typeof setTimeout>;
   private periodic?: ReturnType<typeof setInterval>;
   private cleanups: Array<() => void> = [];
 
@@ -123,6 +127,33 @@ class SyncManager {
     clearInterval(this.periodic);
     clearTimeout(this.nudgeTimer);
     clearTimeout(this.wakeTimer);
+    clearTimeout(this.probeTimer);
+  }
+
+  /**
+   * The server could not be reached. Check every few seconds whether it is back, and when it is,
+   * send at once: waiting out the retry delays (up to minutes) or the browser's "online" event
+   * (late or missing on many phones) kept the app saying "Offline" long after the internet was back.
+   */
+  private probeUntilBack(): void {
+    clearTimeout(this.probeTimer);
+    if (this.stopped) return;
+    this.probeTimer = setTimeout(async () => {
+      if (this.stopped) return;
+      let reachable = false;
+      try {
+        const response = await fetch("/api/health?probe=1", {
+          cache: "no-store",
+          signal: AbortSignal.timeout(PROBE_MS),
+        });
+        reachable = response.status < 500;
+      } catch {
+        reachable = false;
+      }
+      if (!reachable) return this.probeUntilBack();
+      await resetBackoff(this.db);
+      void this.run();
+    }, PROBE_MS);
   }
 
   /** "Something changed locally": sync soon (debounced so a burst becomes one request). */
@@ -203,6 +234,8 @@ class SyncManager {
         void refreshStaff(db);
       }
       void pruneIfDue(db).catch(() => undefined);
+      // The server answered: whatever the browser's own flag says, the app is online.
+      useConnectivity.getState().setOnline(true);
       this.patch({
         problem: null,
         lastSyncAt: await getMeta(db, "lastSyncAt"),
@@ -215,6 +248,7 @@ class SyncManager {
           ? (error.kind as SyncProblem)
           : "server";
       this.patch({ problem });
+      if (problem === "network") this.probeUntilBack();
     }
   }
 

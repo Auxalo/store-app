@@ -62,6 +62,10 @@ export function SaleViewScreen() {
       items.map((i) => Number(i.qty)),
       saleReturns,
     );
+  // Once anything has come back, the rest also comes back as a return: cancelling would reverse
+  // the same stock and money twice.
+  const partlyReturned =
+    sale.status === "active" && saleReturns.length > 0 && !fullyReturned;
 
   async function voidSale() {
     try {
@@ -85,6 +89,11 @@ export function SaleViewScreen() {
             {t("sales.fullyReturned")}
           </Badge>
         ) : null}
+        {partlyReturned ? (
+          <Badge variant="secondary" data-testid="partly-returned">
+            {t("sales.partlyReturned")}
+          </Badge>
+        ) : null}
         {can(role, "sale.void") &&
         sale.status === "active" &&
         !fullyReturned ? (
@@ -94,12 +103,12 @@ export function SaleViewScreen() {
             data-testid="return-items"
           >
             <Undo2 aria-hidden />
-            {t("returns.title")}
+            {partlyReturned ? t("returns.returnRest") : t("returns.title")}
           </Button>
         ) : null}
         {can(role, "sale.void") &&
         sale.status === "active" &&
-        !fullyReturned ? (
+        saleReturns.length === 0 ? (
           <Button
             variant="outline"
             onClick={() => setVoiding(true)}

@@ -103,9 +103,90 @@ export function isFullyReturned(
   return itemQtys.every((qty, index) => (back.get(index) ?? 0) >= qty);
 }
 
+/**
+ * How a refund is settled: part comes off what the customer owes (or what the shop owes a supplier),
+ * and the rest is handed over in cash. `credited + cashBack` is always the whole refund.
+ */
+export interface Split {
+  cashBack: number;
+  credited: number;
+}
+
+/**
+ * The part of a refund that was paid for with the customer's store credit: it goes back as store
+ * credit, never as cash. Spread over the sale in proportion to what has come back, so all the
+ * returns of a sale together give back exactly what was used.
+ */
+export function creditShare(
+  creditUsed: number,
+  saleTotal: number,
+  refundedBefore: number,
+  refund: number,
+): number {
+  if (creditUsed <= 0 || saleTotal <= 0) return 0;
+  const upTo = (amount: number) =>
+    Math.round((creditUsed * Math.min(amount, saleTotal)) / saleTotal);
+  return upTo(refundedBefore + refund) - upTo(refundedBefore);
+}
+
+/**
+ * What the screen offers first: the store credit the sale used goes back as credit, what the
+ * customer still owes is cleared next, and only the rest is handed back (or kept as credit).
+ */
+export function defaultSplit(
+  refund: number,
+  balance: number,
+  options: { hasParty: boolean; keepAsCredit?: boolean; creditShare?: number },
+): Split {
+  if (!options.hasParty) return { cashBack: refund, credited: 0 };
+  if (options.keepAsCredit) return { cashBack: 0, credited: refund };
+  const share = Math.min(options.creditShare ?? 0, refund);
+  const offDue = Math.min(refund - share, Math.max(0, balance));
+  const credited = share + offDue;
+  return { cashBack: refund - credited, credited };
+}
+
+/**
+ * The split a return is saved with. A new return says how much goes back in cash; an older one only
+ * said "cash" or "credit", which means all of it one way or the other. Without a person on the
+ * invoice (a walk-in sale) there is nobody to credit, so it is all cash.
+ */
+export function resolveSplit(
+  total: number,
+  asked: { cashBack?: number; settlement?: "cash" | "credit" },
+  hasParty: boolean,
+): Split {
+  if (!hasParty) return { cashBack: total, credited: 0 };
+  const cashBack =
+    typeof asked.cashBack === "number"
+      ? Math.min(total, Math.max(0, asked.cashBack))
+      : asked.settlement === "credit"
+        ? 0
+        : total;
+  return { cashBack, credited: total - cashBack };
+}
+
+/** The split of a saved return, new or old. */
+export function returnSplit(ret: {
+  total: number;
+  cashBack?: number;
+  credited?: number;
+  settlement?: "cash" | "credit";
+}): Split {
+  if (typeof ret.cashBack === "number") {
+    const cashBack = Math.min(ret.total, Math.max(0, ret.cashBack));
+    return { cashBack, credited: ret.total - cashBack };
+  }
+  return ret.settlement === "credit"
+    ? { cashBack: 0, credited: ret.total }
+    : { cashBack: ret.total, credited: 0 };
+}
+
 export interface EarlierReturn {
   lines: Array<{ itemIndex: number; qty: number }>;
-  settlement: "cash" | "credit";
+  settlement?: "cash" | "credit";
+  cashBack?: number;
+  credited?: number;
   restock?: boolean;
   total: number;
 }
@@ -121,7 +202,7 @@ export function returnedOf(returns: EarlierReturn[]) {
     if (r.restock !== false)
       for (const l of r.lines)
         restocked.set(l.itemIndex, (restocked.get(l.itemIndex) ?? 0) + l.qty);
-    if (r.settlement === "credit") credited += r.total;
+    credited += returnSplit(r).credited;
   }
   return { restocked, credited };
 }

@@ -10,23 +10,12 @@ import {
   Repeat,
   Sun,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import { useState } from "react";
-import { toast } from "sonner";
-import { signOut, useProfile } from "@/auth/use-auth";
+import { useProfile } from "@/auth/use-auth";
+import { useSignOut } from "@/components/layout/sign-out";
 import { PinDialog } from "@/components/lock/pin-dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,23 +37,19 @@ import { useFormat } from "@/i18n/use-format";
 import type { NumeralSystem } from "@/lib/format";
 import { useActiveUser } from "@/stores/active-user";
 import { usePreferences } from "@/stores/preferences";
-import { useSyncStatus } from "@/sync/use-sync-status";
 import { InstallAppMenuItem } from "./install-app";
 
 export function UserMenu() {
   const t = useTranslations();
-  const router = useRouter();
   const profile = useProfile();
   const shopName = useShopName();
   const { theme = "system", setTheme } = useTheme();
   const numerals = usePreferences((s) => s.numerals);
   const setNumerals = usePreferences((s) => s.setNumerals);
 
-  const f = useFormat();
-  const { pending } = useSyncStatus();
-  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
-  // The count the person was warned about: the live number can fall to 0 while the dialog is open.
-  const [warnedPending, setWarnedPending] = useState(0);
+  const _f = useFormat();
+  // Sends anything unsent first, then signs out and takes the shop's data off the device.
+  const signOutFlow = useSignOut();
   const [settingPin, setSettingPin] = useState(false);
   const lock = useActiveUser((st) => st.lock);
   const pinUsers = useLiveQuery(
@@ -75,11 +60,6 @@ export function UserMenu() {
     [],
     0,
   );
-
-  async function doSignOut() {
-    if (await signOut()) router.replace("/login");
-    else toast.error(t("account.signOutFailed"));
-  }
 
   const initial = profile.name.trim().charAt(0).toUpperCase() || "?";
 
@@ -173,12 +153,8 @@ export function UserMenu() {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             variant="destructive"
-            onSelect={() => {
-              if (pending > 0) {
-                setWarnedPending(pending);
-                setConfirmingSignOut(true);
-              } else void doSignOut();
-            }}
+            onSelect={() => signOutFlow.request()}
+            data-testid="sign-out"
           >
             <LogOut aria-hidden />
             {t("common.logout")}
@@ -195,27 +171,7 @@ export function UserMenu() {
         onClose={() => setSettingPin(false)}
       />
 
-      <AlertDialog open={confirmingSignOut} onOpenChange={setConfirmingSignOut}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t("account.signOutPendingTitle")}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("account.signOutPendingBody", {
-                count: warnedPending,
-                n: f.integer(warnedPending),
-              })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void doSignOut()}>
-              {t("account.signOutConfirm")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {signOutFlow.dialog}
     </>
   );
 }

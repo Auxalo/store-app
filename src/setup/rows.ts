@@ -29,7 +29,6 @@ export const COLUMNS: Record<SetupKind, ColumnDef[]> = {
       required: true,
       titles: ["name", "product", "product name", "নাম", "পণ্য", "পণ্যের নাম"],
     },
-    { key: "nameBn", titles: ["bangla name", "name bn", "বাংলা নাম"] },
     { key: "category", titles: ["category", "ক্যাটাগরি"] },
     { key: "unit", titles: ["unit", "একক", "ইউনিট"] },
     {
@@ -97,7 +96,6 @@ export type RowIssue =
 
 export interface ProductValue {
   name: string;
-  nameBn: string;
   category: string;
   unit: UnitCode;
   purchasePrice: number;
@@ -227,7 +225,6 @@ function checkProduct(
     issues,
     value: {
       name,
-      nameBn: get("nameBn"),
       category: get("category"),
       unit: unit as UnitCode,
       purchasePrice,

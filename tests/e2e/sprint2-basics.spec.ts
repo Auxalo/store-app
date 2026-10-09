@@ -47,8 +47,7 @@ test("a product needs a name and both prices; its SKU is created automatically",
 
   // The next one gets the next number.
   await createProduct(page, {
-    name: "Rice",
-    nameBn: "চাল",
+    name: "চাল",
     price: "75",
     stock: "10",
   });
@@ -94,12 +93,33 @@ test("the sidebar shows the sync status and the developer's details", async ({
 
   const info = page.getByTestId("developer-info");
   await expect(info).toContainText("Sohel Ashik");
-  await expect(
-    info.getByRole("link", { name: "sohelashik.com" }),
-  ).toHaveAttribute("href", "https://sohelashik.com");
-  await expect(info.getByRole("link", { name: /01772998823/ })).toHaveAttribute(
+  // Just the two links by name (with their icons), not the address or the number.
+  await expect(info.getByRole("link", { name: "ওয়েবসাইট" })).toHaveAttribute(
+    "href",
+    "https://sohelashik.com",
+  );
+  await expect(info.getByRole("link", { name: "হোয়াটসঅ্যাপ" })).toHaveAttribute(
     "href",
     "https://wa.me/8801772998823",
   );
+  await expect(info).not.toContainText("01772998823");
   await expect(page.getByTestId("sidebar-sync")).toBeVisible();
+});
+
+test("the sign-in and sign-up pages show the developer at the bottom", async ({
+  page,
+}) => {
+  for (const path of ["/login", "/signup"]) {
+    await page.goto(path);
+    const info = page.getByTestId("developer-info");
+    await expect(info).toContainText("Sohel Ashik");
+    await expect(info.getByRole("link", { name: "ওয়েবসাইট" })).toHaveAttribute(
+      "href",
+      "https://sohelashik.com",
+    );
+    await expect(info.getByRole("link", { name: "হোয়াটসঅ্যাপ" })).toHaveAttribute(
+      "href",
+      "https://wa.me/8801772998823",
+    );
+  }
 });

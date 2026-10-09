@@ -44,7 +44,7 @@ export function ReportOverview({
   summary: Summary;
   previous?: Summary;
   showProfit: boolean;
-  productName: (p: { name: string; nameBn: string }) => string;
+  productName: (p: { name: string }) => string;
 }) {
   const t = useTranslations("reports");
   const tp = useTranslations("payment");
@@ -94,8 +94,15 @@ export function ReportOverview({
           label={t("kpi.soldOnCredit")}
           hint={t("kpi.hint.soldOnCredit")}
           icon={<CreditCard className="size-3.5" aria-hidden />}
-          value={f.money(s.due)}
-          sub={t("kpi.received", { value: f.money(s.paid) })}
+          value={f.money(Math.max(0, s.unpaid))}
+          sub={
+            s.creditUsed > 0
+              ? t("kpi.receivedWithCredit", {
+                  value: f.money(s.received),
+                  credit: f.money(s.creditUsed),
+                })
+              : t("kpi.received", { value: f.money(s.received) })
+          }
           change={vs((x) => x.due)}
           goodWhen="down"
           changeLabel={label}
@@ -208,6 +215,18 @@ export function ReportOverview({
                   </span>
                 </li>
               ))}
+              {s.cashBack > 0 ? (
+                <li
+                  className="flex items-center gap-2 text-muted-foreground"
+                  data-testid="cash-given-back"
+                >
+                  <span className="size-2.5" aria-hidden />
+                  <span className="flex-1">{t("kpi.cashGivenBack")}</span>
+                  <span className="w-24 text-end font-medium tabular-nums">
+                    −{f.money(s.cashBack)}
+                  </span>
+                </li>
+              ) : null}
             </ul>
           </CardContent>
         </Card>

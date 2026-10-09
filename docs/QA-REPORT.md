@@ -289,3 +289,41 @@ From the tracker's 41 bugs, these were judged "must fix" or "fix soon" and are f
 | BUG-2 | A product picked in the cart "does not show" and a sold product "disappears" on some phones. | Could not be reproduced (the test picks, sells and checks the list on a 360 px phone). The cut-off cart sheet of BUG-1 is the likely cause of what was seen. If it still happens on a real phone, send the model and screen size. |
 
 Not changed on purpose: weighted-average cost (BUG-41, a design question), purchases and sales payments in the payment log (BUG-33/34), the 401 right after login (BUG-7, harmless).
+
+# Part 9: returns, dues and store credit: one money model
+
+QA found that a return left the numbers inconsistent: Reports' "left unpaid" never went down when a return came off a due, a partly returned sale could still be cancelled (and reversed twice), the return screen defaulted to cash even when the customer still owed, store credit was never used at the counter, and Dashboard and Reports disagreed. All fixed together, for customers and suppliers, with this model.
+
+## The model
+
+- A customer's balance (positive owes, negative is store credit) moves only through the ledger: a sale's due, a payment, the credited part of a return, a cancellation.
+- **A refund has two parts:** what comes off the balance (`credited`) and what is handed over in cash (`cashBack`); together they are the whole refund. The screen offers: the store credit the sale used goes back as credit, then what the customer still owes is cleared, and only the rest is cash. "Keep the cash part as store credit" is a tick box. A walk-in sale (nobody to credit) is always cash. Suppliers mirror it ("off what we owe" and "cash from the supplier").
+- **A sale** is `total = paid + store credit used + due`. The POS shows a customer's store credit, uses it first (the cashier can untick it) and asks only for the rest; the receipt says "Paid from store credit". A cancelled sale gives the credit back.
+- **Cancelling:** once anything has come back, a sale cannot be cancelled (the rest is returned with "Return the rest"; the sale shows Partly or Fully returned). Cancelling would reverse the same stock and money twice.
+- **Reports always add up:** net sales = received (money in, less cash handed back) + paid from store credit + left unpaid (the due less what returns took off it). If returns made more credit than was owed, it shows as "Store credit given by returns" rather than a negative. "How people paid" shows money in by method and a "Cash given back" row. Purchases are net of goods sent back.
+- Older returns (which said only "cash" or "credit") and old devices keep working: a return without a `cashBack` means all one way or the other. The server keeps the split the device made, since the cash really changed hands, only keeping it within the refund.
+
+## Each QA point
+
+1. Reports "left unpaid" now goes down with returns (`unpaid = due - credited`); tested against the QA scenario on the device, on the server and in the browser.
+2. A partly returned sale shows "Partly returned", has no Cancel, and offers "Return the rest"; the server and device refuse the cancel (`HAS_RETURNS`).
+3. The return screen shows the customer's balance and the split; cash is never the default when something is still owed.
+4. The POS shows and uses store credit.
+5. Dashboard vs Reports for today: no code path made two numbers for the same day, so the cause was how the screens were read. Reports opened on the **last 7 days** while the dashboard shows **today**; the last week's sales were compared with today's. Reports now opens on Today. The server report also used its own default time zone; it now uses the shop's, as the dashboard does. A browser test checks the dashboard and Reports agree for today after sales, returns and a payment.
+
+## Not done
+
+- A purchase does not use supplier credit explicitly (the supplier's balance already nets it, so what is owed is right; only the suggested "paid now" does not take it into account).
+- "Left unpaid" in Reports is what was unpaid when the sale was made, after returns; money collected later is a payment (Payments and the customer's page), because payments are per customer and not tied to a sale. The label now says so.
+
+# Part 10: signing out, switching shops, two tabs and reconnecting
+
+| QA finding | Cause | Fix |
+|---|---|---|
+| Another shop signing in on the same device saw the first shop's sales, customers and dashboard | When the first shop still had unsent work, the device kept its data (correct) but the app showed it to the next shop while waiting | The app shows nothing until the data on the device belongs to the shop that is signed in. If another shop's unsent work is there, a screen says whose account must sign in to send it (sign out keeps that work) |
+| The first shop's sale then failed with PROOF_REQUIRED and was lost | An owner or manager with a PIN who signed in with the password had no signing key, so their work was unsigned and refused | The server gives the person who just proved who they are (password, or PIN checked online) a signing key for this device; every tab can ask for it. Work queued unsigned is signed and sent again as soon as that person is known, so refused sales come back |
+| Two tabs: PIN in one tab, sale in the other, lost | Same cause: the key was only in the tab where the PIN was typed | Same fix: the other tab asks the server for the key |
+| "Offline" for 15–30 s after the internet came back | Sync waited for the browser's "online" event (late or missing on many phones) or for the retry delay | While the server cannot be reached, the app checks every 4 seconds and sends at once when it is back; a hanging request gives up after 20 seconds |
+| Signing out with unsent work could leave it stuck | Sign-out kept the shop's data on the device | Sign-out asks to send first ("Send now, then sign out"); without internet it explains, and deleting unsent work needs a second, explicit yes. After sign-out the shop's data is removed from the device (only its own identity stays), so the next person sees nothing |
+
+Tests: `tests/e2e/sync-session.spec.ts` (each finding, as QA described it), and the device key in `qa-security.test.ts`.

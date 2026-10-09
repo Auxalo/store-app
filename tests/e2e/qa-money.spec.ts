@@ -39,8 +39,7 @@ test("QA C6: a cashier (who cannot see purchase prices) can ring up a sale", asy
   const stamp = `${Date.now()}${testInfo.project.name}`;
   await signUp(page, `qaown${stamp}`);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     stock: "10",
   });
@@ -97,8 +96,7 @@ test("QA POS-1: while a sale is being saved, 'hold' must not keep a copy of the 
   const stamp = `${Date.now()}${testInfo.project.name}`;
   await signUp(page, `qapos${stamp}`);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     stock: "10",
   });
