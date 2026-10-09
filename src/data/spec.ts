@@ -391,7 +391,10 @@ export function referenceTotals(
       out.amount = sum("amount", (d) => d.status !== "voided");
       break;
     case "returns":
+      // Money back to customers and goods back to suppliers go opposite ways: never one sum.
       out.total = sum("total");
+      out.saleTotal = sum("total", (d) => d.kind === "sale");
+      out.purchaseTotal = sum("total", (d) => d.kind === "purchase");
       break;
   }
   return out;

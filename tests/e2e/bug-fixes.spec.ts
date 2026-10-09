@@ -208,3 +208,39 @@ test("on a phone, picking a product shows it in the list at once, and it is stil
   await expect(row).toContainText("৯ পিস");
   await expect(row).not.toContainText("×১");
 });
+
+test("a discount bigger than the items is refused with a message, and the receipt shows cash received and change", async ({
+  page,
+}, testInfo) => {
+  await signUp(page, `disc${Date.now()}${testInfo.project.name}`);
+  await createProduct(page, {
+    name: "ফ্রেশ দুধ",
+    price: "40",
+    cost: "30",
+    stock: "10",
+  });
+  await page.goto("/pos");
+  // Three pieces (৳120). (On a phone the cart covers the products once it is open.)
+  for (let i = 0; i < 3; i++) await tapProduct(page, "ফ্রেশ দুধ");
+  await openCart(page);
+  const cart = page.getByTestId("cart-panel");
+
+  // ৳200 off ৳120 of goods: said out loud, and the sale cannot go through.
+  await cart.getByTestId("discount-input").fill("200");
+  await expect(cart.getByTestId("discount-too-big")).toBeVisible();
+  await expect(cart.getByTestId("complete-sale")).toBeDisabled();
+  await cart.getByTestId("discount-input").fill("");
+  await expect(cart.getByTestId("discount-too-big")).toHaveCount(0);
+  await expect(cart.getByTestId("complete-sale")).toBeEnabled();
+
+  // ৳500 handed over for ৳120: the receipt prints what was received and the change.
+  await cart.getByTestId("received-input").fill("500");
+  await expect(cart.getByTestId("change")).toHaveText("৳৩৮০");
+  await cart.getByTestId("complete-sale").click();
+  const receipt = page.locator("#print-receipt");
+  await expect(receipt).toBeVisible();
+  await expect(receipt).toContainText("গ্রহণ করা হয়েছে");
+  await expect(receipt).toContainText("৳৫০০.০০");
+  await expect(receipt).toContainText("ফেরত (খুচরা)");
+  await expect(receipt).toContainText("৳৩৮০.০০");
+});

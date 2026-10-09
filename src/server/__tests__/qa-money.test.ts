@@ -8,6 +8,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Role } from "@/auth/permissions";
+import { DEFAULT_TIME_ZONE } from "@/lib/constants";
 import { pushRequestSchema } from "@/schemas/sync";
 import { createDevice } from "../../../tests/helpers/devices";
 import { startMongo, type TestMongo } from "../../../tests/helpers/mongo";
@@ -721,7 +722,11 @@ describe("BUG-20: a sale that has come back in full cannot be cancelled", () => 
 describe("returns, dues and store credit add up (online commands)", () => {
   const sumOf = async (days = 1) => {
     const { serverSummary } = await import("../reports");
-    const day = new Date().toISOString().slice(0, 10);
+    // Today in the shop's own time zone (reports count days there, not in UTC: between midnight
+    // and 6 am in Dhaka the two dates differ).
+    const day = new Intl.DateTimeFormat("en-CA", {
+      timeZone: DEFAULT_TIME_ZONE,
+    }).format(new Date());
     void days;
     return serverSummary(mongo.db, storeId, { from: day, to: day });
   };

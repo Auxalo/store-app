@@ -26,10 +26,21 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCommand, useRecord } from "@/data/hooks";
 import type { Sale, SaleItem } from "@/db/local/types";
-import { isFullyReturned } from "@/lib/refund";
+import { useFormat } from "@/i18n/use-format";
+import { isFullyReturned, returnSplit } from "@/lib/refund";
+
+interface ReturnRecord {
+  id: string;
+  total: number;
+  cashBack?: number;
+  credited?: number;
+  settlement?: "cash" | "credit";
+  lines: Array<{ itemIndex: number; qty: number; productName: string }>;
+}
 
 export function SaleViewScreen() {
   const t = useTranslations();
+  const f = useFormat();
   const run = useCommand();
   const { role, storeName } = useProfile();
   const id = useSearchParams().get("id") ?? "";
@@ -55,7 +66,8 @@ export function SaleViewScreen() {
   // Everything has come back already: the return and cancel actions have nothing left to do.
   const saleReturns = (loaded.extra.returns ?? []).filter(
     (r) => r.kind === "sale",
-  ) as unknown as Array<{ lines: Array<{ itemIndex: number; qty: number }> }>;
+  ) as unknown as ReturnRecord[];
+  const returnedTotal = saleReturns.reduce((sum, r) => sum + r.total, 0);
   const fullyReturned =
     sale.status === "active" &&
     isFullyReturned(
@@ -127,6 +139,57 @@ export function SaleViewScreen() {
         >
           {t("sales.dueAtSaleNote")}
         </p>
+      ) : null}
+      {saleReturns.length > 0 ? (
+        <div
+          className="space-y-2 rounded-xl border bg-card p-3 text-sm print:hidden"
+          data-testid="sale-returns"
+        >
+          <p className="font-semibold">{t("sales.returnedHeading")}</p>
+          {saleReturns.map((r) => {
+            const split = returnSplit(r);
+            return (
+              <div key={r.id} className="space-y-0.5" data-testid="sale-return">
+                {r.lines.map((l) => (
+                  <p key={l.itemIndex} className="flex justify-between gap-2">
+                    <span className="min-w-0 truncate">
+                      {items[l.itemIndex]?.productName ?? l.productName}
+                    </span>
+                    <span className="shrink-0">
+                      {t("sales.returnedQty", { n: f.qty(l.qty) })}
+                    </span>
+                  </p>
+                ))}
+                <p className="text-xs text-muted-foreground">
+                  {[
+                    split.credited > 0
+                      ? t("sales.returnCredited", {
+                          value: f.money(split.credited),
+                        })
+                      : "",
+                    split.cashBack > 0
+                      ? t("sales.returnCash", {
+                          value: f.money(split.cashBack),
+                        })
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              </div>
+            );
+          })}
+          <div className="flex justify-between border-t pt-2">
+            <span>{t("sales.returnedTotal")}</span>
+            <span data-testid="returned-total">−{f.money(returnedTotal)}</span>
+          </div>
+          <div className="flex justify-between font-semibold">
+            <span>{t("sales.netAfterReturns")}</span>
+            <span data-testid="net-after-returns">
+              {f.money(Math.max(0, sale.total - returnedTotal))}
+            </span>
+          </div>
+        </div>
       ) : null}
       <div
         className="rounded-xl border bg-muted/30 p-2"

@@ -188,6 +188,7 @@ export async function listResource<R extends Resource>(
     shape(resource, d, viewer),
   );
   if (resource === "stockMovements") await addProductNames(db, viewer, items);
+  if (resource === "sales") await addReturnedTotals(db, viewer, items);
 
   return {
     items,
@@ -222,6 +223,28 @@ async function addProductNames(db: Db, viewer: Viewer, items: WireDoc[]) {
     item.productName = p?.name ?? "";
     item.productNameBn = p?.nameBn ?? "";
   }
+}
+
+/**
+ * A return never changes the sale it belongs to (the customer is credited instead), so the list
+ * adds what was taken back to each sale on the page. Same as the device (src/data/local.ts).
+ */
+async function addReturnedTotals(db: Db, viewer: Viewer, items: WireDoc[]) {
+  const ids = items.map((i) => String((i as { id?: string }).id));
+  if (ids.length === 0) return;
+  const returns = await db
+    .collection<{ refId: string; total: number }>(COLLECTION.returns)
+    .find(
+      { storeId: viewer.storeId, kind: "sale", refId: { $in: ids } },
+      { projection: { refId: 1, total: 1 } },
+    )
+    .maxTimeMS(MAX_TIME_MS)
+    .toArray();
+  const byId = new Map<string, number>();
+  for (const r of returns)
+    byId.set(r.refId, (byId.get(r.refId) ?? 0) + Number(r.total ?? 0));
+  for (const item of items as Array<Record<string, unknown>>)
+    item.returnedTotal = byId.get(String(item.id)) ?? 0;
 }
 
 /** Whole-list numbers for the header (counts and sums over everything that matches, not one page). */
@@ -265,7 +288,16 @@ export async function totalsOf<R extends Resource>(
         $sum: { $cond: [{ $ne: ["$status", "voided"] }, "$amount", 0] },
       },
     },
-    returns: { total: { $sum: "$total" } },
+    // Money back to customers and goods back to suppliers go opposite ways: never one sum.
+    returns: {
+      total: { $sum: "$total" },
+      saleTotal: {
+        $sum: { $cond: [{ $eq: ["$kind", "sale"] }, "$total", 0] },
+      },
+      purchaseTotal: {
+        $sum: { $cond: [{ $eq: ["$kind", "purchase"] }, "$total", 0] },
+      },
+    },
   };
   const [row] = await db
     .collection(COLLECTION[resource])

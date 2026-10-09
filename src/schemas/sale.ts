@@ -49,7 +49,7 @@ const saleBase = z.object({
   lines: z.array(saleLineInput).min(1).max(200),
   /** Cart-level discount in poisha. */
   discount: money.default(0),
-  /** Money handed over; anything above the total is change and is not recorded. */
+  /** Money handed over. The sale keeps it, so the receipt can show what was received and the change. */
   tendered: money.default(0),
   /** Paid from the customer's store credit (what they had paid ahead). Needs a customer. */
   creditUsed: money.default(0),

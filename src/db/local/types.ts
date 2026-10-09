@@ -94,6 +94,10 @@ export interface Sale {
   total: number;
   /** Paid from the customer's store credit. Absent on older sales (none). */
   creditUsed?: number;
+  /** Cash the customer handed over (above `paid` when change was given). Absent on older sales. */
+  tendered?: number;
+  /** Only in lists: what was taken back from this sale by returns. Never stored. */
+  returnedTotal?: number;
   paid: number;
   due: number;
   paymentMethod: PaymentMethod;

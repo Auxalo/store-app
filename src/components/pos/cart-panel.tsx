@@ -58,7 +58,14 @@ export function CartPanel({
   const f = useFormat();
   const { role } = useProfile();
   const cart = useCart();
-  const { totals, needsCustomer, canComplete, saving, complete } = sale;
+  const {
+    totals,
+    needsCustomer,
+    discountTooBig,
+    canComplete,
+    saving,
+    complete,
+  } = sale;
   // The customer's balance, read fresh: a negative balance is store credit that pays first.
   const buyer = useRecord("customers", cart.customerId);
   const buyerBalance = (buyer.record as { balance?: number } | undefined)
@@ -76,8 +83,9 @@ export function CartPanel({
       .reduce((sum, l) => sum + l.qty, 0);
 
   const canOverridePrice = can(role, "sale.priceOverride");
+  // Change is what was handed over beyond what is to be paid (the total less store credit used).
   const change =
-    cart.tendered !== null ? Math.max(0, cart.tendered - totals.total) : 0;
+    cart.tendered !== null ? Math.max(0, cart.tendered - toPay) : 0;
   const itemCount = cart.lines.length;
   const lineName = (l: { productName: string }) => l.productName;
 
@@ -256,6 +264,7 @@ export function CartPanel({
               value={cart.discount === 0 ? null : cart.discount}
               onValue={(v) => cart.setDiscount(v ?? 0)}
               className="h-9 text-sm md:h-8"
+              aria-invalid={discountTooBig}
               data-testid="discount-input"
             />
           </div>
@@ -347,6 +356,15 @@ export function CartPanel({
         {needsCustomer ? (
           <p className="text-xs text-destructive">
             {t("pos.dueNeedsCustomer")}
+          </p>
+        ) : null}
+        {discountTooBig ? (
+          <p
+            className="text-xs text-destructive"
+            role="alert"
+            data-testid="discount-too-big"
+          >
+            {t("pos.discountTooBig", { value: f.money(totals.subtotal) })}
           </p>
         ) : null}
 

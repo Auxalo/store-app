@@ -43,6 +43,8 @@ interface StoredSale {
   discount: number;
   total: number;
   creditUsed?: number;
+  /** Cash handed over (above `paid` when change was given). Absent on older sales. */
+  tendered?: number;
   paid: number;
   due: number;
   paymentMethod: string;
@@ -291,6 +293,7 @@ export async function saleCreate(
     discount: totals.discount,
     total: totals.total,
     creditUsed: totals.creditUsed,
+    tendered: p.tendered,
     paid: totals.paid,
     due: totals.due,
     paymentMethod: p.paymentMethod,

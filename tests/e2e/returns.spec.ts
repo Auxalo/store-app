@@ -87,6 +87,17 @@ test("a refund clears the due first, cancel is gone after a return, and every sc
   await expect(page.getByTestId("partly-returned")).toBeVisible();
   await expect(page.getByTestId("void-sale")).toHaveCount(0);
   await expect(page.getByTestId("return-items")).toContainText("বাকিটা ফেরত নিন");
+  // The sale page says what came back and what is left; the list says it too.
+  await expect(page.getByTestId("sale-returns")).toContainText("ফেরত ১");
+  await expect(page.getByTestId("returned-total")).toHaveText("−৳৫০");
+  await expect(page.getByTestId("net-after-returns")).toHaveText("৳১০০");
+  await page.goto("/sales");
+  await expect(
+    page.getByTestId("sale-returned-badge").filter({ hasText: "আংশিক ফেরত" }),
+  ).toHaveCount(1);
+  await expect(
+    page.getByTestId("sale-returned-badge").filter({ hasText: "সম্পূর্ণ ফেরত" }),
+  ).toHaveCount(1);
 
   // 3. One more cash sale of ৳100 that stays sold.
   await sellMilk(page, 2, { received: "100" });
@@ -111,6 +122,13 @@ test("a refund clears the due first, cancel is gone after a return, and every sc
   await page.goto("/dashboard");
   await expect(page.getByTestId("stat-todaySales")).toHaveText("৳২০০");
   await expect(page.getByTestId("stats")).toContainText("৩টি বিক্রি");
+
+  // The Returns list never adds money back to customers to goods sent to suppliers.
+  await page.goto("/returns");
+  await expect(page.getByTestId("return-totals")).toContainText(
+    "বিক্রি ফেরত ৳২৫০",
+  );
+  await expect(page.getByTestId("return-totals")).not.toContainText("ক্রয় ফেরত");
 });
 
 test("store credit pays for the next sale first, and a refund hands credit back as credit", async ({
@@ -223,14 +241,24 @@ test("a purchase return clears what the shop owes first, and Reports count it", 
     .click();
   await expect(page.getByTestId("party-balance-total")).toHaveText("৳২৪০");
 
-  // Reports: purchases are net of what went back.
+  // Reports: everything bought, what went back as its own line, and the net under them.
   await page.goto("/reports");
   await page.getByTestId("tab-profit").click();
-  await expect(page.getByTestId("r-purchases")).toContainText("৳২৪০");
+  await expect(page.getByTestId("r-purchases")).toContainText("৳৪০০");
   await expect(page.getByTestId("r-purchase-returns")).toContainText("৳১৬০");
+  await expect(page.getByTestId("r-net-purchases")).toContainText("৳২৪০");
   await expect(page.getByTestId("r-owed-suppliers")).toHaveText("৳২৪০");
 
-  // The dashboard's "purchases today" is net as well.
+  // The dashboard's "purchases today" is everything bought, like the Purchases list.
   await page.goto("/dashboard");
-  await expect(page.getByTestId("stat-todayPurchases")).toHaveText("৳২৪০");
+  await expect(page.getByTestId("stat-todayPurchases")).toHaveText("৳৪০০");
+
+  // The Returns list shows the purchase returns on their own.
+  await page.goto("/returns");
+  await expect(page.getByTestId("return-totals")).toContainText(
+    "ক্রয় ফেরত ৳১৬০",
+  );
+  await expect(page.getByTestId("return-totals")).not.toContainText(
+    "বিক্রি ফেরত",
+  );
 });

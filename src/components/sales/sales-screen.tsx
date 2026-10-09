@@ -224,6 +224,13 @@ export function SalesScreen() {
                 {s.status === "voided" ? (
                   <Badge variant="destructive">{t("sales.voided")}</Badge>
                 ) : null}
+                {s.status === "active" && (s.returnedTotal ?? 0) > 0 ? (
+                  <Badge variant="secondary" data-testid="sale-returned-badge">
+                    {(s.returnedTotal ?? 0) >= s.total
+                      ? t("sales.fullyReturned")
+                      : t("sales.partlyReturned")}
+                  </Badge>
+                ) : null}
                 {s.due > 0 && s.status === "active" ? (
                   <Badge variant="secondary">
                     {t("sales.dueAtSale")} {f.money(s.due)}
@@ -236,6 +243,15 @@ export function SalesScreen() {
                   )}
                 >
                   {f.money(s.total)}
+                  {s.status === "active" && (s.returnedTotal ?? 0) > 0 ? (
+                    <span
+                      className="block text-xs font-normal text-muted-foreground"
+                      data-testid="sale-net"
+                    >
+                      {t("sales.netAfterReturns")}{" "}
+                      {f.money(Math.max(0, s.total - (s.returnedTotal ?? 0)))}
+                    </span>
+                  ) : null}
                 </span>
               </Link>
             </li>
