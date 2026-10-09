@@ -132,7 +132,11 @@ test("a shop whose subscription ran out is sent to billing, pays, is let in, and
   await expect(page.getByTestId("billing-pay-number")).toHaveText(
     "01772998823",
   );
-  const trxId = `T${stamp.slice(-9)}`.toUpperCase();
+  // Unique every run: the test database keeps its data between runs, and the same TrxID cannot be
+  // sent twice. (It used the last characters of the shop's stamp, which ends in the project name,
+  // so only two digits changed from run to run and it clashed now and then.)
+  const trxId =
+    `T${Date.now().toString().slice(-9)}${testInfo.project.name[0]}`.toUpperCase();
   await page.locator("#billing-trx").fill(trxId);
   await page.locator("#billing-sender").fill("01711000001");
   await page.getByTestId("billing-submit").click();

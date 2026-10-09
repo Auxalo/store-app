@@ -50,12 +50,10 @@ test("reports count money received and current dues, and lists say what a due me
   await expect(page.getByTestId("payment-split")).not.toContainText("৳২০০");
   await expect(page.getByTestId("kpi-count")).toContainText("গড় বিল ৳১০০");
 
-  // The customer pays the ৳50: the sale's own figure still says what it was when the sale was made.
+  // The return (৳100) cleared the ৳50 still owed first and handed back the other ৳50 in cash, so the
+  // customer owes nothing, while the sale's own figure still says what it was when it was made.
   await page.goto("/customers");
   await page.getByTestId("party-row").filter({ hasText: "রহিম" }).click();
-  await page.getByTestId("record-payment").click();
-  await page.getByTestId("payment-amount").fill("50");
-  await page.getByTestId("save-payment").click();
   await expect(page.getByTestId("party-balance-total")).toHaveText("৳০");
   await page.goto("/sales");
   await expect(page.getByTestId("sale-row")).toContainText(
