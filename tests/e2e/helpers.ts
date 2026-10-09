@@ -67,8 +67,8 @@ export async function addCategory(page: Page, name: string, nameBn: string) {
 }
 
 export interface NewProduct {
+  /** The product's one name (Bangla or English, as the shop writes it). */
   name: string;
-  nameBn: string;
   price: string;
   stock: string;
   barcode?: string;
@@ -79,7 +79,6 @@ export interface NewProduct {
 export async function createProduct(page: Page, p: NewProduct) {
   await page.goto("/products/new");
   await page.getByLabel("পণ্যের নাম").fill(p.name);
-  await page.getByLabel("বাংলা নাম").fill(p.nameBn);
   await page.getByLabel("বিক্রয়মূল্য (৳)").fill(p.price);
   await page.getByLabel(/এখন হাতে স্টক/).fill(p.stock);
   await page

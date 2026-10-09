@@ -28,7 +28,6 @@ async function addProduct(d: Device, fields: Record<string, unknown> = {}) {
   await runCommand(d.db, d.ctx, "product.create", {
     id,
     name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
     sellingPrice: 5000,
     purchasePrice: 4000,
     openingStock: 10_000,
@@ -56,9 +55,13 @@ const pending = (d: Device) =>
   d.db.outbox.where("status").anyOf("pending", "syncing").count();
 
 describe("products on one device", () => {
-  it("creates the product and its opening movement instantly, searchable by Bangla and English", async () => {
+  it("creates the product and its opening movement instantly, searchable by its name, SKU and barcode", async () => {
     const d = await newDevice();
-    const id = await addProduct(d, { sku: "MLK-1", barcode: "8901234567890" });
+    const id = await addProduct(d, {
+      name: "Fresh Milk ফ্রেশ দুধ",
+      sku: "MLK-1",
+      barcode: "8901234567890",
+    });
 
     expect(await d.db.products.get(id)).toMatchObject({
       stock: 10_000,
@@ -97,10 +100,10 @@ describe("products on one device", () => {
 
   it("keeps the search index in step with edits", async () => {
     const d = await newDevice();
-    const id = await addProduct(d, { name: "Rice", nameBn: "" });
+    const id = await addProduct(d, { name: "Rice" });
     await runCommand(d.db, d.ctx, "product.update", {
       id,
-      changes: { nameBn: "চাল", barcode: "123456" },
+      changes: { name: "চাল", barcode: "123456" },
     });
     expect(
       (await searchProducts(d.db, { query: "চাল" })).map((p) => p.id),
@@ -141,7 +144,7 @@ describe("products across devices", () => {
       await b.db.stockMovements.where("productId").equals(id).count(),
     ).toBe(2);
     expect(
-      (await searchProducts(b.db, { query: "ফ্রেশ" })).map((p) => p.id),
+      (await searchProducts(b.db, { query: "fresh" })).map((p) => p.id),
     ).toEqual([id]);
   });
 

@@ -118,8 +118,7 @@ export function ProductPicker({
     setQuery("");
   }
 
-  const name = (p: Product) =>
-    locale === "bn" && p.nameBn ? p.nameBn : p.name;
+  const name = (p: Product) => p.name;
   const chips = [
     { id: "all", label: t("products.allCategories") },
     ...(categories ?? []).map((c) => ({

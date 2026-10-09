@@ -7,6 +7,7 @@ import { type ReactNode, useEffect } from "react";
 import { can } from "@/auth/permissions";
 import { useAuth } from "@/auth/use-auth";
 import { LanguageSwitch } from "@/components/layout/language-switch";
+import { DeveloperLinks } from "@/components/shared/developer-links";
 import { FullScreenLoader } from "@/components/shared/full-screen-loader";
 import { homeFor } from "@/config/nav";
 
@@ -45,6 +46,9 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
       <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-6 py-8">
         {children}
       </main>
+      <footer className="py-4">
+        <DeveloperLinks centered />
+      </footer>
     </div>
   );
 }

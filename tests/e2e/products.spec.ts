@@ -40,8 +40,8 @@ test("products: create offline, search in Bangla, adjust stock, sync to a second
   // Everything below happens with no internet.
   await context.setOffline(true);
   await page.goto("/products/new");
-  await page.getByLabel("পণ্যের নাম").fill("Fresh Milk");
-  await page.getByLabel("বাংলা নাম").fill("ফ্রেশ দুধ");
+  // One name, written in Bangla here (English works the same).
+  await page.getByLabel("পণ্যের নাম").fill("ফ্রেশ দুধ");
   await page.getByLabel("ক্রয়মূল্য (৳)", { exact: true }).fill("40");
   await page.getByLabel("বিক্রয়মূল্য (৳)").fill("৫০"); // Bangla digits are accepted in numeric fields
   await page.getByLabel(/এখন হাতে স্টক/).fill("১০");
@@ -53,10 +53,10 @@ test("products: create offline, search in Bangla, adjust stock, sync to a second
   await expect(row).toContainText("৳৫০");
   await expect(row).toContainText("১০ পিস");
 
-  // Search by Bangla, by English, and for something that does not exist.
+  // Search by any word of the name, and for something that does not exist.
   await searchBox(page).fill("দুধ");
   await expect(row).toBeVisible();
-  await searchBox(page).fill("milk");
+  await searchBox(page).fill("ফ্রেশ");
   await expect(row).toBeVisible();
   await searchBox(page).fill("zzzz");
   await expect(page.getByText("আপনার খোঁজার সাথে কোনো পণ্য মেলেনি।")).toBeVisible();
@@ -117,7 +117,7 @@ test("products: create offline, search in Bangla, adjust stock, sync to a second
           (await fetch("/api/sync/pull?cursor=0")).json(),
         );
         return res.changes.products.find(
-          (p: { name: string }) => p.name === "Fresh Milk",
+          (p: { name: string }) => p.name === "ফ্রেশ দুধ",
         )?.stock;
       },
       { timeout: 30_000 },

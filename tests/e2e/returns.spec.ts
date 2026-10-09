@@ -45,8 +45,7 @@ test("a refund clears the due first, cancel is gone after a return, and every sc
 }, testInfo) => {
   await signUp(page, `ret${Date.now()}${testInfo.project.name}`);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     cost: "40",
     stock: "30",
@@ -119,8 +118,7 @@ test("store credit pays for the next sale first, and a refund hands credit back 
 }, testInfo) => {
   await signUp(page, `cr${Date.now()}${testInfo.project.name}`);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     cost: "40",
     stock: "30",
@@ -183,8 +181,7 @@ test("a purchase return clears what the shop owes first, and Reports count it", 
 }, testInfo) => {
   await signUp(page, `pr${Date.now()}${testInfo.project.name}`);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     cost: "40",
     stock: "0",

@@ -270,8 +270,9 @@ async function main() {
     const perUnit = milli(1);
     await run(owner, t0 + 60_000 + i * 1000, "product.create", {
       id,
-      name: spec.name,
-      nameBn: spec.nameBn,
+      // One name per product, in the language the shop writes it: this shop writes Bangla.
+      name: spec.nameBn,
+      nameBn: "",
       categoryId: categoryId.get(spec.category) ?? null,
       unit: spec.unit,
       sku: `P${String(i + 1).padStart(3, "0")}`,
@@ -327,8 +328,8 @@ async function main() {
       chosen.add(item.id);
       lines.push({
         productId: item.id,
-        productName: item.spec.name,
-        productNameBn: item.spec.nameBn,
+        productName: item.spec.nameBn,
+        productNameBn: "",
         unit: item.spec.unit,
         qty,
         listPrice: product.sellingPrice,
@@ -402,8 +403,8 @@ async function main() {
         const units = Math.max(item.spec.low, Math.round(item.spec.daily * 12));
         lines.push({
           productId: item.id,
-          productName: item.spec.name,
-          productNameBn: item.spec.nameBn,
+          productName: item.spec.nameBn,
+          productNameBn: "",
           unit: item.spec.unit,
           qty: milli(units),
           unitCost: Math.round(taka(item.spec.buy) * (0.97 + rand() * 0.06)),

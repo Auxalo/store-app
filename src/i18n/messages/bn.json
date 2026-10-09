@@ -277,7 +277,7 @@
     "category": "ক্যাটাগরি",
     "noCategory": "ক্যাটাগরি নেই",
     "name": "পণ্যের নাম",
-    "nameBn": "বাংলা নাম",
+    "namePlaceholder": "বাংলা বা ইংরেজি, যেভাবে লিখতে চান",
     "sku": "SKU",
     "barcode": "বারকোড",
     "unit": "একক",
@@ -965,6 +965,7 @@
   },
   "developer": {
     "label": "ডেভেলপার",
+    "website": "ওয়েবসাইট",
     "whatsapp": "হোয়াটসঅ্যাপ"
   },
   "setup": {

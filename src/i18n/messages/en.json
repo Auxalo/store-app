@@ -277,7 +277,7 @@
     "category": "Category",
     "noCategory": "No category",
     "name": "Product name",
-    "nameBn": "Bangla name",
+    "namePlaceholder": "In Bangla or English, as you like",
     "sku": "SKU",
     "barcode": "Barcode",
     "unit": "Unit",
@@ -965,6 +965,7 @@
   },
   "developer": {
     "label": "Developer",
+    "website": "Website",
     "whatsapp": "WhatsApp"
   },
   "setup": {

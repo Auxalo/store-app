@@ -47,8 +47,7 @@ test("tests 3-5: ten offline sales survive a restart, then sync once each throug
   const username = `acc${Date.now()}${testInfo.project.name}`;
   await signUp(page, username);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     stock: "50",
   });
@@ -105,8 +104,7 @@ test("test 6: two devices sell while one is offline; both end up with every sale
   const username = `two${Date.now()}${testInfo.project.name}`;
   await signUp(page, username);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     stock: "50",
   });
@@ -149,8 +147,7 @@ test("test 7: Bangla names, search, receipt and reports render without trouble",
 }, testInfo) => {
   await signUp(page, `bn${Date.now()}${testInfo.project.name}`);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     stock: "10",
   });

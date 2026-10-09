@@ -127,16 +127,12 @@ export function ReportsScreen() {
         : c.name
       : t("uncategorized");
   };
-  const productName = (p: { name: string; nameBn: string }) =>
-    locale === "bn" && p.nameBn ? p.nameBn : p.name;
+  const productName = (p: { name: string }) => p.name;
 
   // The device and the server both add the product name to each movement.
   const movementName = (movement: object) => {
-    const m = movement as { productName?: string; productNameBn?: string };
-    return (
-      (locale === "bn" && m.productNameBn ? m.productNameBn : m.productName) ??
-      ""
-    );
+    const m = movement as { productName?: string };
+    return m.productName ?? "";
   };
   const [onlyLow, setOnlyLow] = useState(false);
   const stock = useStockHeader(tab === "stock");

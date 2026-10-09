@@ -100,8 +100,7 @@ test("store name, address and footer appear on the receipt", async ({
 }, testInfo) => {
   await signUp(page, `rcp${Date.now()}${testInfo.project.name}`);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     stock: "10",
   });

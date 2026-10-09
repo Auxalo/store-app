@@ -80,10 +80,7 @@ export function ProductViewScreen() {
   }
 
   const unit = t(`units.${product.unit}`);
-  const title =
-    locale === "bn" && product.nameBn ? product.nameBn : product.name;
-  const subtitle =
-    locale === "bn" ? (product.nameBn ? product.name : "") : product.nameBn;
+  const title = product.name;
 
   async function remove() {
     try {
@@ -99,9 +96,6 @@ export function ProductViewScreen() {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="truncate text-xl font-semibold">{title}</h2>
-          {subtitle ? (
-            <p className="truncate text-sm text-muted-foreground">{subtitle}</p>
-          ) : null}
         </div>
         <div className="flex shrink-0 gap-2">
           {can(role, "product.edit") ? (

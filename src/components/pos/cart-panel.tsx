@@ -26,7 +26,6 @@ import { computeTotals, lineAmount } from "@/lib/sale-math";
 import { cn } from "@/lib/utils";
 import { PAYMENT_METHODS, type PaymentMethod } from "@/schemas/sale";
 import { useCart } from "@/stores/cart";
-import { usePreferences } from "@/stores/preferences";
 import { CustomerPicker } from "./customer-picker";
 import { MoneyField } from "./money-field";
 import { QtyInput } from "./qty-input";
@@ -58,7 +57,6 @@ export function CartPanel({
   const t = useTranslations();
   const f = useFormat();
   const { role } = useProfile();
-  const locale = usePreferences((s) => s.locale);
   const cart = useCart();
   const { totals, needsCustomer, canComplete, saving, complete } = sale;
   // The customer's balance, read fresh: a negative balance is store credit that pays first.
@@ -81,8 +79,7 @@ export function CartPanel({
   const change =
     cart.tendered !== null ? Math.max(0, cart.tendered - totals.total) : 0;
   const itemCount = cart.lines.length;
-  const lineName = (l: { productName: string; productNameBn: string }) =>
-    locale === "bn" && l.productNameBn ? l.productNameBn : l.productName;
+  const lineName = (l: { productName: string }) => l.productName;
 
   return (
     <div

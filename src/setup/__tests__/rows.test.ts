@@ -15,26 +15,14 @@ const check = (
 ) => checkRows(kind, rows, { existing, unitOf });
 
 describe("product rows", () => {
-  // name, nameBn, category, unit, purchasePrice, sellingPrice, stock, lowStock, barcode, sku
+  // name, category, unit, purchasePrice, sellingPrice, stock, lowStock, barcode, sku
   it("reads a complete row, in Bangla digits and units too", () => {
     const [row] = check("products", [
-      [
-        "Rice",
-        "চাল",
-        "চাল-ডাল",
-        "কেজি",
-        "৬৮",
-        "৭৫.৫০",
-        "১২৫.৫",
-        "২০",
-        "123",
-        "R1",
-      ],
+      ["Rice", "চাল-ডাল", "কেজি", "৬৮", "৭৫.৫০", "১২৫.৫", "২০", "123", "R1"],
     ]);
     expect(row.issues).toEqual({});
     expect(row.value).toEqual({
       name: "Rice",
-      nameBn: "চাল",
       category: "চাল-ডাল",
       unit: "kg",
       purchasePrice: 6800,
@@ -47,7 +35,7 @@ describe("product rows", () => {
   });
 
   it("needs only a name and two prices; the rest is optional", () => {
-    const [row] = check("products", [["Salt", "", "", "", "30", "36"]]);
+    const [row] = check("products", [["Salt", "", "", "30", "36"]]);
     expect(row.value).toMatchObject({
       name: "Salt",
       unit: "pcs",
@@ -57,7 +45,7 @@ describe("product rows", () => {
   });
 
   it("flags missing names and missing or zero prices, per column", () => {
-    const [row] = check("products", [["", "", "", "", "0", ""]]);
+    const [row] = check("products", [["", "", "", "0", ""]]);
     expect(row.issues).toEqual({
       name: "required",
       purchasePrice: "positive",
@@ -68,18 +56,16 @@ describe("product rows", () => {
 
   it("flags numbers that are not numbers, unknown units and too many decimals", () => {
     const [bad] = check("products", [
-      ["A", "", "", "box of 5", "x", "10", "-3", ""],
+      ["A", "", "box of 5", "x", "10", "-3", ""],
     ]);
     expect(bad.issues).toMatchObject({
       unit: "unknownUnit",
       purchasePrice: "invalidNumber",
       stock: "invalidNumber",
     });
-    const [decimals] = check("products", [
-      ["B", "", "", "pcs", "5", "10", "2.5"],
-    ]);
+    const [decimals] = check("products", [["B", "", "pcs", "5", "10", "2.5"]]);
     expect(decimals.issues).toEqual({ stock: "tooManyDecimals" });
-    const [ok] = check("products", [["C", "", "", "kg", "5", "10", "2.5"]]);
+    const [ok] = check("products", [["C", "", "kg", "5", "10", "2.5"]]);
     expect(ok.issues).toEqual({});
   });
 
@@ -91,12 +77,12 @@ describe("product rows", () => {
     const rows = check(
       "products",
       [
-        ["Tea", "", "", "pcs", "40", "50", "", "", "111", "T1"],
-        ["Tea 2", "", "", "pcs", "40", "50", "", "", "111", "T2"], // same barcode
-        ["Tea 3", "", "", "pcs", "40", "50", "", "", "", "T1"], // same SKU
-        ["Tea", "", "", "pcs", "40", "50"], // same product again
-        ["x", "", "", "pcs", "1", "2", "", "", "999", "OLD1"], // already in the shop
-        ["Old Milk", "", "", "pcs", "40", "50"], // same name, unit and price as an existing one
+        ["Tea", "", "pcs", "40", "50", "", "", "111", "T1"],
+        ["Tea 2", "", "pcs", "40", "50", "", "", "111", "T2"], // same barcode
+        ["Tea 3", "", "pcs", "40", "50", "", "", "", "T1"], // same SKU
+        ["Tea", "", "pcs", "40", "50"], // same product again
+        ["x", "", "pcs", "1", "2", "", "", "999", "OLD1"], // already in the shop
+        ["Old Milk", "", "pcs", "40", "50"], // same name, unit and price as an existing one
       ],
       existing,
     );
@@ -110,9 +96,9 @@ describe("product rows", () => {
 
   it("allows the same name at a different price or unit (different sizes)", () => {
     const rows = check("products", [
-      ["Oil", "", "", "bottle", "160", "170"],
-      ["Oil", "", "", "bottle", "800", "850"],
-      ["Oil", "", "", "litre", "160", "170"],
+      ["Oil", "", "bottle", "160", "170"],
+      ["Oil", "", "bottle", "800", "850"],
+      ["Oil", "", "litre", "160", "170"],
     ]);
     expect(rows.map((r) => r.issues)).toEqual([{}, {}, {}]);
   });

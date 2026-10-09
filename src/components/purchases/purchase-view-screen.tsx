@@ -15,7 +15,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useRecord } from "@/data/hooks";
 import type { Purchase, PurchaseItem, ReturnDoc } from "@/db/local/types";
 import { useFormat } from "@/i18n/use-format";
-import { usePreferences } from "@/stores/preferences";
 
 function Row({
   label,
@@ -36,7 +35,6 @@ export function PurchaseViewScreen() {
   const t = useTranslations();
   const f = useFormat();
   const { role } = useProfile();
-  const locale = usePreferences((s) => s.locale);
   const id = useSearchParams().get("id") ?? "";
   const [returning, setReturning] = useState(false);
 
@@ -107,11 +105,7 @@ export function PurchaseViewScreen() {
                 className="flex items-center justify-between gap-3 py-2 text-sm"
               >
                 <div className="min-w-0">
-                  <p className="truncate font-medium">
-                    {locale === "bn" && i.productNameBn
-                      ? i.productNameBn
-                      : i.productName}
-                  </p>
+                  <p className="truncate font-medium">{i.productName}</p>
                   <p className="text-xs text-muted-foreground">
                     {f.qty(i.qty)} {t(`units.${i.unit}`)} ×{" "}
                     {f.money(i.unitCost)}

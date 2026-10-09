@@ -150,7 +150,7 @@ export const useCart = create<CartState>()(
             key: newId(),
             productId: product.id,
             productName: product.name,
-            productNameBn: product.nameBn,
+            productNameBn: "",
             unit: product.unit,
             qty,
             listPrice: product.sellingPrice,

@@ -14,7 +14,6 @@ import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
 import { creditShare, defaultSplit, lineNets, refundFor } from "@/lib/refund";
 import { returnTotal } from "@/schemas/return";
-import { usePreferences } from "@/stores/preferences";
 
 interface Candidate {
   itemIndex: number;
@@ -52,7 +51,6 @@ export function ReturnDialog({
   const t = useTranslations();
   const f = useFormat();
   const run = useCommand();
-  const locale = usePreferences((s) => s.locale);
 
   // The invoice with its lines, and the returns already made against it (same shape in both modes).
   const loaded = useRecord(
@@ -158,8 +156,7 @@ export function ReturnDialog({
   const keptAsCredit = split.credited - offDue;
   const canSave = chosen.length > 0 && !saving;
   const nothingLeft = data && candidates.every((c) => c.remaining <= 0);
-  const name = (c: Candidate) =>
-    locale === "bn" && c.productNameBn ? c.productNameBn : c.productName;
+  const name = (c: Candidate) => c.productName;
 
   async function save() {
     if (!canSave) return;

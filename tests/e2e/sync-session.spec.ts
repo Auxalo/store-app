@@ -60,8 +60,7 @@ test("signing out with an unsent sale sends it first, and the next shop on this 
 
   await signUp(page, shopA, "আশিক স্টোর");
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     stock: "10",
   });
@@ -101,8 +100,7 @@ test("signing out without sending deletes the unsent work only after a second, e
   const shop = `sd${Date.now()}${testInfo.project.name}`;
   await signUp(page, shop);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     stock: "10",
   });
@@ -128,8 +126,7 @@ test("an owner who has a PIN but signed in with the password: their sale reaches
   const owner = `pw${Date.now()}${testInfo.project.name}`;
   await signUp(page, owner);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     stock: "10",
   });
@@ -165,8 +162,7 @@ test("two tabs: the PIN typed in one, the sale made in the other, and it is not 
   const owner = `tt${Date.now()}${testInfo.project.name}`;
   await signUp(page, owner);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     stock: "10",
   });

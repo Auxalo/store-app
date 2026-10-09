@@ -40,7 +40,6 @@ export function DashboardScreen() {
   const f = useFormat();
   const { role } = useProfile();
   const timeZone = usePreferences((s) => s.timeZone);
-  const locale = usePreferences((s) => s.locale);
   const [days, setDays] = useState<"days7" | "days30">("days7");
 
   const showProfit = can(role, "profit.view");
@@ -269,9 +268,7 @@ export function DashboardScreen() {
                     href={`/products/view?id=${r.id}`}
                     className="flex items-center justify-between gap-2 rounded-md px-1 py-1.5 text-sm hover:bg-muted"
                   >
-                    <span className="min-w-0 truncate">
-                      {locale === "bn" && r.nameBn ? r.nameBn : r.name}
-                    </span>
+                    <span className="min-w-0 truncate">{r.name}</span>
                     <span
                       className={
                         r.stock <= 0

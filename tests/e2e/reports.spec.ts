@@ -19,15 +19,13 @@ test("dashboard and reports show the day's sales, profit and stock, offline and 
 }, testInfo) => {
   await signUp(page, `rep${Date.now()}${testInfo.project.name}`);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     cost: "40",
     stock: "10",
   });
   await createProduct(page, {
-    name: "Salt",
-    nameBn: "লবণ",
+    name: "লবণ",
     price: "30",
     stock: "0",
   });

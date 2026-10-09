@@ -32,8 +32,7 @@ test("sales can be found by buyer name, phone or invoice number, and filtered an
 }, testInfo) => {
   await signUp(page, `find${Date.now()}${testInfo.project.name}`);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     stock: "20",
   });

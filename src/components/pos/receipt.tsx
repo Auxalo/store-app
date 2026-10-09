@@ -34,13 +34,11 @@ export function Receipt({ sale, items, storeName }: ReceiptProps) {
   const tu = useTranslations("units");
   const tp = useTranslations("payment");
   const f = useFormat();
-  const locale = usePreferences((s) => s.locale);
   const paper = usePreferences((s) => s.receiptPaper);
   const size = PAPER[paper];
   const profile = useSetting<StoreProfile>("store.profile", NO_PROFILE).value;
   const footer = useSetting<string>("receipt.footer", "").value;
-  const itemName = (i: SaleItem) =>
-    locale === "bn" && i.productNameBn ? i.productNameBn : i.productName;
+  const itemName = (i: SaleItem) => i.productName;
 
   return (
     <div

@@ -219,7 +219,7 @@ describe("upgrading to search and sort fields (v6)", () => {
       nameKey: "miniket rice",
     });
     expect((await db.products.get("p1"))?.searchWords).toEqual(
-      expect.arrayContaining(["miniket", "চাল", "a0001"]),
+      expect.arrayContaining(["miniket", "rice", "a0001"]),
     );
     expect(await db.customers.get("c1")).toMatchObject({ nameKey: "রহিম" });
     expect(await db.suppliers.get("s1")).toMatchObject({

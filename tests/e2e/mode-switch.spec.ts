@@ -34,8 +34,7 @@ test("an online device: Work offline downloads the shop, then works with no inte
   expect(await storedMode(page)).toBe("online");
 
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     stock: "10",
   });
@@ -131,8 +130,7 @@ test("online with no internet: saving is paused, the cart is kept, and the same 
 }, testInfo) => {
   await signUp(page, `down${Date.now()}${testInfo.project.name}`);
   await createProduct(page, {
-    name: "Fresh Milk",
-    nameBn: "ফ্রেশ দুধ",
+    name: "ফ্রেশ দুধ",
     price: "50",
     stock: "10",
   });

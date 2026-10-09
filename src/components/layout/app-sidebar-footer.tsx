@@ -1,9 +1,10 @@
 "use client";
 
-import { Globe, Info, MessageCircle, RefreshCw } from "lucide-react";
+import { Info, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { BillingCard } from "@/components/billing/billing-card";
+import { DeveloperLinks } from "@/components/shared/developer-links";
 import { WorkOfflineSwitch } from "@/components/sync/work-offline";
 import {
   SidebarFooter,
@@ -76,34 +77,7 @@ export function AppSidebarFooter() {
       </SidebarMenu>
 
       <SidebarSeparator className="mx-0 group-data-[collapsible=icon]:hidden" />
-      <div
-        className="flex flex-col gap-1 px-2 pb-1 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden"
-        data-testid="developer-info"
-      >
-        <p>
-          {t("developer.label")}:{" "}
-          <span className="font-medium text-foreground">{DEVELOPER.name}</span>
-        </p>
-        <a
-          href={DEVELOPER.siteUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 hover:text-foreground hover:underline"
-        >
-          <Globe className="size-3.5" aria-hidden />
-          {DEVELOPER.site}
-        </a>
-        <a
-          href={DEVELOPER.whatsappUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 hover:text-foreground hover:underline"
-          aria-label={`${t("developer.whatsapp")} ${DEVELOPER.whatsapp}`}
-        >
-          <MessageCircle className="size-3.5" aria-hidden />
-          {t("developer.whatsapp")}: {DEVELOPER.whatsapp}
-        </a>
-      </div>
+      <DeveloperLinks className="px-2 pb-1 group-data-[collapsible=icon]:hidden" />
     </SidebarFooter>
   );
 }

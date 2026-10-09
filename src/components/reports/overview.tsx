@@ -44,7 +44,7 @@ export function ReportOverview({
   summary: Summary;
   previous?: Summary;
   showProfit: boolean;
-  productName: (p: { name: string; nameBn: string }) => string;
+  productName: (p: { name: string }) => string;
 }) {
   const t = useTranslations("reports");
   const tp = useTranslations("payment");
