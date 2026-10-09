@@ -11,8 +11,9 @@ test("signing out ends the session: the sign-in page stays, a reload and the app
   await page.getByRole("button", { name: "অ্যাকাউন্ট" }).click();
   await page.getByRole("menuitem", { name: "সাইন আউট" }).click();
   // Changes still on their way to the cloud ask for a confirmation first.
-  const confirm = page.getByRole("button", { name: "তবুও সাইন আউট" });
-  if (await confirm.isVisible().catch(() => false)) await confirm.click();
+  // Changes not yet sent are sent first.
+  const send = page.getByTestId("sign-out-send");
+  if (await send.isVisible().catch(() => false)) await send.click();
   await expect(page).toHaveURL(/\/login$/, { timeout: 20_000 });
 
   // The server has ended the session, not just this screen.
@@ -49,8 +50,9 @@ test("when the server refuses the sign-out the person is told and stays signed i
 
   await page.getByRole("button", { name: "অ্যাকাউন্ট" }).click();
   await page.getByRole("menuitem", { name: "সাইন আউট" }).click();
-  const confirm = page.getByRole("button", { name: "তবুও সাইন আউট" });
-  if (await confirm.isVisible().catch(() => false)) await confirm.click();
+  // Changes not yet sent are sent first.
+  const send = page.getByTestId("sign-out-send");
+  if (await send.isVisible().catch(() => false)) await send.click();
 
   await expect(page.getByText("সাইন আউট করা যায়নি")).toBeVisible({
     timeout: 20_000,
@@ -60,7 +62,7 @@ test("when the server refuses the sign-out the person is told and stays signed i
   await page.unroute("**/api/auth/sign-out");
   await page.getByRole("button", { name: "অ্যাকাউন্ট" }).click();
   await page.getByRole("menuitem", { name: "সাইন আউট" }).click();
-  const again = page.getByRole("button", { name: "তবুও সাইন আউট" });
+  const again = page.getByTestId("sign-out-send");
   if (await again.isVisible().catch(() => false)) await again.click();
   await expect(page).toHaveURL(/\/login$/, { timeout: 20_000 });
 });

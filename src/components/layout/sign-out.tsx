@@ -46,7 +46,11 @@ export function useSignOut(): { request: () => void; dialog: ReactNode } {
   const unsent =
     useLiveQuery(() => (open ? unsentCount(getLocalDb()) : 0), [open]) ?? 0;
 
-  const failed = () => toast.error(t("signOutFailed"));
+  // The server refused: the person is still signed in. Say so and close the dialog.
+  const failed = () => {
+    setOpen(false);
+    toast.error(t("signOutFailed"));
+  };
 
   async function request() {
     if ((await unsentCount(getLocalDb())) === 0) {

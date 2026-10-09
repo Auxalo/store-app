@@ -8,8 +8,6 @@ import {
   useMemo,
   useState,
 } from "react";
-import { getLocalDb } from "@/db/local/db";
-import { clearShopData } from "@/db/local/wipe";
 import { authClient } from "./client";
 import { isRole } from "./permissions";
 import {
@@ -120,7 +118,13 @@ export async function signOut(
   clearProfile();
   // The shop's data leaves with the person, so the next one to sign in sees nothing of it. (Only
   // kept when it belongs to a shop that still has to send it: see StoreGate.)
-  if (!options.keepData)
+  // (Loaded only here, so the sign-in page does not carry the device database code.)
+  if (!options.keepData) {
+    const [{ getLocalDb }, { clearShopData }] = await Promise.all([
+      import("@/db/local/db"),
+      import("@/db/local/wipe"),
+    ]);
     await clearShopData(getLocalDb()).catch(() => undefined);
+  }
   return true;
 }
