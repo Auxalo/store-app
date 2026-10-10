@@ -5,6 +5,8 @@ import { checkDevice, listDevices } from "@/server/devices";
 import { errorResponse } from "@/server/http";
 
 export const dynamic = "force-dynamic";
+// A small request: stop it early rather than let it hold a function instance.
+export const maxDuration = 10;
 
 /** The store's registered devices (owner only), marking the one asking. */
 export async function GET(request: Request) {

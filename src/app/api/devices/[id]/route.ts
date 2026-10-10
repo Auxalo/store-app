@@ -6,6 +6,8 @@ import { renameDevice } from "@/server/devices";
 import { errorResponse, HttpError, readJson } from "@/server/http";
 
 export const dynamic = "force-dynamic";
+// A small request: stop it early rather than let it hold a function instance.
+export const maxDuration = 10;
 
 const bodySchema = z.object({ name: z.string().trim().min(1).max(60) });
 

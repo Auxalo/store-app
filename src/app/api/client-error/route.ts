@@ -6,6 +6,8 @@ import { noteRequest } from "@/server/request-context";
 import { reportError, scrubText } from "@/server/telemetry";
 
 export const dynamic = "force-dynamic";
+// A small request: stop it early rather than let it hold a function instance.
+export const maxDuration = 10;
 
 const bodySchema = z.object({
   kind: z.enum(["error", "rejection", "boundary"]),

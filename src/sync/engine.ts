@@ -11,6 +11,7 @@ import {
   type PushResponse,
 } from "@/schemas/sync";
 import { backoffDelay } from "./backoff";
+import { noteStaffVersion } from "./staff-version";
 import { type SyncTransport, TransportError } from "./transport";
 import { undoLocalEffects } from "./undo";
 
@@ -20,6 +21,11 @@ export interface EngineOptions {
   now?: () => number;
   /** Position reached while downloading (the sync manager shows it while a device is preparing). */
   onPullProgress?: (cursor: number) => void;
+  /**
+   * Stop after sending: used right after this device saved something, when only the sending is
+   * urgent. Other devices' changes are fetched by the periodic cycle and when the tab is shown.
+   */
+  skipPull?: boolean;
 }
 
 const MAX_BATCHES_PER_RUN = 40;
@@ -248,6 +254,7 @@ export async function pullAll(
       Date.parse(page.serverTime) - (before + after) / 2,
     );
     if (page.billing) await ingestStamp(page.billing, before, after);
+    noteStaffVersion(page.staffVersion);
 
     pages++;
     cursor = page.cursor;
@@ -278,6 +285,7 @@ export async function syncOnce(
     .anyOf("pending", "syncing")
     .count();
   if (waiting > 0) return { pushed: sent, pages: 0, pulled: 0 };
+  if (options.skipPull) return { pushed: sent, pages: 0, pulled: 0 };
   const { pages, docs } = await pullAll(db, transport, {
     onProgress: options.onPullProgress,
   });

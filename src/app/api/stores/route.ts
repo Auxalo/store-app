@@ -4,6 +4,8 @@ import { ownerSignupSchema } from "@/schemas/auth";
 import { createStoreWithOwner, UsernameTakenError } from "@/server/onboarding";
 
 export const dynamic = "force-dynamic";
+// A small request: stop it early rather than let it hold a function instance.
+export const maxDuration = 10;
 
 /** Public owner onboarding: creates a store and its owner account. */
 export async function POST(request: Request) {

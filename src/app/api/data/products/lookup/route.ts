@@ -6,6 +6,8 @@ import { getSyncDeps } from "@/server/deps";
 import { errorResponse } from "@/server/http";
 
 export const dynamic = "force-dynamic";
+// A small request: stop it early rather than let it hold a function instance.
+export const maxDuration = 10;
 
 /** A scanned or typed barcode or SKU: the one active product it belongs to (or none). */
 export async function GET(request: Request) {

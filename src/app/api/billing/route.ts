@@ -6,6 +6,8 @@ import { getSyncDeps } from "@/server/deps";
 import { errorResponse } from "@/server/http";
 
 export const dynamic = "force-dynamic";
+// A small request: stop it early rather than let it hold a function instance.
+export const maxDuration = 10;
 
 /**
  * The shop's billing page: where it stands, its plans, where to send money and its payments. Open

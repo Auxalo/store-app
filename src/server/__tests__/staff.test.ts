@@ -12,6 +12,7 @@ import {
   revokeDevice,
 } from "../devices";
 import { listAudit, listStaff, setStaffPin, updateStaff } from "../staff";
+import { handlePull } from "../sync/pull";
 
 let mongo: TestMongo;
 let storeId: string;
@@ -132,6 +133,34 @@ describe("staff", () => {
       ok: false,
       error: "NOT_FOUND",
     });
+  });
+});
+
+describe("the staff version devices use to know the people list changed", () => {
+  const versionNow = async () =>
+    (await handlePull(mongo.db, storeId, Number.MAX_SAFE_INTEGER)).staffVersion;
+
+  it("moves when a person or a PIN changes, and not otherwise", async () => {
+    const before = (await versionNow()) ?? 0;
+    expect(await versionNow()).toBe(before); // asking changes nothing
+    // (Saved with the same name, so what the later tests read is unchanged.)
+    const current = (await listStaff(mongo.db, storeId)).find(
+      (m) => m.id === cashier,
+    );
+    await updateStaff(mongo.db, storeId, cashier, { name: current?.name });
+    const afterEdit = (await versionNow()) ?? 0;
+    expect(afterEdit).toBe(before + 1);
+    await setStaffPin(mongo.db, storeId, cashier, await hashPin("1234"));
+    expect(await versionNow()).toBe(afterEdit + 1);
+  });
+
+  it("does not move for a refused change (someone else's person, or the owner's protected fields)", async () => {
+    const before = await versionNow();
+    await updateStaff(mongo.db, storeId, owner, { isActive: false });
+    await updateStaff(mongo.db, storeId, new ObjectId().toHexString(), {
+      name: "Nobody",
+    });
+    expect(await versionNow()).toBe(before);
   });
 });
 

@@ -10,14 +10,33 @@ import { recoverInterrupted, resetBackoff, syncOnce } from "./engine";
 import { syncOnlineOnce } from "./online-cycle";
 import { pruneIfDue } from "./prune";
 import { registerDevice } from "./register-device";
+import {
+  currentStaffVersion,
+  markStaffRead,
+  staffVersionMoved,
+} from "./staff-version";
 import { type SyncProblem, useSyncStore } from "./store";
 import { createFetchTransport, TransportError } from "./transport";
 
-const PERIODIC_MS = 60_000;
-/** While the server cannot be reached, how often to check whether it is back. */
-const PROBE_MS = 4_000;
-const NUDGE_DEBOUNCE_MS = 1_000;
-const STAFF_EVERY_MS = 5 * 60_000;
+/** How often a visible tab syncs by itself (a hidden tab does not: see startPeriodic). */
+const PERIODIC_MS = 5 * 60_000;
+/**
+ * While the server cannot be reached: how long to wait before each check whether it is back. It
+ * backs off so a long outage is not a request every few seconds, and starts over on the browser's
+ * "online" event, when the tab is shown, and when something is saved.
+ */
+const PROBE_STEPS_MS = [4_000, 8_000, 16_000, 32_000, 60_000];
+const PROBE_TIMEOUT_MS = 4_000;
+/** Saved changes that are waiting out a retry delay are retried at least this often. */
+const WAKE_MAX_MS = 60_000;
+/** After a save, wait this long so a burst of saves becomes one request. */
+const NUDGE_DEBOUNCE_MS = 2_000;
+/** Coming back to the tab syncs at once, but not more often than this (quick tab flips). */
+const VISIBLE_SYNC_GAP_MS = 15_000;
+/** The people list is also re-read this often, in case a change was missed. */
+const STAFF_MAX_AGE_MS = 60 * 60_000;
+
+type RunReason = "full" | "nudge";
 
 export interface SyncSession {
   storeId: string;
@@ -56,6 +75,10 @@ class SyncManager {
   private readonly patch = useSyncStore.getState().patch;
   private running = false;
   private runAgain = false;
+  private runAgainFull = false;
+  private nudgeFull = false;
+  private probeStep = 0;
+  private lastFullRunAt = 0;
   private ready = false;
   private staffAt = 0;
   private stopped = false;
@@ -109,16 +132,40 @@ class SyncManager {
       this.cleanups.push(() => target.removeEventListener(type, handler));
     };
     on(window, "online", () => {
+      this.probeStep = 0;
       void resetBackoff(db).then(() => this.run());
     });
     on(document, "visibilitychange", () => {
-      if (document.visibilityState === "visible") this.run();
+      if (document.visibilityState === "visible") this.becameVisible();
+      else this.stopPeriodic();
     });
-    this.periodic = setInterval(() => {
-      if (navigator.onLine) this.run();
-    }, PERIODIC_MS);
+    if (document.visibilityState === "visible") this.startPeriodic();
 
     this.run();
+  }
+
+  /** One interval per manager, and only while the tab is shown (a hidden tab asks nobody). */
+  private startPeriodic(): void {
+    clearInterval(this.periodic);
+    if (this.stopped) return;
+    this.periodic = setInterval(() => {
+      if (navigator.onLine && document.visibilityState === "visible")
+        void this.run();
+    }, PERIODIC_MS);
+  }
+
+  private stopPeriodic(): void {
+    clearInterval(this.periodic);
+    this.periodic = undefined;
+  }
+
+  /** The tab is shown again: sync once (unless it just did), then keep going on the interval. */
+  private becameVisible(): void {
+    this.probeStep = 0;
+    this.startPeriodic();
+    const recent = Date.now() - this.lastFullRunAt < VISIBLE_SYNC_GAP_MS;
+    // Something wrong (offline, paused) is looked at again at once, however recent the last try.
+    if (!recent || useSyncStore.getState().problem !== null) void this.run();
   }
 
   stop(): void {
@@ -138,53 +185,72 @@ class SyncManager {
   private probeUntilBack(): void {
     clearTimeout(this.probeTimer);
     if (this.stopped) return;
+    const wait =
+      PROBE_STEPS_MS[Math.min(this.probeStep, PROBE_STEPS_MS.length - 1)];
+    this.probeStep++;
     this.probeTimer = setTimeout(async () => {
       if (this.stopped) return;
+      // A hidden tab does not probe: showing it again checks at once (becameVisible).
+      if (document.visibilityState === "hidden") return;
       let reachable = false;
       try {
         const response = await fetch("/api/health?probe=1", {
           cache: "no-store",
-          signal: AbortSignal.timeout(PROBE_MS),
+          signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
         });
         reachable = response.status < 500;
       } catch {
         reachable = false;
       }
       if (!reachable) return this.probeUntilBack();
+      this.probeStep = 0;
       await resetBackoff(this.db);
       void this.run();
-    }, PROBE_MS);
+    }, wait);
   }
 
-  /** "Something changed locally": sync soon (debounced so a burst becomes one request). */
-  nudge(): void {
+  /**
+   * "Something changed locally": send it soon (debounced so a burst becomes one request). A nudge
+   * only sends; other devices' changes come with the periodic sync and when the tab is shown.
+   */
+  nudge(reason: RunReason = "nudge"): void {
     if (!this.ready) return;
+    this.probeStep = 0;
+    if (reason === "full") this.nudgeFull = true;
     clearTimeout(this.nudgeTimer);
-    this.nudgeTimer = setTimeout(() => this.run(), NUDGE_DEBOUNCE_MS);
+    this.nudgeTimer = setTimeout(() => {
+      const full = this.nudgeFull;
+      this.nudgeFull = false;
+      void this.run(full ? "full" : "nudge");
+    }, NUDGE_DEBOUNCE_MS);
   }
 
   async syncNow(): Promise<void> {
     if (!this.ready) return;
     await resetBackoff(this.db);
-    await this.run();
+    await this.run("full");
   }
 
-  private async run(): Promise<void> {
+  private async run(reason: RunReason = "full"): Promise<void> {
     if (!this.ready || this.stopped) return;
     if (this.running) {
       this.runAgain = true;
+      if (reason === "full") this.runAgainFull = true;
       return;
     }
     this.running = true;
+    if (reason === "full") this.lastFullRunAt = Date.now();
     this.patch({ running: true });
     try {
-      await exclusively(() => this.cycle());
+      await exclusively(() => this.cycle(reason === "nudge"));
     } finally {
       this.running = false;
       this.patch({ running: false });
       if (this.runAgain) {
         this.runAgain = false;
-        this.nudge();
+        const full = this.runAgainFull;
+        this.runAgainFull = false;
+        this.nudge(full ? "full" : "nudge");
       }
       void this.scheduleWake();
     }
@@ -195,19 +261,23 @@ class SyncManager {
     this.patch({ deviceCode: code });
   }
 
-  private async cycle(): Promise<void> {
+  private async cycle(light: boolean): Promise<void> {
     this.patch({ lastAttemptAt: Date.now() });
     const db = this.db;
     try {
       if (!(await getMeta(db, "deviceCode"))) await this.registerDevice();
       const deviceId = await getDeviceId(db);
       // Offline mode keeps a full copy of the shop; online mode only sends what is queued.
+      // A cycle that follows a save only sends, when all is well (nothing wrong, first download done).
+      const state = useSyncStore.getState();
+      const skipPull = light && state.problem === null && state.initialSyncDone;
       const sync = () =>
         (useDataModeStore.getState().mode === "online"
           ? syncOnlineOnce
           : syncOnce)(db, this.transport, {
           deviceId,
           appVersion: APP_VERSION,
+          skipPull,
           onPullProgress: (pulledTo) => this.patch({ pulledTo }),
         });
       try {
@@ -227,11 +297,17 @@ class SyncManager {
           throw error;
         }
       }
-      // Keep the offline "who is working?" list current. People and PINs change rarely, so every
-      // few minutes is plenty (this used to download every PIN hash on every minute-long cycle).
-      if (Date.now() - this.staffAt > STAFF_EVERY_MS) {
+      // Keep the offline "who is working?" list current. It is read when this page opens, when the
+      // server says a person or PIN changed (the number that comes with every sync answer), and
+      // at the latest once an hour.
+      if (
+        this.staffAt === 0 ||
+        staffVersionMoved() ||
+        Date.now() - this.staffAt > STAFF_MAX_AGE_MS
+      ) {
         this.staffAt = Date.now();
-        void refreshStaff(db);
+        const version = currentStaffVersion();
+        void refreshStaff(db).then((ok) => ok && markStaffRead(version));
       }
       void pruneIfDue(db).catch(() => undefined);
       // The server answered: whatever the browser's own flag says, the app is online.
@@ -259,7 +335,7 @@ class SyncManager {
     const next = await this.db.outbox.where("status").equals("pending").first();
     if (!next) return;
     const delay = Math.max(next.nextAttemptAt - Date.now(), 1_000);
-    this.wakeTimer = setTimeout(() => this.run(), Math.min(delay, PERIODIC_MS));
+    this.wakeTimer = setTimeout(() => this.run(), Math.min(delay, WAKE_MAX_MS));
   }
 }
 

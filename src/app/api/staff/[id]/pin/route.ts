@@ -7,6 +7,8 @@ import { errorResponse, HttpError, readJson } from "@/server/http";
 import { setStaffPin } from "@/server/staff";
 
 export const dynamic = "force-dynamic";
+// A small request: stop it early rather than let it hold a function instance.
+export const maxDuration = 10;
 
 /** Stores a PIN hash: the owner may set anyone's, everyone may set their own. */
 export async function PUT(

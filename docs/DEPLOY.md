@@ -19,7 +19,7 @@ A short runbook. The app is one Next.js project (pages plus `/api` routes) and o
 | `BETTER_AUTH_SECRET` | yes | 32+ random characters (`openssl rand -base64 32`). Changing it signs everyone out. |
 | `BETTER_AUTH_URL` | yes in production | The public origin, e.g. `https://app.example.com`. The server refuses to start answering without it (Vercel preview deployments may leave it out). Requests from the very address they are sent to are always accepted, so opening the app on another address (a preview or alias) still signs out correctly. |
 | `SENTRY_DSN` | no | Turns on error reporting to Sentry (see section 15). Nothing is sent without it. |
-| `SKIP_RUNTIME_INDEXES` | no | Set to `1` after running `pnpm db:indexes` as part of a deploy: servers then skip the start-up index check. |
+| `SKIP_RUNTIME_INDEXES` | no | Set to `1` after running `pnpm db:indexes` as part of a deploy: servers then skip the start-up index check (about 70 index commands, run once on every cold start otherwise). **Run `pnpm db:indexes` again after any release that adds an index, or the new index will not exist.** |
 | `RATE_LIMIT_READ_PER_MIN`, `RATE_LIMIT_WRITE_PER_MIN` | no | Per-device request limits (default 600 and 180). |
 | `NEXT_PUBLIC_SIGNUP_ENABLED` | no | `1` at build time opens shop sign-up (section 13). |
 
@@ -30,7 +30,7 @@ Never set `E2E_DISABLE_RATE_LIMIT` in production: it exists only for the automat
 1. Create the Atlas cluster and a database user. Allow your host's IPs (Vercel: allow `0.0.0.0/0` and rely on the user password, or use Atlas private networking on a paid plan).
 2. Set the variables above on the host.
 3. `pnpm install --frozen-lockfile && pnpm build`, then deploy (Vercel does this for you).
-4. Open the site, create the first store (sign up). The needed indexes are created automatically on first use (about 40; one for every way a list can be sorted, so any list opens straight from an index even with hundreds of thousands of rows. The first start after an update that adds indexes builds them, which takes a moment on a big shop).
+4. Open the site, create the first store (sign up). The needed indexes are created automatically on first use (about 70, unless `SKIP_RUNTIME_INDEXES=1`; one for every way a list can be sorted, so any list opens straight from an index even with hundreds of thousands of rows. The first start after an update that adds indexes builds them, which takes a moment on a big shop).
 4a. **Existing shop updating from an earlier version:** run `pnpm db:backfill-search` once (it fills the search fields that the new lists use; safe to repeat; devices re-download nothing).
 5. On a phone, open the site and use "Install app" (Android/Chrome) or "Add to Home Screen" (iPhone/Safari).
 

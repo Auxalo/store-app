@@ -7,6 +7,8 @@ import { errorResponse, HttpError } from "@/server/http";
 import { requireUser } from "@/server/session";
 
 export const dynamic = "force-dynamic";
+// A small request: stop it early rather than let it hold a function instance.
+export const maxDuration = 10;
 
 /**
  * Called right after someone signs in with their password: that person becomes the one working on

@@ -11,6 +11,8 @@ import { getSyncDeps } from "@/server/deps";
 import { errorResponse, HttpError } from "@/server/http";
 
 export const dynamic = "force-dynamic";
+// A small request: stop it early rather than let it hold a function instance.
+export const maxDuration = 10;
 
 /** One record with what its own screen needs: a sale with its lines and returns, a person with their statement. */
 export async function GET(

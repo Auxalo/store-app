@@ -7,6 +7,8 @@ import { errorResponse, readJson } from "@/server/http";
 import { checkBudget } from "@/server/rate-limit";
 
 export const dynamic = "force-dynamic";
+// A small request: stop it early rather than let it hold a function instance.
+export const maxDuration = 10;
 
 const HOUR_MS = 3_600_000;
 

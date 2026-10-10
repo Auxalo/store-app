@@ -114,5 +114,12 @@ export async function createStoreUser(params: {
     accountId: user.id,
     password: await ctx.password.hash(params.password),
   });
+  // A new person: devices re-read the shop's people list (see bumpStaffVersion).
+  try {
+    const { bumpStaffVersion } = await import("./staff");
+    await bumpStaffVersion(await getDb(), params.storeId);
+  } catch {
+    /* the list is also re-read on every page load */
+  }
   return user;
 }

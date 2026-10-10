@@ -186,6 +186,33 @@ describe("sync: one device", () => {
     expect(await getMeta(d.db, "cursor")).toBeGreaterThan(0);
   });
 
+  it("a cycle after a save can stop after sending: nothing is pulled until the next full one", async () => {
+    const d = await newDevice();
+    await d.sync(); // the first download
+    const pullsBefore = (await getMeta(d.db, "lastSyncAt")) ?? 0;
+    // Another device's work waits on the server.
+    const other = await newDevice();
+    await addCategory(other, "From elsewhere");
+    await other.sync();
+
+    await addCategory(d, "Mine");
+    const outcome = await syncOnce(d.db, d.transport, {
+      ...d.options,
+      skipPull: true,
+    });
+    expect(outcome).toMatchObject({ pushed: 1, pages: 0, pulled: 0 });
+    expect(await pending(d)).toBe(0); // it was sent
+    expect((await d.db.categories.toArray()).map((c) => c.name)).not.toContain(
+      "From elsewhere",
+    ); // not fetched yet
+    expect(await getMeta(d.db, "lastSyncAt")).toBe(pullsBefore);
+
+    await d.sync(); // the full cycle brings it
+    expect((await d.db.categories.toArray()).map((c) => c.name)).toContain(
+      "From elsewhere",
+    );
+  });
+
   it("does not hammer the server: failed operations wait out a backoff", async () => {
     const d = await newDevice();
     d.faults.offline = true;

@@ -9,6 +9,8 @@ import { listStaff } from "@/server/staff";
 import { createStaffMember } from "@/server/staff-admin";
 
 export const dynamic = "force-dynamic";
+// A small request: stop it early rather than let it hold a function instance.
+export const maxDuration = 10;
 
 /**
  * The store's people, for the "who is working?" screen. Devices call this with their device cookie

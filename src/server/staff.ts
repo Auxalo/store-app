@@ -4,6 +4,16 @@ import type { PinHash } from "@/auth/pin";
 import { clearStoreCaches } from "./cache";
 import { COL } from "./sync/collections";
 
+/**
+ * Devices read the shop's people list only when this number moves (it comes with every sync answer),
+ * so any change to a person or a PIN must move it.
+ */
+export async function bumpStaffVersion(db: Db, storeId: string): Promise<void> {
+  await db
+    .collection(COL.stores)
+    .updateOne({ _id: storeId } as never, { $inc: { staffVersion: 1 } });
+}
+
 export interface StaffMember {
   id: string;
   name: string;
@@ -117,6 +127,7 @@ export async function updateStaff(
         ? { $set: set, $unset: { deactivatedAt: "" } }
         : { $set: set };
   await users(db).updateOne({ _id }, stamp as never);
+  await bumpStaffVersion(db, storeId);
   clearStoreCaches();
   const updated = await users(db).findOne({ _id });
   return { ok: true, member: toMember(updated as UserDoc) };
@@ -154,6 +165,7 @@ export async function setStaffPin(
     ...(pin.proof ? {} : { $unset: { pinProofKey: "" } }),
   } as never);
   await clearPinAttempts(db, id); // a new PIN: the old wrong tries and the "sign in again" lock end
+  await bumpStaffVersion(db, storeId);
   clearStoreCaches();
   return {
     ok: true,

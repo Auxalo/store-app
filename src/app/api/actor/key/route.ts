@@ -5,6 +5,8 @@ import { requireActor } from "@/server/actor-request";
 import { errorResponse } from "@/server/http";
 
 export const dynamic = "force-dynamic";
+// A small request: stop it early rather than let it hold a function instance.
+export const maxDuration = 10;
 
 /**
  * The signing key of the person working on this device (see deviceSigningKey). Only the person the

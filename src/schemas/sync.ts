@@ -84,4 +84,6 @@ export interface PullResponse {
   changes: PullChanges;
   /** The shop's billing (the endpoint adds it; older servers did not send it). */
   billing?: BillingStamp;
+  /** Moves when the shop's people or PINs change: a device re-reads the staff list only then. */
+  staffVersion?: number;
 }
