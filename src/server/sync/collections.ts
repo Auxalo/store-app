@@ -44,6 +44,20 @@ async function ensureTtl(
 const ensured = new WeakSet<Db>();
 
 /** Creates the indexes sync relies on. Idempotent; runs once per process per database. */
+/**
+ * The people's indexes (usernames are unique across all shops). Created when the sign-in service
+ * starts, unless SKIP_RUNTIME_INDEXES=1, and by `pnpm db:indexes`.
+ */
+export async function ensureUserIndexes(db: Db): Promise<void> {
+  await Promise.all([
+    db
+      .collection("user")
+      .createIndex({ username: 1 }, { unique: true, sparse: true }),
+    db.collection("user").createIndex({ email: 1 }, { unique: true }),
+    db.collection("user").createIndex({ storeId: 1 }),
+  ]);
+}
+
 export async function ensureSyncIndexes(db: Db): Promise<void> {
   if (ensured.has(db)) return;
   await Promise.all([

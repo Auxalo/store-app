@@ -16,6 +16,8 @@ import { requireDevice } from "@/server/device-request";
 import { errorResponse, HttpError } from "@/server/http";
 
 export const dynamic = "force-dynamic";
+// A small request: stop it early rather than let it hold a function instance.
+export const maxDuration = 10;
 
 /**
  * One page of a list, searched, filtered and sorted on the server (online mode).

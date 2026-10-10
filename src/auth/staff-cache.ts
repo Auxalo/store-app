@@ -17,14 +17,14 @@ interface StaffRow {
  * no internet. Wrong-PIN counters are kept across refreshes, and reset only when someone's PIN
  * actually changed. Failures are ignored: the device simply keeps the list it already has.
  */
-export async function refreshStaff(db: StoreDB): Promise<void> {
+export async function refreshStaff(db: StoreDB): Promise<boolean> {
   let rows: StaffRow[];
   try {
     const response = await fetch("/api/staff");
-    if (!response.ok) return;
+    if (!response.ok) return false;
     rows = ((await response.json()) as { staff: StaffRow[] }).staff;
   } catch {
-    return;
+    return false;
   }
 
   await db.transaction("rw", db.localUsers, async () => {
@@ -59,4 +59,5 @@ export async function refreshStaff(db: StoreDB): Promise<void> {
       [...existing.keys()].filter((id) => !keep.has(id)),
     );
   });
+  return true;
 }

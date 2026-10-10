@@ -6,6 +6,8 @@ import { errorResponse, HttpError, readJson } from "@/server/http";
 import { updateStaffMember } from "@/server/staff-admin";
 
 export const dynamic = "force-dynamic";
+// A small request: stop it early rather than let it hold a function instance.
+export const maxDuration = 10;
 
 /** Owner changes a name, role, active flag or password. */
 export async function PATCH(

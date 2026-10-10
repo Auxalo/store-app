@@ -4,13 +4,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useState } from "react";
 import { FullScreenLoader } from "@/components/shared/full-screen-loader";
 import { DataError } from "./errors";
-import { onHeadChange, setHead } from "./head";
+import { onHeadChange } from "./head";
 import { useDataMode } from "./mode-store";
 import { onModeChangedElsewhere } from "./mode-switch";
-import { fetchHead } from "./online";
-
-/** How often an online screen asks "has anything changed?" (one tiny request). */
-const HEAD_POLL_MS = 60_000;
 
 function makeClient() {
   return new QueryClient({
@@ -31,35 +27,18 @@ function makeClient() {
   });
 }
 
-/** In online mode, refresh the screens when something changed on another device. */
+/**
+ * In online mode, refresh the screens when something changed on another device. The "has anything
+ * changed?" question is asked by the sync cycle (src/sync/online-cycle.ts: every few minutes, and
+ * when the tab is shown again), which tells this listener when the answer moved.
+ */
 function useChangeWatcher(client: QueryClient, enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
-    let stopped = false;
     // Someone else saved something: every screen on show asks again.
-    const stopListening = onHeadChange(() => {
+    return onHeadChange(() => {
       void client.invalidateQueries({ queryKey: ["data"] });
     });
-    const check = async () => {
-      try {
-        const head = await fetchHead();
-        if (stopped) return;
-        setHead(head); // listeners below hear about a change made by someone else
-      } catch {
-        /* no connection right now: the next check will try again */
-      }
-    };
-    void check();
-    const timer = setInterval(check, HEAD_POLL_MS);
-    const onVisible = () =>
-      document.visibilityState === "visible" && void check();
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      stopped = true;
-      stopListening();
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
   }, [client, enabled]);
 }
 

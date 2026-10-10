@@ -12,6 +12,8 @@ import { getSyncDeps } from "@/server/deps";
 import { errorResponse } from "@/server/http";
 
 export const dynamic = "force-dynamic";
+// A small request: stop it early rather than let it hold a function instance.
+export const maxDuration = 10;
 
 /** Counts and sums over everything a list matches (its header), not just the page on screen. */
 export async function GET(

@@ -6,20 +6,16 @@ import { username } from "better-auth/plugins";
 import { ObjectId } from "mongodb";
 import { getMongoClient } from "@/db/server/mongo";
 import { serverEnv } from "@/lib/env";
+import { ensureUserIndexes } from "@/server/sync/collections";
 
 async function createAuth() {
   const env = serverEnv();
   const client = await getMongoClient();
   const db = client.db(env.MONGODB_DB);
 
-  // The Mongo adapter does not create indexes; usernames must be unique across stores.
-  await Promise.all([
-    db
-      .collection("user")
-      .createIndex({ username: 1 }, { unique: true, sparse: true }),
-    db.collection("user").createIndex({ email: 1 }, { unique: true }),
-    db.collection("user").createIndex({ storeId: 1 }),
-  ]);
+  // The Mongo adapter does not create indexes; usernames must be unique across stores. (Skipped when
+  // SKIP_RUNTIME_INDEXES=1: `pnpm db:indexes` builds the same ones.)
+  if (process.env.SKIP_RUNTIME_INDEXES !== "1") await ensureUserIndexes(db);
 
   return betterAuth({
     appName: "Heshabe",

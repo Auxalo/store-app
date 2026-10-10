@@ -4,12 +4,18 @@ import { APP_VERSION } from "@/lib/app-version";
 import { telemetryEnabled } from "@/server/telemetry";
 
 export const dynamic = "force-dynamic";
+// A small request: stop it early rather than let it hold a function instance.
+export const maxDuration = 10;
 
 /**
  * "Is the server set up right?" for the person who deployed it: which settings are present (never
  * their values) and whether the database answers. Open /api/health after a deploy.
  */
-export async function GET() {
+export async function GET(request: Request) {
+  // The app's own "is the server reachable?" check (every few seconds while offline) only needs an
+  // answer from this function, not a trip to the database.
+  if (new URL(request.url).searchParams.has("probe"))
+    return NextResponse.json({ ok: true });
   const settings = {
     MONGODB_URI: !!process.env.MONGODB_URI,
     BETTER_AUTH_SECRET: (process.env.BETTER_AUTH_SECRET ?? "").length >= 32,

@@ -5,6 +5,8 @@ import { revokeDevice } from "@/server/devices";
 import { errorResponse, HttpError } from "@/server/http";
 
 export const dynamic = "force-dynamic";
+// A small request: stop it early rather than let it hold a function instance.
+export const maxDuration = 10;
 
 /** Cuts a lost or stolen device off from syncing. Work still waiting on that device stays on it. */
 export async function POST(

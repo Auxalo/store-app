@@ -17,15 +17,19 @@ export async function GET(request: Request) {
     const { db } = await getSyncDeps();
     const device = await requireDevice(request, db, "read");
     const store = await db
-      .collection<{ _id: string; syncSeq?: number; billing?: BillingDoc }>(
-        "stores",
-      )
+      .collection<{
+        _id: string;
+        syncSeq?: number;
+        staffVersion?: number;
+        billing?: BillingDoc;
+      }>("stores")
       .findOne(
         { _id: device.storeId },
-        { projection: { syncSeq: 1, billing: 1 } },
+        { projection: { syncSeq: 1, staffVersion: 1, billing: 1 } },
       );
     return NextResponse.json({
       syncSeq: store?.syncSeq ?? 0,
+      staffVersion: store?.staffVersion ?? 0,
       billing: await stampWithPlan(db, store?.billing),
     });
   } catch (error) {

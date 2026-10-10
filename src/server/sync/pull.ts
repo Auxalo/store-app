@@ -26,7 +26,9 @@ export async function handlePull(
 ): Promise<PullResponse> {
   const serverTime = new Date().toISOString();
   const store = await db
-    .collection<{ _id: string; syncSeq: number }>(COL.stores)
+    .collection<{ _id: string; syncSeq: number; staffVersion?: number }>(
+      COL.stores,
+    )
     .findOne({ _id: storeId });
   const upper = store?.syncSeq ?? 0;
   if (cursor >= upper)
@@ -35,6 +37,7 @@ export async function handlePull(
       cursor: Math.max(cursor, upper),
       hasMore: false,
       changes: emptyChanges(),
+      staffVersion: store?.staffVersion ?? 0,
     };
 
   const found: Array<{ collection: SyncCollection; doc: WireDoc }> = [];
@@ -65,5 +68,6 @@ export async function handlePull(
     cursor: hasMore ? (page.at(-1)?.doc.syncSeq ?? cursor) : upper,
     hasMore,
     changes,
+    staffVersion: store?.staffVersion ?? 0,
   };
 }

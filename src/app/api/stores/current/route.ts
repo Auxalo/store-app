@@ -3,6 +3,8 @@ import { getAuth } from "@/auth/server";
 import { getDb } from "@/db/server/mongo";
 
 export const dynamic = "force-dynamic";
+// A small request: stop it early rather than let it hold a function instance.
+export const maxDuration = 10;
 
 /** The signed-in user's store (name, currency, time zone). */
 export async function GET(request: Request) {

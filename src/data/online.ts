@@ -5,6 +5,7 @@ import { getLocalDb } from "@/db/local/db";
 import type { WireChange } from "@/schemas/sync";
 import { useActiveUser } from "@/stores/active-user";
 import { giveDeviceNewIdentity, registerDevice } from "@/sync/register-device";
+import { noteStaffVersion } from "@/sync/staff-version";
 import { useSyncStore } from "@/sync/store";
 import { DataError } from "./errors";
 import type { ListParams, Resource } from "./spec";
@@ -148,10 +149,13 @@ export const fetchAll = (
 /** The shop's change counter. The answer also carries the shop's billing, which is kept. */
 export async function fetchHead(): Promise<number> {
   const sentAt = Date.now();
-  const head = await request<{ syncSeq: number; billing?: BillingStamp }>(
-    "/api/sync/head",
-  );
+  const head = await request<{
+    syncSeq: number;
+    staffVersion?: number;
+    billing?: BillingStamp;
+  }>("/api/sync/head");
   void ingestStamp(head.billing, sentAt, Date.now());
+  noteStaffVersion(head.staffVersion);
   return head.syncSeq;
 }
 
