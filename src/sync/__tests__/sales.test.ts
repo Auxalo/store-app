@@ -137,6 +137,29 @@ describe("selling on one device", () => {
     expect(ledger.map((e) => e.amountDelta)).toEqual([11_000]);
   });
 
+  it("remembers what the customer already owed (জের) on the next sale, on the device and on the server", async () => {
+    const d = await newDevice();
+    const milk = await addProduct(d);
+    const customer = await addCustomer(d);
+    const first = await sell(d, [lineOf(milk, 3000)], {
+      customerId: customer,
+      customerName: "রহিম",
+      tendered: 4_000, // ৳110 left owing
+    });
+    const second = await sell(d, [lineOf(milk, 1000)], {
+      customerId: customer,
+      customerName: "রহিম",
+      tendered: 5_000, // paid in full
+    });
+    expect((await d.db.sales.get(first))?.previousDue).toBeUndefined();
+    expect((await d.db.sales.get(second))?.previousDue).toBe(11_000);
+    await d.sync();
+    const onServer = await mongo.db
+      .collection("sales")
+      .findOne({ _id: second as never });
+    expect(onServer?.previousDue).toBe(11_000);
+  });
+
   it("refuses an unpaid sale with no customer and changes nothing", async () => {
     const d = await newDevice();
     const milk = await addProduct(d);

@@ -186,6 +186,11 @@ export async function saleCreate(
     if (live.has(productId)) await moveStock(db, productId, -qty, now);
   }
 
+  // What the customer already owed before this sale (জের), for the receipt.
+  const previousDue = input.customerId
+    ? Math.max(0, (await db.customers.get(input.customerId))?.balance ?? 0)
+    : 0;
+
   // Whatever was not paid becomes the customer's due, and store credit that paid for it is used
   // up: both move the balance up, and both are one ledger entry.
   const owed = totals.due + totals.creditUsed;
@@ -237,6 +242,7 @@ export async function saleCreate(
     total: totals.total,
     creditUsed: totals.creditUsed,
     tendered: input.tendered,
+    ...(previousDue > 0 ? { previousDue } : {}),
     paid: totals.paid,
     due: totals.due,
     paymentMethod: input.paymentMethod,

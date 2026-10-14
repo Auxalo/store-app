@@ -244,3 +244,44 @@ test("a discount bigger than the items is refused with a message, and the receip
   await expect(receipt).toContainText("ফেরত (খুচরা)");
   await expect(receipt).toContainText("৳৩৮০.০০");
 });
+
+test("a customer's bill shows what they already owed (জের), and only when they owe", async ({
+  page,
+}, testInfo) => {
+  await signUp(page, `jer${Date.now()}${testInfo.project.name}`);
+  await createProduct(page, {
+    name: "ফ্রেশ দুধ",
+    price: "50",
+    cost: "40",
+    stock: "10",
+  });
+  const sellToRahim = async (received: string, isNew: boolean) => {
+    await page.goto("/pos");
+    await tapProduct(page, "ফ্রেশ দুধ");
+    await openCart(page);
+    const cart = page.getByTestId("cart-panel");
+    await cart.getByTestId("customer-button").click();
+    if (isNew) {
+      await page.getByRole("button", { name: "নতুন ক্রেতা" }).click();
+      await page.getByLabel("নাম", { exact: true }).fill("রহিম");
+      await page.getByRole("button", { name: "সংরক্ষণ" }).click();
+    } else {
+      await page.getByRole("button", { name: /রহিম/ }).click();
+    }
+    await cart.getByTestId("received-input").fill(received);
+    await cart.getByTestId("complete-sale").click();
+    await expect(page.locator("#print-receipt")).toBeVisible();
+  };
+
+  // First bill: nothing owed before, so no জের line. ৳30 is left owing.
+  await sellToRahim("20", true);
+  await expect(page.getByTestId("receipt-previous-due")).toHaveCount(0);
+  await page.getByRole("button", { name: "নতুন বিক্রি" }).click();
+
+  // Next bill: the ৳30 shows as জের.
+  await sellToRahim("50", false);
+  await expect(page.getByTestId("receipt-previous-due")).toContainText("জের");
+  await expect(page.getByTestId("receipt-previous-due")).toContainText(
+    "৳৩০.০০",
+  );
+});

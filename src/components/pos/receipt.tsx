@@ -137,6 +137,18 @@ export function Receipt({ sale, items, storeName }: ReceiptProps) {
           <Line label={t("due")} value={f.money(sale.due, "always")} bold />
         ) : null}
         <Line label={t("method")} value={tp(sale.paymentMethod)} />
+        {/* What the customer owed before this bill, as a reminder (not part of this bill). */}
+        {(sale.previousDue ?? 0) > 0 ? (
+          <div
+            className="mt-1 border-t border-dashed border-black pt-1"
+            data-testid="receipt-previous-due"
+          >
+            <Line
+              label={t("previousDue")}
+              value={f.money(sale.previousDue ?? 0, "always")}
+            />
+          </div>
+        ) : null}
       </div>
 
       <p className="mt-3 text-center">{footer || t("thanks")}</p>
