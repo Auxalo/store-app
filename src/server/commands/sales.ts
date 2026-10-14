@@ -45,6 +45,8 @@ interface StoredSale {
   creditUsed?: number;
   /** Cash handed over (above `paid` when change was given). Absent on older sales. */
   tendered?: number;
+  /** What the customer owed before this sale (জের), for the receipt. */
+  previousDue?: number;
   paid: number;
   due: number;
   paymentMethod: string;
@@ -265,6 +267,8 @@ export async function saleCreate(
     Math.min(p.creditUsed, credit),
   );
   const customer = totals.due + totals.creditUsed > 0 ? buyer : null;
+  // What the customer already owed before this sale (জের), for the receipt.
+  const previousDue = buyer ? Math.max(0, Number(buyer.balance ?? 0)) : 0;
   const perProduct = qtyByProduct(
     lines.filter((l) => products.has(l.productId)),
   );
@@ -294,6 +298,7 @@ export async function saleCreate(
     total: totals.total,
     creditUsed: totals.creditUsed,
     tendered: p.tendered,
+    ...(previousDue > 0 ? { previousDue } : {}),
     paid: totals.paid,
     due: totals.due,
     paymentMethod: p.paymentMethod,
