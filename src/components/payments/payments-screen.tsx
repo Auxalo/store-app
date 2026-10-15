@@ -11,6 +11,11 @@ import {
   ListToolbar,
 } from "@/components/shared/list-toolbar";
 import { ListError, LoadMore } from "@/components/shared/load-more";
+import {
+  type Period,
+  PeriodChips,
+  periodDates,
+} from "@/components/shared/period-chips";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,6 +23,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useList, useTotals } from "@/data/hooks";
 import { useFormat } from "@/i18n/use-format";
 import { cn } from "@/lib/utils";
+import { usePreferences } from "@/stores/preferences";
 import { CancelPaymentDialog } from "./cancel-payment-dialog";
 
 type Filter = "all" | "customer" | "supplier";
@@ -31,6 +37,8 @@ export function PaymentsScreen() {
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<(typeof SORTS)[number]>("newest");
   const [filters, setFilters] = useState<FilterValues>({});
+  const timeZone = usePreferences((s) => s.timeZone);
+  const [period, setPeriod] = useState<Period>("all");
   const [cancelling, setCancelling] = useState<{
     id: string;
     amount: number;
@@ -38,12 +46,14 @@ export function PaymentsScreen() {
 
   // Paying a supplier is for people who manage purchases; others only see money from customers.
   const type = can(role, "purchase.manage") ? filter : "customer";
-  const params = {
-    type,
-    from: filters.from as string | undefined,
-    to: filters.to as string | undefined,
-    sort,
-  };
+  const dates =
+    period === "custom"
+      ? {
+          from: filters.from as string | undefined,
+          to: filters.to as string | undefined,
+        }
+      : periodDates(period, timeZone);
+  const params = { type, ...dates, sort };
   const list = useList("payments", params);
   const totals = useTotals("payments", params);
 
@@ -62,16 +72,27 @@ export function PaymentsScreen() {
             label: t("list.dates"),
           },
         ]}
-        values={filters}
-        onValue={(key, value) => setFilters((c) => ({ ...c, [key]: value }))}
+        values={
+          period === "custom"
+            ? filters
+            : { ...filters, from: undefined, to: undefined }
+        }
+        onValue={(key, value) => {
+          setFilters((c) => ({ ...c, [key]: value }));
+          if (key === "from" || key === "to") setPeriod("custom");
+        }}
         sort={sort}
         sortOptions={SORTS.map((s) => ({
           value: s,
           label: t(`list.sorts.${s}`),
         }))}
         onSort={(v) => setSort(v as (typeof SORTS)[number])}
-        onClear={() => setFilters({})}
+        onClear={() => {
+          setFilters({});
+          setPeriod("all");
+        }}
       />
+      <PeriodChips value={period} onChange={setPeriod} />
       {can(role, "purchase.manage") ? (
         <Tabs value={filter} onValueChange={(v) => setFilter(v as Filter)}>
           <TabsList>

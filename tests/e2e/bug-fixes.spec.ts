@@ -284,4 +284,50 @@ test("a customer's bill shows what they already owed (জের), and only when 
   await expect(page.getByTestId("receipt-previous-due")).toContainText(
     "৳৩০.০০",
   );
+  // The bill was paid in full, so the total due is still what was owed before.
+  await expect(page.getByTestId("receipt-total-due")).toContainText(
+    "সর্বমোট জের",
+  );
+  await expect(page.getByTestId("receipt-total-due")).toContainText("৳৩০.০০");
+});
+
+test("a customer who pays more than the bill can keep the extra on their account (advance), shown on the receipt and in Payments", async ({
+  page,
+}, testInfo) => {
+  await signUp(page, `extra${Date.now()}${testInfo.project.name}`);
+  await createProduct(page, {
+    name: "ফ্রেশ দুধ",
+    price: "50",
+    cost: "40",
+    stock: "10",
+  });
+  await page.goto("/pos");
+  await tapProduct(page, "ফ্রেশ দুধ");
+  await openCart(page);
+  const cart = page.getByTestId("cart-panel");
+  await cart.getByTestId("customer-button").click();
+  await page.getByRole("button", { name: "নতুন ক্রেতা" }).click();
+  await page.getByLabel("নাম", { exact: true }).fill("রহিম");
+  await page.getByRole("button", { name: "সংরক্ষণ" }).click();
+
+  // ৳200 handed over for a ৳50 bill: the extra ৳150 can stay on the account instead of change.
+  await cart.getByTestId("received-input").fill("200");
+  await expect(cart.getByTestId("change")).toHaveText("৳১৫০");
+  await cart.getByTestId("keep-extra-check").click();
+  await expect(cart.getByTestId("change")).toHaveCount(0);
+  await expect(cart.getByTestId("kept-on-account")).toHaveText("৳১৫০");
+  await cart.getByTestId("complete-sale").click();
+
+  const receipt = page.locator("#print-receipt");
+  await expect(receipt).toBeVisible();
+  await expect(receipt.getByTestId("receipt-advance")).toContainText("জমা");
+  await expect(receipt.getByTestId("receipt-advance")).toContainText("৳১৫০.০০");
+  await expect(receipt).not.toContainText("ফেরত (খুচরা)");
+
+  // It is an ordinary payment: in Payments, and on the customer.
+  await page.goto("/payments");
+  await expect(page.getByText("রহিম").first()).toBeVisible();
+  await page.goto("/customers");
+  await page.getByTestId("party-row").filter({ hasText: "রহিম" }).click();
+  await expect(page.getByTestId("party-balance-total")).toHaveText("৳১৫০");
 });

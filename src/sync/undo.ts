@@ -76,10 +76,14 @@ export async function undoLocalEffects(
   await db.ledgerEntries.bulkDelete(ledger.map((l) => l.id));
 
   // The lines and records that belong to the operation's own document.
-  if (op.type === "sale.create")
+  if (op.type === "sale.create") {
     await db.saleItems.where("saleId").equals(root).delete();
-  if (op.type === "purchase.create")
+    await db.payments.delete(`${root}:p`); // the extra kept on the account
+  }
+  if (op.type === "purchase.create") {
     await db.purchaseItems.where("purchaseId").equals(root).delete();
+    await db.payments.delete(`${root}:p`);
+  }
   if (op.type === "payment.collect" || op.type === "payment.pay")
     await db.payments.delete(root);
 

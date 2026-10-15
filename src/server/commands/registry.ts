@@ -2,6 +2,7 @@ import type { CommandType } from "@/commands/definitions";
 import { derivedSearchFields } from "@/lib/search-fields";
 import { writeAudit } from "../audit";
 import { allocSeq } from "../sync/txn";
+import { drawerSet } from "./drawer";
 import {
   type MasterConfig,
   masterCreate,
@@ -107,6 +108,7 @@ export const serverCommands: { [T in CommandType]: ServerHandler<T> } = {
   "party.openingBalance": (ctx, payload) => openingBalanceCreate(ctx, payload),
   "payment.collect": (ctx, payload) => paymentCreate(ctx, "customer", payload),
   "payment.pay": (ctx, payload) => paymentCreate(ctx, "supplier", payload),
+  "drawer.set": (ctx, payload) => drawerSet(ctx, payload),
   "expense.create": (ctx, payload) => expenseCreate(ctx, payload),
   "expense.void": (ctx, payload) => expenseVoid(ctx, payload),
   "payment.void": (ctx, payload) => paymentVoid(ctx, payload),

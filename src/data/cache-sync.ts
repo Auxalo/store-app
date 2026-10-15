@@ -80,9 +80,12 @@ export function applyResultToCache(
           return touched.has("categories");
         case "summary":
           return [...touched].some((c) => REPORT_SOURCES.has(c));
+        case "movement-summary":
+          return touched.has("stockMovements") || touched.has("products");
         case "stock-summary":
           return touched.has("products") || touched.has("stockMovements");
         case "dashboard":
+        case "cash":
           return true;
         default:
           return false;

@@ -14,6 +14,7 @@ import { allocSeq } from "../sync/txn";
 import type { StoredDoc } from "./master-data";
 import { toWire } from "./master-data";
 import type { StoredMovement } from "./products";
+import { paymentCreate } from "./purchasing";
 import type { ApplyResult, ServerCtx } from "./types";
 
 interface StoredSaleItem {
@@ -47,6 +48,10 @@ interface StoredSale {
   tendered?: number;
   /** What the customer owed before this sale (জের), for the receipt. */
   previousDue?: number;
+  /** The customer's balance before this sale (owes > 0, advance < 0), for the receipt. */
+  balanceBefore?: number;
+  /** Extra money kept on the customer's account (saved as a payment). */
+  toAccount?: number;
   paid: number;
   due: number;
   paymentMethod: string;
@@ -269,6 +274,11 @@ export async function saleCreate(
   const customer = totals.due + totals.creditUsed > 0 ? buyer : null;
   // What the customer already owed before this sale (জের), for the receipt.
   const previousDue = buyer ? Math.max(0, Number(buyer.balance ?? 0)) : 0;
+  const balanceBefore = buyer ? Number(buyer.balance ?? 0) : undefined;
+  // The extra kept on their account: never more than what was handed over beyond the bill.
+  const toAccount = buyer
+    ? Math.min(p.toAccount, Math.max(0, p.tendered - totals.paid))
+    : 0;
   const perProduct = qtyByProduct(
     lines.filter((l) => products.has(l.productId)),
   );
@@ -299,6 +309,8 @@ export async function saleCreate(
     creditUsed: totals.creditUsed,
     tendered: p.tendered,
     ...(previousDue > 0 ? { previousDue } : {}),
+    ...(balanceBefore !== undefined ? { balanceBefore } : {}),
+    ...(toAccount > 0 ? { toAccount } : {}),
     paid: totals.paid,
     due: totals.due,
     paymentMethod: p.paymentMethod,
@@ -416,6 +428,17 @@ export async function saleCreate(
         unitPrice: l.unitPrice,
       })),
     });
+  }
+  // The extra kept on the account is an ordinary payment, in the same transaction.
+  if (toAccount > 0 && p.customerId) {
+    const payment = await paymentCreate(ctx, "customer", {
+      id: saleRecordIds.payment(p.id),
+      partyId: p.customerId,
+      amount: toAccount,
+      method: p.paymentMethod,
+      note: p.invoiceNo,
+    });
+    if (payment.status === "applied") docs.push(...payment.docs);
   }
   return { status: "applied", docs };
 }

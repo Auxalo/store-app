@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import type { Permission } from "@/auth/permissions";
+import { drawerSetInput, drawerSetPayload } from "@/schemas/cash-drawer";
 import {
   categoryCreateInput,
   categoryCreatePayload,
@@ -79,6 +80,7 @@ export const SYNC_COLLECTIONS = [
   "payments",
   "expenses",
   "returns",
+  "cashDrawer",
 ] as const;
 export type SyncCollection = (typeof SYNC_COLLECTIONS)[number];
 
@@ -272,6 +274,14 @@ export const COMMANDS = {
     input: openingBalanceInput,
     payload: openingBalancePayload,
     entityIds: (p: { id: string; partyId: string }) => [p.id, p.partyId],
+  },
+  // The cash in the drawer at the start of the day (owner and manager; only the owner corrects).
+  "drawer.set": {
+    collection: "cashDrawer",
+    permission: "drawer.open",
+    input: drawerSetInput,
+    payload: drawerSetPayload,
+    entityIds: (p: { id: string }) => [p.id],
   },
   "expense.create": {
     collection: "expenses",

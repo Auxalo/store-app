@@ -229,6 +229,7 @@ export const preparePayload: {
   "party.openingBalance": passthrough,
   "payment.collect": passthrough,
   "payment.pay": passthrough,
+  "drawer.set": passthrough,
   "expense.create": passthrough,
   "expense.void": passthrough,
   "payment.void": passthrough,

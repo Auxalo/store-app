@@ -10,6 +10,7 @@ import {
 import { derivedSearchFields } from "@/lib/search-fields";
 import type { CommandInput, CommandPayload } from "../definitions";
 import { AlreadyExistsError, ConflictError, NotFoundError } from "../errors";
+import { paymentCreate } from "./purchasing";
 import type { LocalContext } from "./registry";
 
 /**
@@ -137,6 +138,13 @@ export async function saleCreate(
     input.tendered,
     Math.min(input.creditUsed, credit),
   );
+  // The customer's balance before this sale (for the receipt), and the extra kept on their account:
+  // never more than what was handed over beyond the bill.
+  const balanceBefore = payer && !payer.deletedAt ? payer.balance : undefined;
+  const toAccount =
+    payer && !payer.deletedAt
+      ? Math.min(input.toAccount, Math.max(0, input.tendered - totals.paid))
+      : 0;
 
   // Lines: a snapshot of what was sold, and (when the product still exists) the stock leaving.
   const live = new Set<string>();
@@ -243,6 +251,8 @@ export async function saleCreate(
     creditUsed: totals.creditUsed,
     tendered: input.tendered,
     ...(previousDue > 0 ? { previousDue } : {}),
+    ...(balanceBefore !== undefined ? { balanceBefore } : {}),
+    ...(toAccount > 0 ? { toAccount } : {}),
     paid: totals.paid,
     due: totals.due,
     paymentMethod: input.paymentMethod,
@@ -257,7 +267,29 @@ export async function saleCreate(
     deletedAt: null,
   });
 
-  return { ...input, creditUsed: totals.creditUsed, invoiceNo, customerPhone };
+  // The extra kept on the account is an ordinary payment, written in the same transaction.
+  if (toAccount > 0 && input.customerId)
+    await paymentCreate(
+      db,
+      ctx,
+      "customer",
+      {
+        id: saleRecordIds.payment(input.id),
+        partyId: input.customerId,
+        amount: toAccount,
+        method: input.paymentMethod,
+        note: invoiceNo,
+      },
+      now,
+    );
+
+  return {
+    ...input,
+    creditUsed: totals.creditUsed,
+    toAccount,
+    invoiceNo,
+    customerPhone,
+  };
 }
 
 /** Cancelling a sale never edits it: it adds reversing movements and ledger entries and flags the sale. */

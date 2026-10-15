@@ -10,20 +10,22 @@ import {
   ListToolbar,
 } from "@/components/shared/list-toolbar";
 import { ListError, LoadMore } from "@/components/shared/load-more";
+import {
+  type Period,
+  PeriodChips,
+  periodDates,
+} from "@/components/shared/period-chips";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useList, usePrefetchRecord, useTotals } from "@/data/hooks";
 import { useDataMode } from "@/data/mode-store";
 import type { ListParamsInput } from "@/data/spec";
 import { useFormat } from "@/i18n/use-format";
 import { cn } from "@/lib/utils";
-import { presetRange } from "@/reports/use-summary";
 import { PAYMENT_METHODS } from "@/schemas/sale";
 import { usePreferences } from "@/stores/preferences";
 import { useSyncStore } from "@/sync/store";
 
-type Period = "today" | "week" | "all" | "custom";
 const NONE = "all";
 const SORTS = ["newest", "oldest", "total", "due"] as const;
 
@@ -52,8 +54,8 @@ export function SalesScreen() {
         from: filters.from as string | undefined,
         to: filters.to as string | undefined,
       };
-    if (q || period === "all") return {};
-    return presetRange(period === "today" ? "today" : "days7", timeZone);
+    if (q) return {};
+    return periodDates(period, timeZone);
   }, [period, q, filters.from, filters.to, timeZone]);
 
   const params: ListParamsInput<"sales"> = {
@@ -143,18 +145,7 @@ export function SalesScreen() {
         onClear={clearFilters}
       />
 
-      {!q ? (
-        <Tabs
-          value={period === "custom" ? "" : period}
-          onValueChange={(v) => setPeriod(v as Period)}
-        >
-          <TabsList>
-            <TabsTrigger value="today">{t("sales.today")}</TabsTrigger>
-            <TabsTrigger value="week">{t("sales.week")}</TabsTrigger>
-            <TabsTrigger value="all">{t("sales.all")}</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      ) : null}
+      {!q ? <PeriodChips value={period} onChange={setPeriod} /> : null}
 
       {totals && totals.count > 0 ? (
         <div className="flex items-center justify-between text-sm text-muted-foreground">

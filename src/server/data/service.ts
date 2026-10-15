@@ -210,10 +210,12 @@ async function addProductNames(db: Db, viewer: Viewer, items: WireDoc[]) {
     ),
   ];
   const products = await db
-    .collection<{ _id: string; name?: string; nameBn?: string }>("products")
+    .collection<{ _id: string; name?: string; nameBn?: string; unit?: string }>(
+      "products",
+    )
     .find(
       { _id: { $in: ids }, storeId: viewer.storeId },
-      { projection: { name: 1, nameBn: 1 } },
+      { projection: { name: 1, nameBn: 1, unit: 1 } },
     )
     .maxTimeMS(MAX_TIME_MS)
     .toArray();
@@ -222,6 +224,7 @@ async function addProductNames(db: Db, viewer: Viewer, items: WireDoc[]) {
     const p = byId.get(String(item.productId));
     item.productName = p?.name ?? "";
     item.productNameBn = p?.nameBn ?? "";
+    item.productUnit = p?.unit ?? "";
   }
 }
 

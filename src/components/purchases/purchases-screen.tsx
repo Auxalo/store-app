@@ -12,6 +12,11 @@ import {
   ListToolbar,
 } from "@/components/shared/list-toolbar";
 import { ListError, LoadMore } from "@/components/shared/load-more";
+import {
+  type Period,
+  PeriodChips,
+  periodDates,
+} from "@/components/shared/period-chips";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,6 +24,7 @@ import { useList, useTotals } from "@/data/hooks";
 import { useDataMode } from "@/data/mode-store";
 import { useFormat } from "@/i18n/use-format";
 import { cn } from "@/lib/utils";
+import { usePreferences } from "@/stores/preferences";
 import { useSyncStore } from "@/sync/store";
 
 const SORTS = ["newest", "oldest", "total", "due"] as const;
@@ -35,18 +41,33 @@ export function PurchasesScreen() {
   const [q] = useDebounceValue(search.trim(), 200);
   const [sort, setSort] = useState<(typeof SORTS)[number]>("newest");
   const [filters, setFilters] = useState<FilterValues>({ dueOnly: false });
+  const timeZone = usePreferences((s) => s.timeZone);
+  const [period, setPeriod] = useState<Period>("all");
 
+  // A typed search looks through all time; otherwise the chosen period, or the dates in Filters.
+  const dates =
+    period === "custom"
+      ? {
+          from: filters.from as string | undefined,
+          to: filters.to as string | undefined,
+        }
+      : q
+        ? {}
+        : periodDates(period, timeZone);
   const params = {
     q,
-    from: filters.from as string | undefined,
-    to: filters.to as string | undefined,
+    ...dates,
     dueOnly: filters.dueOnly === true,
     sort,
   };
   const list = useList("purchases", params, { enabled: allowed });
   const totals = useTotals("purchases", params, { enabled: allowed });
   const filtered =
-    q !== "" || !!filters.from || !!filters.to || filters.dueOnly === true;
+    q !== "" ||
+    period !== "all" ||
+    !!filters.from ||
+    !!filters.to ||
+    filters.dueOnly === true;
 
   if (!allowed)
     return (
@@ -73,15 +94,25 @@ export function PurchasesScreen() {
           },
           { kind: "toggle", key: "dueOnly", label: t("purchases.filterDue") },
         ]}
-        values={filters}
-        onValue={(key, value) => setFilters((c) => ({ ...c, [key]: value }))}
+        values={
+          period === "custom"
+            ? filters
+            : { ...filters, from: undefined, to: undefined }
+        }
+        onValue={(key, value) => {
+          setFilters((c) => ({ ...c, [key]: value }));
+          if (key === "from" || key === "to") setPeriod("custom");
+        }}
         sort={sort}
         sortOptions={SORTS.map((s) => ({
           value: s,
           label: t(`list.sorts.${s}`),
         }))}
         onSort={(v) => setSort(v as (typeof SORTS)[number])}
-        onClear={() => setFilters({ dueOnly: false })}
+        onClear={() => {
+          setFilters({ dueOnly: false });
+          setPeriod("all");
+        }}
         trailing={
           <Button asChild>
             <Link href="/purchases/new" data-testid="new-purchase">
@@ -91,6 +122,8 @@ export function PurchasesScreen() {
           </Button>
         }
       />
+
+      {!q ? <PeriodChips value={period} onChange={setPeriod} /> : null}
 
       {totals && totals.count > 0 ? (
         <div className="flex items-center justify-between text-sm text-muted-foreground">

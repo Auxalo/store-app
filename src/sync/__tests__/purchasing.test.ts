@@ -165,6 +165,102 @@ describe("purchases on a device", () => {
   });
 });
 
+describe("paying more than the bill keeps the extra on the account", () => {
+  it("a customer's extra comes off their due first, the rest is advance, as an ordinary payment, on device and server", async () => {
+    const d = await newDevice();
+    const milk = await addProduct(d);
+    const customer = await addCustomer(d);
+    // ৳150 sale, ৳40 paid: ৳110 is owed.
+    await sellTo(d, [sLine(milk, 3000)], {
+      customerId: customer,
+      customerName: "রহিম",
+      tendered: 4_000,
+    });
+    // ৳50 sale, ৳300 handed over, the extra ৳250 kept on the account: ৳110 off the due, ৳140 advance.
+    const id = await sellTo(d, [sLine(milk, 1000)], {
+      customerId: customer,
+      customerName: "রহিম",
+      tendered: 30_000,
+      toAccount: 25_000,
+    });
+    expect(await d.db.sales.get(id)).toMatchObject({
+      paid: 5_000,
+      tendered: 30_000,
+      toAccount: 25_000,
+      balanceBefore: 11_000,
+    });
+    expect((await d.db.customers.get(customer))?.balance).toBe(-14_000);
+    expect(await d.db.payments.get(`${id}:p`)).toMatchObject({
+      partyType: "customer",
+      partyId: customer,
+      amount: 25_000,
+      method: "cash",
+    });
+
+    await d.sync();
+    expect(
+      (
+        await mongo.db
+          .collection("customers")
+          .findOne({ _id: customer as never })
+      )?.balance,
+    ).toBe(-14_000);
+    expect(
+      await mongo.db
+        .collection("payments")
+        .findOne({ _id: `${id}:p` as never }),
+    ).toMatchObject({ partyType: "customer", amount: 25_000 });
+    expect(
+      await mongo.db.collection("sales").findOne({ _id: id as never }),
+    ).toMatchObject({ toAccount: 25_000, balanceBefore: 11_000 });
+  });
+
+  it("never keeps more than was handed over beyond the bill, and needs a customer", async () => {
+    const d = await newDevice();
+    const milk = await addProduct(d);
+    const customer = await addCustomer(d);
+    const id = await sellTo(d, [sLine(milk, 1000)], {
+      customerId: customer,
+      customerName: "রহিম",
+      tendered: 30_000,
+      toAccount: 99_999_999, // far more than the ৳250 extra
+    });
+    expect((await d.db.sales.get(id))?.toAccount).toBe(25_000);
+    expect((await d.db.customers.get(customer))?.balance).toBe(-25_000);
+    // A walk-in sale has nobody to keep it for.
+    await expect(
+      sellTo(d, [sLine(milk, 1000)], { tendered: 30_000, toAccount: 1_000 }),
+    ).rejects.toThrow();
+  });
+
+  it("a supplier's extra comes off what we owe, the rest is an advance with them", async () => {
+    const d = await newDevice();
+    const milk = await addProduct(d);
+    const supplier = await addSupplier(d);
+    // ৳90 bought on credit: we owe ৳90.
+    await buy(d, [pLine(milk, 2000)], { supplierId: supplier, paid: 0 });
+    // ৳45 bought, ৳200 paid, the extra ৳155 kept on their account: ৳90 off what we owe, ৳65 advance.
+    const id = await buy(d, [pLine(milk, 1000)], {
+      supplierId: supplier,
+      paid: 20_000,
+      toAccount: 15_500,
+    });
+    expect((await d.db.suppliers.get(supplier))?.balance).toBe(-6_500);
+    expect(await d.db.payments.get(`${id}:p`)).toMatchObject({
+      partyType: "supplier",
+      amount: 15_500,
+    });
+    await d.sync();
+    expect(
+      (
+        await mongo.db
+          .collection("suppliers")
+          .findOne({ _id: supplier as never })
+      )?.balance,
+    ).toBe(-6_500);
+  });
+});
+
 describe("dues and payments", () => {
   it("collecting a due lowers the balance at once and converges across devices", async () => {
     const a = await newDevice();

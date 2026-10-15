@@ -185,6 +185,7 @@ test("test 7: Bangla names, search, receipt and reports render without trouble",
   await page.getByTestId("tab-products").click();
   await expect(page.getByTestId("product-rows")).toContainText("ফ্রেশ দুধ");
   await page.getByTestId("tab-dues").click();
+  await expect(page.getByTestId("dues-customers-total")).toBeVisible();
   await expect(page.getByText("রহিম উদ্দিন")).toBeVisible();
 
   for (const path of ["/dashboard", "/reports", "/pos", "/sales"]) {

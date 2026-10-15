@@ -18,11 +18,7 @@ import { download, toCsv } from "@/lib/export";
 import { lineTotal } from "@/lib/qty";
 import { previousRange } from "@/reports/compare";
 import type { Summary } from "@/reports/compute";
-import {
-  useDues,
-  useStockHeader,
-  useStockProducts,
-} from "@/reports/use-reports";
+import { useStockHeader, useStockProducts } from "@/reports/use-reports";
 import {
   presetRange,
   type ReportSource,
@@ -30,8 +26,11 @@ import {
 } from "@/reports/use-summary";
 import { usePreferences } from "@/stores/preferences";
 import { BarChart } from "./bar-chart";
+import { DuesReport } from "./dues-report";
 import { ReportOverview } from "./overview";
+import { ProductSalesList } from "./product-sales-list";
 import { RangePicker, type RangeState, rangeOf } from "./range-picker";
+import { StockLog } from "./stock-log";
 
 type Tab = "sales" | "products" | "profit" | "stock" | "dues" | "movements";
 const TABS: Tab[] = [
@@ -90,7 +89,6 @@ function Section({
 /** Reports for any date range. Everything is computed on this device, so it works offline. */
 export function ReportsScreen() {
   const t = useTranslations("reports");
-  const ti = useTranslations("inventory");
   const tu = useTranslations("units");
   const tp = useTranslations("payment");
   const te = useTranslations("expenses.categories");
@@ -137,7 +135,6 @@ export function ReportsScreen() {
   const [onlyLow, setOnlyLow] = useState(false);
   const stock = useStockHeader(tab === "stock");
   const stockList = useStockProducts(onlyLow, tab === "stock");
-  const dues = useDues(tab === "dues");
   // What the shop owes suppliers right now (all of it, not just this period's purchases).
   const supplierOwedNow = useTotals(
     "suppliers",
@@ -272,20 +269,24 @@ export function ReportsScreen() {
     return (
       <>
         <Section
-          title={t("bestSellers")}
+          title={t("allProducts")}
           action={csvButton(() =>
             exportCsv(
               "products",
               s.byProduct.map((p) => ({
                 name: p.name,
-                qty: p.qty / 1000,
+                sold: p.soldQty / 1000,
+                returned: p.returnedQty / 1000,
+                net: p.qty / 1000,
                 unit: p.unit,
                 revenue: p.revenue / 100,
                 ...(showProfit ? { profit: p.profit / 100 } : {}),
               })),
               [
                 "name",
-                "qty",
+                "sold",
+                "returned",
+                "net",
                 "unit",
                 "revenue",
                 ...(showProfit ? ["profit"] : []),
@@ -293,35 +294,7 @@ export function ReportsScreen() {
             ),
           )}
         >
-          {s.byProduct.length === 0 ? (
-            empty
-          ) : (
-            <ul className="divide-y" data-testid="product-rows">
-              {s.byProduct.slice(0, 50).map((p) => (
-                <li
-                  key={p.productId}
-                  className="flex items-center justify-between gap-3 py-2 text-sm"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate font-medium">
-                      {productName(p)}
-                    </span>
-                    <span className="block text-xs text-muted-foreground">
-                      {t("qtySold")} {f.qty(p.qty)} {tu(p.unit)}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-end tabular-nums">
-                    <span className="block">{f.money(p.revenue)}</span>
-                    {showProfit ? (
-                      <span className="block text-xs text-muted-foreground">
-                        {f.money(p.profit)}
-                      </span>
-                    ) : null}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <ProductSalesList rows={s.byProduct} showProfit={showProfit} />
         </Section>
         <Section title={t("byCategory")}>
           {s.byCategory.length === 0
@@ -580,92 +553,26 @@ export function ReportsScreen() {
         )
       ) : null}
 
-      {tab === "dues" ? (
-        !dues.ready ? (
-          loading
-        ) : (
-          <>
-            <Section
-              title={`${t("customersOwe")} · ${f.money(dues.customerTotal)}`}
-            >
-              {dues.customers.items.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{t("nobody")}</p>
-              ) : (
-                dues.customers.items.map((c) => (
-                  <Row key={c.id} label={c.name} value={f.money(c.balance)} />
-                ))
-              )}
-              <LoadMore list={dues.customers} />
-            </Section>
-            <Section title={`${t("weOwe")} · ${f.money(dues.supplierTotal)}`}>
-              {dues.suppliers.items.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{t("nobody")}</p>
-              ) : (
-                dues.suppliers.items.map((c) => (
-                  <Row key={c.id} label={c.name} value={f.money(c.balance)} />
-                ))
-              )}
-              <LoadMore list={dues.suppliers} />
-            </Section>
-          </>
-        )
-      ) : null}
+      {tab === "dues" ? <DuesReport /> : null}
 
       {tab === "movements" ? (
-        movements.status === "loading" ? (
-          loading
-        ) : movements.status === "error" ? (
-          <ListError onRetry={movements.refetch} />
-        ) : (
-          <Section
-            title={t("tabs.movements")}
-            action={csvButton(() =>
-              exportCsv(
-                "stock-log",
-                movements.items.map((m) => ({
-                  date: m.createdAt,
-                  product: movementName(m),
-                  type: m.type,
-                  change: m.qtyDelta / 1000,
-                  note: m.note,
-                })),
-                ["date", "product", "type", "change", "note"],
-              ),
-            )}
-          >
-            {movements.items.length === 0 ? (
-              <p className="py-4 text-center text-sm text-muted-foreground">
-                {t("movementEmpty")}
-              </p>
-            ) : (
-              <ul className="divide-y" data-testid="movement-rows">
-                {movements.items.map((m) => (
-                  <li
-                    key={m.id}
-                    className="flex items-center justify-between gap-3 py-2 text-sm"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate font-medium">
-                        {movementName(m)}
-                      </span>
-                      <span className="block text-xs text-muted-foreground">
-                        {ti(`movementTypes.${m.type}`)} ·{" "}
-                        {f.dateTime(m.createdAt)}
-                      </span>
-                    </span>
-                    <span
-                      className={`shrink-0 tabular-nums ${m.qtyDelta < 0 ? "text-destructive" : ""}`}
-                    >
-                      {m.qtyDelta > 0 ? "+" : ""}
-                      {f.qty(m.qtyDelta)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <LoadMore list={movements} />
-          </Section>
-        )
+        <StockLog
+          range={range}
+          movements={movements as never}
+          csv={csvButton(() =>
+            exportCsv(
+              "stock-log",
+              movements.items.map((m) => ({
+                date: m.createdAt,
+                product: movementName(m),
+                type: m.type,
+                change: m.qtyDelta / 1000,
+                note: m.note,
+              })),
+              ["date", "product", "type", "change", "note"],
+            ),
+          )}
+        />
       ) : null}
     </div>
   );

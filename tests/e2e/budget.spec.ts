@@ -16,12 +16,16 @@ test.afterEach(async ({ page }) => {
 // pieces); worth trimming later.
 // Raised by about 15 KB after the signing of offline work (src/auth/op-proof.ts and its hashing
 // library), the PIN rules, and the usability pass: measured 373 / 544 / 552 / 555 / 555 on a desktop.
+// Raised by about 20 KB for the cash drawer, the period chips, the receipt's account lines, the full
+// product list, the dues and stock cards, and their words in both languages: measured 384 / 568 /
+// 576 / 582 / 579 on a desktop. (Reports and the dashboard could load the cards and charts only when
+// opened; worth trimming later.)
 const BUDGET_KB: Record<string, number> = {
-  "/login": 395,
-  "/pos": 560,
-  "/dashboard": 568,
-  "/reports": 570,
-  "/products": 570,
+  "/login": 405,
+  "/pos": 590,
+  "/dashboard": 598,
+  "/reports": 604,
+  "/products": 600,
 };
 
 test("first-load JavaScript stays within budget", async ({

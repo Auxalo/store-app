@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useCommand, useList, useProductLookup } from "@/data/hooks";
+import { useCommand, useList, useProductLookup, useRecord } from "@/data/hooks";
 import type { Product } from "@/db/local/types";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
@@ -90,6 +90,17 @@ export function PurchaseFormScreen() {
     [lines, discount, paid],
   );
   const needsSupplier = totals.due > 0 && !supplier.id;
+  // Paid beyond the total: with a supplier chosen, the extra can stay on their account (it comes
+  // off what we owe first, and the rest is an advance with them). Ticked by default.
+  const [keepExtra, setKeepExtra] = useState(true);
+  const supplierRecord = useRecord("suppliers", supplier.id);
+  const owedToSupplier = Math.max(
+    0,
+    (supplierRecord.record as { balance?: number } | undefined)?.balance ?? 0,
+  );
+  const extra = paid !== null ? Math.max(0, paid - totals.paid) : 0;
+  const keepOffDue = Math.min(extra, owedToSupplier);
+  const keepAdvance = extra - keepOffDue;
   // Every item needs a cost above zero: a zero would also wipe the product's purchase price.
   const costMissing = lines.some((l) => !(l.unitCost >= 1));
   // A discount bigger than the goods would be quietly cut down to the total: say so, don't save.
@@ -149,6 +160,7 @@ export function PurchaseFormScreen() {
         })),
         discount: discount ?? 0,
         paid: paid ?? totals.total,
+        toAccount: supplier.id && keepExtra ? extra : 0,
         paymentMethod: method,
         notes,
         updateCosts,
@@ -344,6 +356,38 @@ export function PurchaseFormScreen() {
               />
             </div>
           </div>
+          {supplier.id && extra > 0 ? (
+            <div
+              className="flex items-start gap-2 rounded-lg border border-primary/40 bg-primary/5 p-2 text-sm"
+              data-testid="keep-extra"
+            >
+              <Checkbox
+                id="keep-extra"
+                checked={keepExtra}
+                onCheckedChange={(v) => setKeepExtra(v === true)}
+                data-testid="keep-extra-check"
+              />
+              <label htmlFor="keep-extra" className="min-w-0 flex-1">
+                {t("purchases.keepOnAccount", { value: f.money(extra) })}
+                <span className="block text-xs text-muted-foreground">
+                  {[
+                    keepOffDue > 0
+                      ? t("purchases.keptOffDue", {
+                          value: f.money(keepOffDue),
+                        })
+                      : "",
+                    keepAdvance > 0
+                      ? t("purchases.keptAdvance", {
+                          value: f.money(keepAdvance),
+                        })
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </label>
+            </div>
+          ) : null}
           <Select
             value={method}
             onValueChange={(v) => setMethod(v as PaymentMethod)}

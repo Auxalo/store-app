@@ -27,6 +27,7 @@ export const SHOP_COLLECTIONS = [
   "expenses",
   "payments",
   "returns",
+  "cashDrawer",
   "ledgerEntries",
   "auditLogs",
   "devices",

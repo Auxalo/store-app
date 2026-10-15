@@ -93,7 +93,13 @@ test("dashboard and reports show the day's sales, profit and stock, offline and 
   await expect(page.getByTestId("kpi-best")).toContainText("ফ্রেশ দুধ");
   await expect(page.getByTestId("kpi-best")).toContainText("৳১০০");
   await expect(page.getByTestId("kpi-products")).toContainText("১");
-  await expect(page.getByTestId("top-products")).toContainText("ফ্রেশ দুধ");
+  // (The full list replaced the top-5 card.)
+  await expect(page.getByTestId("top-products")).toHaveCount(0);
+  await expect(page.getByTestId("product-count")).toContainText("১");
+  await page.getByTestId("product-search").fill("zzzz");
+  await expect(page.getByTestId("product-rows")).toHaveCount(0);
+  await page.getByTestId("product-search").fill("দুধ");
+  await expect(page.getByTestId("product-rows")).toContainText("ফ্রেশ দুধ");
   await expect(page.getByTestId("kpi-net")).toHaveCount(0);
   // Profit: what is earned, the expenses, and what is really kept.
   await page.getByTestId("tab-profit").click();
@@ -112,6 +118,17 @@ test("dashboard and reports show the day's sales, profit and stock, offline and 
   await expect(page.getByTestId("stock-rows")).not.toContainText("ফ্রেশ দুধ");
   await page.getByTestId("tab-movements").click();
   await expect(page.getByTestId("movement-rows")).toContainText("বিক্রয়");
+  // The stock cards: in and out per product, with a toggle between cards and the log.
+  await expect(page.getByTestId("stock-card")).toContainText("ফ্রেশ দুধ");
+  await expect(page.getByTestId("stock-card-out")).toContainText("বিক্রয়");
+  await page.getByTestId("stock-view-cards").click();
+  await expect(page.getByTestId("stock-card")).toBeVisible();
+  await expect(page.getByTestId("movement-rows")).toHaveCount(0);
+  await page.getByTestId("stock-view-log").click();
+  await expect(page.getByTestId("stock-card")).toHaveCount(0);
+  await expect(page.getByTestId("movement-rows")).toContainText("বিক্রয়");
+  await page.getByTestId("stock-view-both").click();
+  await expect(page.getByTestId("stock-card")).toBeVisible();
 
   // The shop loses internet: reports still work (offline mode only; online reports need the server).
   if (E2E_MODE === "online") return;

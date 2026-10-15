@@ -23,11 +23,16 @@ export const PERMISSIONS = [
   "settings.manage",
   "mode.switch",
   "billing.manage",
+  // The cash in the drawer: setting the day's opening amount (owner and manager) and correcting a
+  // day that was already set (owner only).
+  "drawer.open",
+  "drawer.correct",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
 const MANAGER: readonly Permission[] = PERMISSIONS.filter(
-  (p) => p !== "user.manage" && p !== "settings.manage",
+  (p) =>
+    p !== "user.manage" && p !== "settings.manage" && p !== "drawer.correct",
 );
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {

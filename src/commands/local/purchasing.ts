@@ -131,6 +131,14 @@ export async function purchaseCreate(
     throw new AlreadyExistsError("purchase");
   const purchaseNo = await nextDocNo(db, ctx.deviceId, now, "P");
   const totals = purchaseTotals(input.lines, input.discount, input.paid);
+  // Paid beyond the total can stay on the supplier's account: never more than that extra.
+  const supplierHere = input.supplierId
+    ? await db.suppliers.get(input.supplierId)
+    : undefined;
+  const toAccount =
+    supplierHere && !supplierHere.deletedAt
+      ? Math.min(input.toAccount, Math.max(0, input.paid - totals.paid))
+      : 0;
   const live = await liveProductIds(
     db,
     input.lines.map((l) => l.productId),
@@ -233,7 +241,22 @@ export async function purchaseCreate(
     version: 1,
     deletedAt: null,
   });
-  return { ...input, purchaseNo };
+  // The extra kept on the account is an ordinary payment, in the same transaction.
+  if (toAccount > 0 && input.supplierId)
+    await paymentCreate(
+      db,
+      ctx,
+      "supplier",
+      {
+        id: `${input.id}:p`,
+        partyId: input.supplierId,
+        amount: toAccount,
+        method: input.paymentMethod,
+        note: purchaseNo,
+      },
+      now,
+    );
+  return { ...input, toAccount, purchaseNo };
 }
 
 /** Collecting a due from a customer, or paying a supplier: a payment record plus a ledger entry. */

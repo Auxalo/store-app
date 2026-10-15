@@ -53,6 +53,11 @@ const saleBase = z.object({
   tendered: money.default(0),
   /** Paid from the customer's store credit (what they had paid ahead). Needs a customer. */
   creditUsed: money.default(0),
+  /**
+   * Money handed over beyond the bill that is kept on the customer's account instead of given back
+   * as change: it comes off what they owe, or becomes their advance. Saved as an ordinary payment.
+   */
+  toAccount: money.default(0),
   paymentMethod: z.enum(PAYMENT_METHODS).default("cash"),
   notes: text(300).default(""),
 });
@@ -68,7 +73,7 @@ const needsCustomerForDue = (
     sale.tendered,
     sale.creditUsed,
   );
-  if ((due > 0 || creditUsed > 0) && !sale.customerId)
+  if ((due > 0 || creditUsed > 0 || sale.toAccount > 0) && !sale.customerId)
     ctx.addIssue({
       code: "custom",
       path: ["customerId"],

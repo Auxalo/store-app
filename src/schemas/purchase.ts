@@ -55,6 +55,11 @@ const purchaseBase = z.object({
   lines: z.array(purchaseLineInput).min(1).max(200),
   discount: money.default(0),
   paid: money.default(0),
+  /**
+   * Paid beyond the purchase total and kept on the supplier's account (it comes off what we owe, or
+   * becomes an advance with them) instead of being handed back. Saved as an ordinary payment.
+   */
+  toAccount: money.default(0),
   paymentMethod: z.enum(PAYMENT_METHODS).default("cash"),
   notes: text(300).default(""),
   /** Set each product's purchase price to what it cost this time. */
@@ -66,7 +71,7 @@ const needsSupplierForDue = (
   ctx: z.RefinementCtx,
 ) => {
   const { due } = purchaseTotals(p.lines, p.discount, p.paid);
-  if (due > 0 && !p.supplierId)
+  if ((due > 0 || p.toAccount > 0) && !p.supplierId)
     ctx.addIssue({
       code: "custom",
       path: ["supplierId"],

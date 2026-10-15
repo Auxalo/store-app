@@ -185,6 +185,13 @@ describe("reports: a device and the server agree", () => {
     expect(fromA.byProduct.reduce((s, p) => s + p.profit, 0)).toBe(
       fromA.profit,
     );
+    // Each product row also says how much was sold and how much came back; net = sold - returned.
+    for (const p of fromA.byProduct) {
+      expect(p.soldQty).toBeGreaterThanOrEqual(0);
+      expect(p.returnedQty).toBeGreaterThanOrEqual(0);
+      expect(p.soldQty - p.returnedQty).toBe(p.qty);
+    }
+    expect(fromA.byProduct.some((p) => p.returnedQty > 0)).toBe(true);
     expect(fromA.byDay.reduce((s, d) => s + d.sales, 0)).toBe(fromA.netSales);
     // How people paid counts the money that came in (BUG-22): the bKash sale was ৳160.00 but only
     // ৳60.00 was paid, the rest is owed and shows as credit, not as bKash.
