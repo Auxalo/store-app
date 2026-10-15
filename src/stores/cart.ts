@@ -38,6 +38,8 @@ interface CartContents {
   useCredit: boolean;
   /** Money received, or null for "exactly the total". */
   tendered: number | null;
+  /** The extra handed over beyond the bill stays on the customer's account (instead of change). */
+  keepExtra: boolean;
   paymentMethod: PaymentMethod;
   notes: string;
 }
@@ -74,6 +76,7 @@ interface CartState extends CartContents {
   setUseCredit: (use: boolean) => void;
   setDiscount: (discount: number) => void;
   setTendered: (tendered: number | null) => void;
+  setKeepExtra: (keep: boolean) => void;
   setPaymentMethod: (method: PaymentMethod) => void;
   setNotes: (notes: string) => void;
   clear: () => void;
@@ -90,6 +93,7 @@ const empty: CartContents = {
   credit: 0,
   useCredit: true,
   tendered: null,
+  keepExtra: false,
   paymentMethod: "cash",
   notes: "",
 };
@@ -102,6 +106,7 @@ const contentsOf = (s: CartContents): CartContents => ({
   credit: s.credit,
   useCredit: s.useCredit,
   tendered: s.tendered,
+  keepExtra: s.keepExtra,
   paymentMethod: s.paymentMethod,
   notes: s.notes,
 });
@@ -196,6 +201,7 @@ export const useCart = create<CartState>()(
       setUseCredit: (useCredit) => set((s) => (s.saving ? {} : { useCredit })),
       setDiscount: (discount) => set((s) => (s.saving ? {} : { discount })),
       setTendered: (tendered) => set((s) => (s.saving ? {} : { tendered })),
+      setKeepExtra: (keepExtra) => set((s) => (s.saving ? {} : { keepExtra })),
       setPaymentMethod: (paymentMethod) =>
         set((s) => (s.saving ? {} : { paymentMethod })),
       setNotes: (notes) => set((s) => (s.saving ? {} : { notes })),

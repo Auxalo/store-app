@@ -84,8 +84,13 @@ export function CartPanel({
 
   const canOverridePrice = can(role, "sale.priceOverride");
   // Change is what was handed over beyond what is to be paid (the total less store credit used).
-  const change =
-    cart.tendered !== null ? Math.max(0, cart.tendered - toPay) : 0;
+  const extra = cart.tendered !== null ? Math.max(0, cart.tendered - toPay) : 0;
+  // A known customer's extra may stay on their account: it comes off what they owe first, and the
+  // rest is their advance. Otherwise it is given back as change.
+  const keeping = cart.keepExtra && !!cart.customerId && extra > 0;
+  const change = keeping ? 0 : extra;
+  const keepOffDue = Math.min(extra, Math.max(0, buyerBalance ?? 0));
+  const keepAdvance = extra - keepOffDue;
   const itemCount = cart.lines.length;
   const lineName = (l: { productName: string }) => l.productName;
 
@@ -326,6 +331,36 @@ export function CartPanel({
           ) : null}
         </div>
 
+        {cart.customerId && extra > 0 ? (
+          <div
+            className="flex items-start gap-2 rounded-lg border border-primary/40 bg-primary/5 p-2 text-sm"
+            data-testid="keep-extra"
+          >
+            <Checkbox
+              id="keep-extra"
+              checked={cart.keepExtra}
+              onCheckedChange={(v) => cart.setKeepExtra(v === true)}
+              disabled={saving}
+              data-testid="keep-extra-check"
+            />
+            <label htmlFor="keep-extra" className="min-w-0 flex-1">
+              {t("pos.keepOnAccount", { value: f.money(extra) })}
+              <span className="block text-xs text-muted-foreground">
+                {[
+                  keepOffDue > 0
+                    ? t("pos.keptOffDue", { value: f.money(keepOffDue) })
+                    : "",
+                  keepAdvance > 0
+                    ? t("pos.keptAdvance", { value: f.money(keepAdvance) })
+                    : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+            </label>
+          </div>
+        ) : null}
+
         <dl className="space-y-0.5 text-sm">
           {totals.discount > 0 ? (
             <Row label={t("pos.subtotal")}>{f.money(totals.subtotal)}</Row>
@@ -345,6 +380,11 @@ export function CartPanel({
           {change > 0 ? (
             <Row label={t("pos.change")} strong testId="change">
               {f.money(change)}
+            </Row>
+          ) : null}
+          {keeping ? (
+            <Row label={t("pos.keptOnAccount")} strong testId="kept-on-account">
+              {f.money(extra)}
             </Row>
           ) : null}
           {totals.due > 0 ? (

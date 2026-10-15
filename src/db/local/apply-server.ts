@@ -108,6 +108,7 @@ function overlaySale(doc: Doc, op: OutboxOp, sign: 1 | -1): Doc {
     discount?: number;
     tendered?: number;
     creditUsed?: number;
+    toAccount?: number;
   };
   const bump = { version: doc.version + 1, updatedAt: op.createdAt };
   const qty = qtyByProduct(p.lines).get(doc.id);
@@ -126,8 +127,9 @@ function overlaySale(doc: Doc, op: OutboxOp, sign: 1 | -1): Doc {
             p.creditUsed ?? 0,
           )
         : null;
-    const due = t ? t.due + t.creditUsed : (p.due ?? 0);
-    return due > 0
+    // (The extra kept on the account comes off the balance too: it can leave an advance.)
+    const due = t ? t.due + t.creditUsed - (p.toAccount ?? 0) : (p.due ?? 0);
+    return due !== 0
       ? { ...doc, balance: (doc.balance as number) + sign * due, ...bump }
       : doc;
   }
@@ -148,6 +150,7 @@ function overlayPurchase(doc: Doc, op: OutboxOp): Doc {
     }>;
     discount: number;
     paid: number;
+    toAccount?: number;
     updateCosts: boolean;
   };
   const bump = { version: doc.version + 1, updatedAt: op.createdAt };
@@ -162,9 +165,11 @@ function overlayPurchase(doc: Doc, op: OutboxOp): Doc {
     };
   }
   if (p.supplierId === doc.id) {
+    // (The extra kept on the account comes off what we owe too: it can leave an advance.)
     const { due } = purchaseTotals(p.lines, p.discount, p.paid);
-    return due > 0
-      ? { ...doc, balance: (doc.balance as number) + due, ...bump }
+    const change = due - (p.toAccount ?? 0);
+    return change !== 0
+      ? { ...doc, balance: (doc.balance as number) + change, ...bump }
       : doc;
   }
   return doc;

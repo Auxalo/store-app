@@ -200,6 +200,11 @@ export async function purchaseCreate(
   );
   const supplier =
     totals.due > 0 ? await liveParty(ctx, "supplier", p.supplierId) : null;
+  // Paid beyond the total can stay on the supplier's account: never more than that extra.
+  const toAccount =
+    p.toAccount > 0 && (await liveParty(ctx, "supplier", p.supplierId))
+      ? Math.min(p.toAccount, Math.max(0, p.paid - totals.paid))
+      : 0;
 
   let seq = await allocSeq(
     ctx.db,
@@ -291,6 +296,17 @@ export async function purchaseCreate(
         seq,
       )),
     );
+  }
+  // The extra kept on the account is an ordinary payment, in the same transaction.
+  if (toAccount > 0 && p.supplierId) {
+    const payment = await paymentCreate(ctx, "supplier", {
+      id: `${p.id}:p`,
+      partyId: p.supplierId,
+      amount: toAccount,
+      method: p.paymentMethod,
+      note: p.purchaseNo,
+    });
+    if (payment.status === "applied") docs.push(...payment.docs);
   }
   return { status: "applied", docs };
 }

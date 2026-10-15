@@ -96,6 +96,10 @@ export interface Sale {
   creditUsed?: number;
   /** Cash the customer handed over (above `paid` when change was given). Absent on older sales. */
   tendered?: number;
+  /** The customer's balance before this sale (owes > 0, advance < 0), for the receipt. Absent on older sales. */
+  balanceBefore?: number;
+  /** Extra money kept on the customer's account (saved as a payment), for the receipt. */
+  toAccount?: number;
   /**
    * What the customer already owed before this sale (জের), printed on the receipt as a reminder.
    * Kept with the sale so a reprint shows the same. Absent on older sales and when nothing was owed.

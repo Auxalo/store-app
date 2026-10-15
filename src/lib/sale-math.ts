@@ -70,6 +70,8 @@ export const saleRecordIds = {
   item: (saleId: string, index: number) => `${saleId}:i${index}`,
   movement: (saleId: string, index: number) => `${saleId}:m${index}`,
   ledger: (saleId: string) => `${saleId}:l`,
+  /** Money kept on the customer's account at the counter (an ordinary payment record). */
+  payment: (saleId: string) => `${saleId}:p`,
   voidMovement: (saleId: string, index: number) => `${saleId}:vm${index}`,
   voidLedger: (saleId: string) => `${saleId}:vl`,
 };

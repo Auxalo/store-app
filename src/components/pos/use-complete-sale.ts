@@ -51,6 +51,11 @@ export function useCompleteSale(onSold: (saleId: string) => void) {
       // "Exactly the total" means what is left after store credit has paid its part.
       tendered: state.tendered ?? total - creditUsed,
       creditUsed,
+      // Handed over beyond the bill, kept on the customer's account instead of given back.
+      toAccount:
+        state.keepExtra && state.customerId && state.tendered !== null
+          ? Math.max(0, state.tendered - (total - creditUsed))
+          : 0,
       paymentMethod: state.paymentMethod,
       notes: state.notes,
     };
