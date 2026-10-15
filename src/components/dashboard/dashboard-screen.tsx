@@ -30,6 +30,7 @@ import { changeBetween } from "@/reports/compare";
 import { useStockHeader } from "@/reports/use-reports";
 import { presetRange, useSummary } from "@/reports/use-summary";
 import { usePreferences } from "@/stores/preferences";
+import { CashDrawerCard } from "./cash-drawer-card";
 import { StoreWorth } from "./store-worth";
 
 /** The owner's morning view: today in numbers, what is running low, and the last few sales. */
@@ -197,6 +198,8 @@ export function DashboardScreen() {
           {t("openPos")}
         </Link>
       </Button>
+
+      <CashDrawerCard />
 
       <div
         className={cn(

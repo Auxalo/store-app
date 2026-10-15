@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable } from "dexie";
 import { derivedSearchFields } from "@/lib/search-fields";
 import type {
+  CashDrawerEntry,
   Category,
   Customer,
   Draft,
@@ -42,6 +43,7 @@ export class StoreDB extends Dexie {
   purchaseItems!: EntityTable<PurchaseItem, "id">;
   payments!: EntityTable<Payment, "id">;
   expenses!: EntityTable<Expense, "id">;
+  cashDrawer!: EntityTable<CashDrawerEntry, "id">;
   returns!: EntityTable<ReturnDoc, "id">;
   localUsers!: EntityTable<LocalUser, "userId">;
   outbox!: EntityTable<OutboxOp, "seq">;
@@ -138,6 +140,13 @@ export class StoreDB extends Dexie {
             Object.assign(doc, derivedSearchFields("purchases", doc));
           });
       });
+
+    // v7: the cash drawer's days, and cancelled payments findable by the day they were cancelled
+    // (the drawer counts that cash back out on that day).
+    this.version(7).stores({
+      cashDrawer: "id, day, createdAt",
+      payments: "id, partyId, partyType, createdAt, voidedAt",
+    });
   }
 }
 

@@ -261,6 +261,27 @@ export interface Expense {
   syncSeq?: number;
 }
 
+/** The cash in the drawer at the start of a day. Only ever added to: see src/schemas/cash-drawer.ts. */
+export interface CashDrawerEntry {
+  id: string;
+  storeId: string;
+  /** The shop's day, yyyy-mm-dd. */
+  day: string;
+  /** Poisha. */
+  amount: number;
+  /** The first entry of a day is the opening; later ones are the owner's corrections. */
+  kind: "open" | "correct";
+  note: string;
+  /** Who set it, for the day's log. */
+  byName: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  deviceId: string;
+  version: number;
+  syncSeq?: number;
+}
+
 export interface ReturnLine {
   itemIndex: number;
   productId: string;

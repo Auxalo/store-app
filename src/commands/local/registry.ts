@@ -3,6 +3,7 @@ import type { StoreDB } from "@/db/local/db";
 import { derivedSearchFields } from "@/lib/search-fields";
 import type { CommandInput, CommandPayload, CommandType } from "../definitions";
 import { AlreadyExistsError, NotFoundError } from "../errors";
+import { drawerSet } from "./drawer";
 import {
   expenseCreate,
   expenseVoid,
@@ -187,6 +188,7 @@ export const localCommands: { [T in CommandType]: LocalHandler<T> } = {
     paymentCreate(db, ctx, "customer", input, now),
   "payment.pay": (db, ctx, input, now) =>
     paymentCreate(db, ctx, "supplier", input, now),
+  "drawer.set": (db, ctx, input, now) => drawerSet(db, ctx, input, now),
   "expense.create": (db, ctx, input, now) => expenseCreate(db, ctx, input, now),
   "expense.void": (db, _ctx, input, now) => expenseVoid(db, input, now),
   "payment.void": (db, ctx, input, now) => paymentVoid(db, ctx, input, now),

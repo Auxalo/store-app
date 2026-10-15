@@ -83,6 +83,7 @@ export function applyResultToCache(
         case "stock-summary":
           return touched.has("products") || touched.has("stockMovements");
         case "dashboard":
+        case "cash":
           return true;
         default:
           return false;

@@ -75,7 +75,8 @@
         "src/components/products/product-form-screen.tsx",
         "src/components/layout/offline-gate.tsx",
         "src/components/layout/sign-out.tsx",
-        "src/components/layout/store-gate.tsx"
+        "src/components/layout/store-gate.tsx",
+        "src/components/dashboard/cash-drawer-card.tsx"
       ],
       "linter": {
         "rules": {
