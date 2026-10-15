@@ -30,7 +30,7 @@ export function AppSidebar() {
   const pathname = usePathname();
   const profile = useProfile();
   const shopName = useShopName();
-  const { setOpenMobile } = useSidebar();
+  const { setOpenMobile, isMobile } = useSidebar();
   // Billing shows only for a shop that has it; while locked, every other entry leads to it.
   const billingMode = useBillingStore((s) => s.stamp?.mode ?? "off");
   const { locked } = useBillingStatus();
@@ -102,8 +102,9 @@ export function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         ))}
+        {isMobile ? <AppSidebarFooter /> : null}
       </SidebarContent>
-      <AppSidebarFooter />
+      {isMobile ? null : <AppSidebarFooter />}
       <SidebarRail />
     </Sidebar>
   );

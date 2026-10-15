@@ -8,6 +8,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
+import { BackLink } from "@/components/shared/back-link";
 import { ListError } from "@/components/shared/load-more";
 import {
   AlertDialog,
@@ -93,6 +94,7 @@ export function ProductViewScreen() {
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
+      <BackLink href="/products" label={t("nav.products")} />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="truncate text-xl font-semibold">{title}</h2>

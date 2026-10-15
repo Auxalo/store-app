@@ -401,7 +401,7 @@ export function ReportsScreen() {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
-      <div className="overflow-x-auto pb-1">
+      <div className="no-scrollbar overflow-x-auto pb-1">
         <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
           <TabsList>
             {TABS.map((id) => (

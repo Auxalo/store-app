@@ -1,12 +1,13 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Plus, ShoppingBasket } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { useDebounceValue } from "usehooks-ts";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
+import { EmptyState } from "@/components/shared/empty-state";
 import {
   type FilterValues,
   ListToolbar,
@@ -151,9 +152,28 @@ export function PurchasesScreen() {
           ))}
         </div>
       ) : list.items.length === 0 ? (
-        <p className="py-10 text-center text-sm text-muted-foreground">
-          {filtered ? t("purchases.emptyFilter") : t("purchases.empty")}
-        </p>
+        <EmptyState
+          icon={ShoppingBasket}
+          title={filtered ? t("purchases.emptyFilter") : t("purchases.empty")}
+          action={
+            period !== "all" && q === "" ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPeriod("all")}
+              >
+                {t("list.showAll")}
+              </Button>
+            ) : !filtered ? (
+              <Button asChild size="sm">
+                <Link href="/purchases/new">
+                  <Plus aria-hidden />
+                  {t("purchases.add")}
+                </Link>
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
         <ul
           className={cn(
@@ -178,13 +198,13 @@ export function PurchasesScreen() {
                     {p.invoiceRef ? ` · ${p.invoiceRef}` : ""}
                   </span>
                 </span>
-                {p.due > 0 ? (
-                  <Badge variant="secondary">
-                    {t("purchases.dueAtPurchase")} {f.money(p.due)}
-                  </Badge>
-                ) : null}
-                <span className="shrink-0 font-semibold">
-                  {f.money(p.total)}
+                <span className="flex shrink-0 flex-col items-end gap-1">
+                  <span className="font-semibold">{f.money(p.total)}</span>
+                  {p.due > 0 ? (
+                    <Badge variant="secondary">
+                      {t("purchases.dueAtPurchase")} {f.money(p.due)}
+                    </Badge>
+                  ) : null}
                 </span>
               </Link>
             </li>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import { presetRange } from "@/reports/ranges";
 
 /** The quick ranges of a list. "custom" is the dates typed in the Filters panel (no chip is lit). */
@@ -22,7 +22,10 @@ export function periodDates(
   return {};
 }
 
-/** Today / 7 days / 30 days / All, shared by the sales, purchases and payments lists. */
+/**
+ * Today / 7 days / 30 days / All, shared by the sales, purchases and payments lists. Drawn as pills
+ * so they read as "how far back" and not as another set of tabs.
+ */
 export function PeriodChips({
   value,
   onChange,
@@ -38,17 +41,34 @@ export function PeriodChips({
     all: t("periodAll"),
   } as const;
   return (
-    <Tabs
-      value={value === "custom" ? "" : value}
-      onValueChange={(v) => onChange(v as Period)}
+    <div
+      role="tablist"
+      aria-label={t("periodLabel")}
+      className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5"
+      data-testid="period-chips"
     >
-      <TabsList data-testid="period-chips">
-        {CHIPS.map((p) => (
-          <TabsTrigger key={p} value={p} data-testid={`period-${p}`}>
+      {CHIPS.map((p) => {
+        const active = value === p;
+        return (
+          <button
+            key={p}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            data-state={active ? "active" : "inactive"}
+            data-testid={`period-${p}`}
+            onClick={() => onChange(p)}
+            className={cn(
+              "h-8 shrink-0 rounded-full border px-3.5 text-sm font-medium transition-colors [@media(pointer:coarse)]:h-9",
+              active
+                ? "border-primary bg-primary text-primary-foreground"
+                : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
             {label[p]}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-    </Tabs>
+          </button>
+        );
+      })}
+    </div>
   );
 }

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
+import { BackLink } from "@/components/shared/back-link";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import {
   AlertDialog,
@@ -87,6 +88,7 @@ export function DevicesScreen() {
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
+      <BackLink href="/settings" label={t("nav.settings")} />
       {offline ? (
         <p
           role="alert"

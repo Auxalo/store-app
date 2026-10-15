@@ -8,6 +8,7 @@ import { useState } from "react";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
 import { ReturnDialog } from "@/components/returns/return-dialog";
+import { BackLink } from "@/components/shared/back-link";
 import { ListError } from "@/components/shared/load-more";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,6 +65,7 @@ export function PurchaseViewScreen() {
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
+      <BackLink href="/purchases" label={t("nav.purchases")} />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="truncate text-xl font-semibold">{p.purchaseNo}</h2>

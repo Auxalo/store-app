@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
+import { BackLink } from "@/components/shared/back-link";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSetting } from "@/hooks/use-setting";
@@ -72,6 +73,7 @@ export function AuditScreen() {
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
+      <BackLink href="/settings" label={t("nav.settings")} />
       {offline ? (
         <p
           role="alert"

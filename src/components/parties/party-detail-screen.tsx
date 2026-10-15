@@ -255,6 +255,7 @@ export function PartyDetailScreen({ kind }: { kind: PartyKind }) {
         kind={kind}
         partyId={id}
         partyName={party.name}
+        due={party.balance > 0 ? party.balance : 0}
         open={paying}
         onClose={() => setPaying(false)}
       />
@@ -266,16 +267,20 @@ function PaymentDialog({
   kind,
   partyId,
   partyName,
+  due,
   open,
   onClose,
 }: {
   kind: PartyKind;
   partyId: string;
   partyName: string;
+  /** What is owed right now (0 when nothing is): offered as a one-tap amount. */
+  due: number;
   open: boolean;
   onClose: () => void;
 }) {
   const t = useTranslations();
+  const f = useFormat();
   const run = useCommand();
   const [amount, setAmount] = useState<number | null>(null);
   const [method, setMethod] = useState<PaymentMethod>("cash");
@@ -328,6 +333,18 @@ function PaymentDialog({
               onValue={setAmount}
               data-testid="payment-amount"
             />
+            {due > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="self-start"
+                onClick={() => setAmount(due)}
+                data-testid="payment-full"
+              >
+                {t("party.fullAmount", { value: f.money(due) })}
+              </Button>
+            ) : null}
           </Field>
           <Field>
             <FieldLabel>{t("party.method")}</FieldLabel>

@@ -9,6 +9,7 @@ import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
 import { Receipt } from "@/components/pos/receipt";
 import { ReturnDialog } from "@/components/returns/return-dialog";
+import { BackLink } from "@/components/shared/back-link";
 import { ListError } from "@/components/shared/load-more";
 import {
   AlertDialog,
@@ -91,6 +92,7 @@ export function SaleViewScreen() {
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-3">
+      <BackLink href="/sales" label={t("nav.sales")} />
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" onClick={() => window.print()}>
           <Printer aria-hidden />

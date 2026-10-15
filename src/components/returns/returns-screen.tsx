@@ -4,6 +4,7 @@ import { Undo2 } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { EmptyState } from "@/components/shared/empty-state";
 import {
   type FilterValues,
   ListToolbar,
@@ -100,16 +101,10 @@ export function ReturnsScreen() {
       ) : list.status === "loading" ? (
         <Skeleton className="h-16 w-full" />
       ) : list.items.length === 0 ? (
-        filtered ? (
-          <p className="py-10 text-center text-sm text-muted-foreground">
-            {t("list.noMatch")}
-          </p>
-        ) : (
-          <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground">
-            <Undo2 className="size-8" aria-hidden />
-            <p>{t("returns.empty")}</p>
-          </div>
-        )
+        <EmptyState
+          icon={Undo2}
+          title={filtered ? t("list.noMatch") : t("returns.empty")}
+        />
       ) : (
         <ul
           className={cn(

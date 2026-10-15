@@ -1,9 +1,11 @@
 "use client";
 
+import { Receipt } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import { useDebounceValue } from "usehooks-ts";
+import { EmptyState } from "@/components/shared/empty-state";
 import {
   type FilterField,
   type FilterValues,
@@ -16,6 +18,7 @@ import {
   periodDates,
 } from "@/components/shared/period-chips";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useList, usePrefetchRecord, useTotals } from "@/data/hooks";
 import { useDataMode } from "@/data/mode-store";
@@ -173,16 +176,29 @@ export function SalesScreen() {
           ))}
         </div>
       ) : list.items.length === 0 ? (
-        <p
-          className="py-10 text-center text-sm text-muted-foreground"
-          data-testid="sales-empty"
-        >
-          {filtered
-            ? t("list.noMatch")
-            : period === "all"
-              ? t("sales.empty")
-              : t("sales.emptyPeriod")}
-        </p>
+        <EmptyState
+          icon={Receipt}
+          testId="sales-empty"
+          title={
+            filtered
+              ? t("list.noMatch")
+              : period === "all"
+                ? t("sales.empty")
+                : t("sales.emptyPeriod")
+          }
+          action={
+            period !== "all" && q === "" ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPeriod("all")}
+                data-testid="sales-show-all"
+              >
+                {t("list.showAll")}
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
         <ul
           className={cn(
@@ -212,36 +228,42 @@ export function SalesScreen() {
                     {s.customerPhone ? ` · ${s.customerPhone}` : ""}
                   </span>
                 </span>
-                {s.status === "voided" ? (
-                  <Badge variant="destructive">{t("sales.voided")}</Badge>
-                ) : null}
-                {s.status === "active" && (s.returnedTotal ?? 0) > 0 ? (
-                  <Badge variant="secondary" data-testid="sale-returned-badge">
-                    {(s.returnedTotal ?? 0) >= s.total
-                      ? t("sales.fullyReturned")
-                      : t("sales.partlyReturned")}
-                  </Badge>
-                ) : null}
-                {s.due > 0 && s.status === "active" ? (
-                  <Badge variant="secondary">
-                    {t("sales.dueAtSale")} {f.money(s.due)}
-                  </Badge>
-                ) : null}
-                <span
-                  className={cn(
-                    "shrink-0 font-semibold",
-                    s.status === "voided" && "line-through",
-                  )}
-                >
-                  {f.money(s.total)}
+                {/* The amount, with what needs attention under it, so the invoice and date keep their room. */}
+                <span className="flex shrink-0 flex-col items-end gap-1">
+                  <span
+                    className={cn(
+                      "font-semibold",
+                      s.status === "voided" && "line-through",
+                    )}
+                  >
+                    {f.money(s.total)}
+                  </span>
                   {s.status === "active" && (s.returnedTotal ?? 0) > 0 ? (
                     <span
-                      className="block text-xs font-normal text-muted-foreground"
+                      className="text-xs text-muted-foreground"
                       data-testid="sale-net"
                     >
                       {t("sales.netAfterReturns")}{" "}
                       {f.money(Math.max(0, s.total - (s.returnedTotal ?? 0)))}
                     </span>
+                  ) : null}
+                  {s.status === "voided" ? (
+                    <Badge variant="destructive">{t("sales.voided")}</Badge>
+                  ) : null}
+                  {s.status === "active" && (s.returnedTotal ?? 0) > 0 ? (
+                    <Badge
+                      variant="secondary"
+                      data-testid="sale-returned-badge"
+                    >
+                      {(s.returnedTotal ?? 0) >= s.total
+                        ? t("sales.fullyReturned")
+                        : t("sales.partlyReturned")}
+                    </Badge>
+                  ) : null}
+                  {s.due > 0 && s.status === "active" ? (
+                    <Badge variant="secondary">
+                      {t("sales.dueAtSale")} {f.money(s.due)}
+                    </Badge>
                   ) : null}
                 </span>
               </Link>

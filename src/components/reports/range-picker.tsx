@@ -38,7 +38,7 @@ export function RangePicker({
   const t = useTranslations("reports.range");
   return (
     <div className="flex flex-col gap-2">
-      <div className="overflow-x-auto pb-1">
+      <div className="no-scrollbar overflow-x-auto pb-1">
         <Tabs
           value={value.preset}
           onValueChange={(v) =>

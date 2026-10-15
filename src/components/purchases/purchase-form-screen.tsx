@@ -10,6 +10,7 @@ import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
 import { PartyPicker } from "@/components/parties/party-picker";
 import { MoneyField } from "@/components/pos/money-field";
+import { BackLink } from "@/components/shared/back-link";
 import { QtyField } from "@/components/shared/qty-field";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -176,6 +177,7 @@ export function PurchaseFormScreen() {
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
+      <BackLink href="/purchases" label={t("nav.purchases")} />
       <h2 className="text-lg font-semibold">{t("purchases.add")}</h2>
 
       <div className="grid gap-3 sm:grid-cols-2">

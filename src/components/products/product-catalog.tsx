@@ -1,13 +1,14 @@
 "use client";
 
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { Plus } from "lucide-react";
+import { Package, Plus } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { useDebounceValue } from "usehooks-ts";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
+import { EmptyState } from "@/components/shared/empty-state";
 import {
   type FilterField,
   type FilterValues,
@@ -222,9 +223,20 @@ export function ProductCatalog({ mode }: { mode: "products" | "inventory" }) {
           ))}
         </div>
       ) : items.length === 0 ? (
-        <p className="py-10 text-center text-sm text-muted-foreground">
-          {t(emptyKey)}
-        </p>
+        <EmptyState
+          icon={Package}
+          title={t(emptyKey)}
+          action={
+            emptyKey === "products.empty" && canCreate ? (
+              <Button asChild size="sm">
+                <Link href="/products/new">
+                  <Plus aria-hidden />
+                  {t("products.add")}
+                </Link>
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
         <div ref={listRef} className={cn(list.isRefreshing && "opacity-60")}>
           <div
@@ -268,16 +280,21 @@ export function ProductCatalog({ mode }: { mode: "products" | "inventory" }) {
                         {f.money(p.sellingPrice)}
                       </span>
                     ) : null}
-                    <span
-                      className={cn(
-                        "text-sm",
-                        negative && "font-semibold text-destructive",
-                      )}
-                      title={negative ? t("inventory.negativeHint") : undefined}
-                    >
-                      {f.qty(p.stock)} {t(`units.${p.unit}`)}
+                    {/* The quantity and its warning on one line: the row is a fixed height. */}
+                    <span className="flex items-center gap-1.5">
+                      <StockBadge product={p} />
+                      <span
+                        className={cn(
+                          "text-sm",
+                          negative && "font-semibold text-destructive",
+                        )}
+                        title={
+                          negative ? t("inventory.negativeHint") : undefined
+                        }
+                      >
+                        {f.qty(p.stock)} {t(`units.${p.unit}`)}
+                      </span>
                     </span>
-                    <StockBadge product={p} />
                   </div>
                   {mode === "inventory" && canAdjust ? (
                     <Button

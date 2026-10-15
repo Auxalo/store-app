@@ -169,17 +169,31 @@ export async function registerDevice(
   if (!store) throw new Error("STORE_NOT_FOUND");
   const code = deviceCodeFor(store.deviceSeq ?? 1);
   const now = new Date();
-  await col.insertOne({
-    _id: deviceId,
-    storeId,
-    code,
-    name,
-    tokenHash: hash(token),
-    createdBy: userId,
-    createdAt: now,
-    lastSeenAt: now,
-    revokedAt: null,
-  });
+  try {
+    await col.insertOne({
+      _id: deviceId,
+      storeId,
+      code,
+      name,
+      tokenHash: hash(token),
+      createdBy: userId,
+      createdAt: now,
+      lastSeenAt: now,
+      revokedAt: null,
+    });
+  } catch (error) {
+    // The same browser registered twice at the same moment (a page reload while the first request
+    // was still on its way): the other request got there first. This one is then the same device.
+    if ((error as { code?: number }).code !== 11000) throw error;
+    const raced = await col.findOne({ _id: deviceId });
+    if (!raced || raced.storeId !== storeId || raced.revokedAt) throw error;
+    await col.updateOne(
+      { _id: deviceId },
+      { $set: { tokenHash: hash(token), lastSeenAt: new Date() } },
+    );
+    caches.devices.delete(deviceId);
+    return { code: raced.code, token };
+  }
   return { code, token };
 }
 

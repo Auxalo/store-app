@@ -175,7 +175,7 @@ export function ReportOverview({
 
   return (
     <div className="flex flex-col gap-3" data-testid="report-overview">
-      <div className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2 lg:grid-cols-3">
         {cards}
       </div>
 

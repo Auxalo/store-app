@@ -208,6 +208,27 @@ describe("devices", () => {
   const cookie = (d: { deviceId: string; token: string }) =>
     `sa_device=${d.deviceId}.${d.token}`;
 
+  it("a browser that registers twice at the same moment is one device, and neither request fails", async () => {
+    const deviceId = randomUUID();
+    const params = {
+      storeId,
+      userId: owner,
+      deviceId,
+      name: "Phone",
+      existing: { ok: false as const, reason: "missing" as const },
+    };
+    const [a, b] = await Promise.all([
+      registerDevice(mongo.db, params),
+      registerDevice(mongo.db, params),
+    ]);
+    expect(a.code).toBe(b.code);
+    expect(
+      await mongo.db
+        .collection("devices")
+        .countDocuments({ _id: deviceId as never }),
+    ).toBe(1);
+  });
+
   it("gives each new device the next short code", async () => {
     expect([1, 2, 26, 27, 28, 52, 53].map(deviceCodeFor)).toEqual([
       "A",
