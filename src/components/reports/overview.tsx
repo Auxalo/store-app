@@ -60,7 +60,6 @@ export function ReportOverview({
   const average =
     s.salesCount > 0 ? Math.round(Math.max(0, s.netSales) / s.salesCount) : 0;
   const ranked = [...s.byProduct].sort((a, b) => b.revenue - a.revenue);
-  const top = ranked.slice(0, 5);
   const best = ranked[0];
   const methods = s.byPayment.filter((m) => m.total > 0);
   const methodTotal = methods.reduce((sum, m) => sum + m.total, 0);
@@ -228,37 +227,6 @@ export function ReportOverview({
                 </li>
               ) : null}
             </ul>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {tab === "products" && top.length > 0 ? (
-        <Card size="sm" data-testid="top-products">
-          <CardHeader>
-            <CardTitle className="text-sm">{t("kpi.topProducts")}</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              {t("kpi.hint.topProducts")}
-            </p>
-          </CardHeader>
-          <CardContent>
-            <ol className="flex flex-col gap-1.5 text-sm">
-              {top.map((p, i) => (
-                <li key={p.productId} className="flex items-center gap-2">
-                  <span className="w-4 text-muted-foreground">
-                    {f.integer(i + 1)}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate">
-                    {productName(p)}
-                  </span>
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {f.qty(p.qty)} {tu(p.unit)}
-                  </span>
-                  <span className="font-medium tabular-nums">
-                    {f.money(p.revenue)}
-                  </span>
-                </li>
-              ))}
-            </ol>
           </CardContent>
         </Card>
       ) : null}

@@ -101,7 +101,11 @@ export interface ProductRow {
   name: string;
   nameBn: string;
   unit: SaleItem["unit"];
+  /** Net of returns (sold − returned). */
   qty: number;
+  /** Sold, and returned, separately (milli-units). */
+  soldQty: number;
+  returnedQty: number;
   revenue: number;
   profit: number;
 }
@@ -207,10 +211,14 @@ export function summarize(input: ReportInput): Summary {
       nameBn: item.productNameBn,
       unit: item.unit,
       qty: 0,
+      soldQty: 0,
+      returnedQty: 0,
       revenue: 0,
       profit: 0,
     };
     row.qty += qty;
+    if (qty > 0) row.soldQty += qty;
+    else row.returnedQty += -qty;
     row.revenue += revenue;
     row.profit += revenue - cost;
     products.set(item.productId, row);

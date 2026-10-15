@@ -124,6 +124,7 @@ async function addProductNames(db: StoreDB, items: Doc[]) {
     const p = byId.get(String(item.productId));
     item.productName = p?.name ?? "";
     item.productNameBn = p?.nameBn ?? "";
+    item.productUnit = p?.unit ?? "";
   }
 }
 
