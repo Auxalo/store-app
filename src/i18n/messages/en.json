@@ -836,6 +836,13 @@
       "payment_void": "Payment cancelled",
       "drawer_correct": "Cash drawer corrected"
     },
+    "fields": {
+      "purchasePrice": "Cost price",
+      "sellingPrice": "Selling price",
+      "stock": "Stock",
+      "amount": "Opening cash"
+    },
+    "viaPurchase": "from a purchase",
     "off": "The audit log is off, so new changes are not being recorded.",
     "turnOn": "Turn it on in Settings"
   },

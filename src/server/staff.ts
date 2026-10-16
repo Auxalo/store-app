@@ -191,6 +191,8 @@ export interface AuditRow {
   entityId: string;
   userId: string;
   userName: string;
+  /** The product's name or the sale's invoice number, when the entry is about one. */
+  subject?: string;
   oldValue?: unknown;
   newValue?: unknown;
 }
@@ -227,6 +229,26 @@ export async function listAudit(
         .toArray()
     ).map((u) => [u._id.toHexString(), u.name]),
   );
+  const about = async (entity: string, nameField: string) => {
+    const wanted = [
+      ...new Set(
+        rows.filter((r) => r.entity === entity).map((r) => r.entityId),
+      ),
+    ];
+    if (wanted.length === 0) return new Map<string, string>();
+    const found = await db
+      .collection<{ _id: string } & Record<string, unknown>>(`${entity}s`)
+      .find({ storeId, _id: { $in: wanted } })
+      .project({ [nameField]: 1 })
+      .toArray();
+    return new Map(
+      found.map((d) => [String(d._id), String(d[nameField] ?? "")]),
+    );
+  };
+  const [productNames, invoiceNos] = await Promise.all([
+    about("product", "name"),
+    about("sale", "invoiceNo"),
+  ]);
   return rows.map((r) => ({
     id: r._id,
     at: r.at,
@@ -235,6 +257,12 @@ export async function listAudit(
     entityId: r.entityId,
     userId: r.userId,
     userName: names.get(r.userId) ?? "",
+    subject:
+      (r.entity === "product"
+        ? productNames.get(r.entityId)
+        : r.entity === "sale"
+          ? invoiceNos.get(r.entityId)
+          : undefined) || undefined,
     oldValue: r.oldValue,
     newValue: r.newValue,
   }));

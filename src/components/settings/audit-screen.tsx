@@ -19,22 +19,43 @@ interface AuditRow {
   action: string;
   entity: string;
   userName: string;
+  subject?: string;
   oldValue?: unknown;
   newValue?: unknown;
 }
 
 const PAGE = 50;
 
-/** Short text for what changed, e.g. `120 → 150`. */
-function change(row: AuditRow): string | null {
-  const show = (v: unknown) =>
-    v === undefined || v === null
-      ? ""
-      : typeof v === "object"
-        ? JSON.stringify(v)
-        : String(v);
-  if (row.oldValue === undefined && row.newValue === undefined) return null;
-  return `${show(row.oldValue)} → ${show(row.newValue)}`;
+const FIELDS = ["purchasePrice", "sellingPrice", "stock", "amount"] as const;
+const MONEY_FIELDS: readonly string[] = [
+  "purchasePrice",
+  "sellingPrice",
+  "amount",
+];
+
+const asObject = (v: unknown): Record<string, unknown> | null =>
+  v && typeof v === "object" && !Array.isArray(v)
+    ? (v as Record<string, unknown>)
+    : null;
+
+/** What changed in words and numbers, e.g. "Selling price: ৳50 → ৳55"; null when there is no single figure to show. */
+function change(
+  row: AuditRow,
+  t: ReturnType<typeof useTranslations>,
+  f: ReturnType<typeof useFormat>,
+): string | null {
+  const before = asObject(row.oldValue);
+  const after = asObject(row.newValue);
+  const field = FIELDS.find(
+    (k) => (before && k in before) || (after && k in after),
+  );
+  if (!field) return null;
+  const show = (o: Record<string, unknown> | null) => {
+    const v = o?.[field];
+    if (typeof v !== "number") return "–";
+    return MONEY_FIELDS.includes(field) ? f.money(v) : f.qty(v);
+  };
+  return `${t(`audit.fields.${field}` as never)}: ${show(before)} → ${show(after)}`;
 }
 
 /** Who changed prices, stock and sales, newest first. Needs internet: the log lives on the server. */
@@ -107,7 +128,11 @@ export function AuditScreen() {
           const label = t.has(`audit.actions.${key}` as never)
             ? t(`audit.actions.${key}` as never)
             : row.action;
-          const diff = change(row);
+          const diff = change(row, t, f);
+          const note =
+            asObject(row.newValue)?.via === "purchase"
+              ? t("audit.viaPurchase")
+              : null;
           return (
             <li
               key={row.id}
@@ -115,9 +140,13 @@ export function AuditScreen() {
               data-testid="audit-row"
             >
               <p className="font-medium">{label}</p>
+              {row.subject ? (
+                <p className="break-words text-sm">{row.subject}</p>
+              ) : null}
               {diff ? (
                 <p className="break-words text-sm text-muted-foreground">
                   {diff}
+                  {note ? ` · ${note}` : ""}
                 </p>
               ) : null}
               <p className="text-xs text-muted-foreground">
