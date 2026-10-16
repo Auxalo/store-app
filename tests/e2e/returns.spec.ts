@@ -31,7 +31,14 @@ async function sellMilk(
       .getByRole("button", { name: new RegExp(options.customer) })
       .click();
   }
-  await cart.getByTestId("received-input").fill(options.received);
+  // The dialog that just closed hands focus back to the customer button a moment later; typed
+  // text that lands in that gap goes to the button, so type until the box has taken it.
+  const received = cart.getByTestId("received-input");
+  await expect(async () => {
+    await received.fill(options.received);
+    if (options.received !== "")
+      await expect(received).not.toHaveValue("", { timeout: 500 });
+  }).toPass();
   return cart;
 }
 

@@ -132,13 +132,13 @@ export function ReturnsScreen() {
                     {r.partyName ? ` · ${r.partyName}` : ""}
                   </span>
                 </span>
-                <Badge variant="secondary">
-                  {r.kind === "sale"
-                    ? t("returns.saleKind")
-                    : t("returns.purchaseKind")}
-                </Badge>
-                <span className="shrink-0 font-semibold">
-                  {f.money(r.total)}
+                <span className="flex shrink-0 flex-col items-end gap-1">
+                  <span className="font-semibold">{f.money(r.total)}</span>
+                  <Badge variant="secondary">
+                    {r.kind === "sale"
+                      ? t("returns.saleKind")
+                      : t("returns.purchaseKind")}
+                  </Badge>
                 </span>
               </Link>
             </li>

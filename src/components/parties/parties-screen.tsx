@@ -238,14 +238,6 @@ export function PartiesScreen({ kind }: { kind: PartyKind }) {
         <EmptyState
           icon={kind === "customer" ? Users : Truck}
           title={filtered ? tk("noMatch") : tk("empty")}
-          action={
-            !filtered ? (
-              <Button size="sm" onClick={() => setEditing("new")}>
-                <Plus aria-hidden />
-                {tk("add")}
-              </Button>
-            ) : undefined
-          }
         />
       ) : (
         <ul className="flex flex-col gap-2">
