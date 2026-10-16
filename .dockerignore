@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.github
+.data
+.env*
+!.env.example
+test-results
+coverage
+*.tsbuildinfo
+.DS_Store
+npm-debug.log*
+Dockerfile
+.dockerignore
