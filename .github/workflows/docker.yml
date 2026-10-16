@@ -1,0 +1,72 @@
+name: Docker image
+
+# Builds the production image on GitHub (not on the VPS) and publishes it to GitHub's container
+# registry. Dokploy then pulls ghcr.io/<owner>/<repo>:latest. See docs/DEPLOY.md, "Self-hosting".
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    name: Build and push
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Image name (must be lowercase)
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: App image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runner
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+          build-args: |
+            NEXT_PUBLIC_SIGNUP_ENABLED=${{ vars.NEXT_PUBLIC_SIGNUP_ENABLED }}
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,scope=app,mode=max
+
+      - name: Tools image (one-off scripts such as db:indexes and admin:create)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: tools
+          push: true
+          tags: ${{ env.IMAGE }}:tools
+          build-args: |
+            NEXT_PUBLIC_SIGNUP_ENABLED=${{ vars.NEXT_PUBLIC_SIGNUP_ENABLED }}
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,scope=tools,mode=max
+
+      - name: Tell Dokploy to redeploy (optional)
+        env:
+          DOKPLOY_WEBHOOK_URL: ${{ secrets.DOKPLOY_WEBHOOK_URL }}
+        run: |
+          if [ -n "$DOKPLOY_WEBHOOK_URL" ]; then
+            curl -fsS -X POST "$DOKPLOY_WEBHOOK_URL"
+          else
+            echo "DOKPLOY_WEBHOOK_URL is not set; deploy from the Dokploy panel."
+          fi

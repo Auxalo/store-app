@@ -28,6 +28,8 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   env: { NEXT_PUBLIC_APP_VERSION: pkg.version },
   poweredByHeader: false,
+  // Only the Docker build (self-hosting) asks for the standalone server; Vercel builds are unchanged.
+  ...(process.env.DOCKER_BUILD === "1" && { output: "standalone" as const }),
   async headers() {
     return [
       {
