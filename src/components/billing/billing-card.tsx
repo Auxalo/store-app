@@ -60,25 +60,32 @@ export function BillingCard() {
             {stateLabel}
           </span>
         </div>
-        {timeLeft ? (
-          <p
-            className="mt-1 text-muted-foreground"
-            data-testid="billing-card-left"
-          >
-            {timeLeft}
-          </p>
-        ) : null}
-        {status.mode === "paid" ? (
-          <Button
-            asChild
-            size="sm"
-            variant={needsAction ? "default" : "outline"}
-            className="mt-2 h-7 w-full"
-          >
-            <Link href="/billing" onClick={() => setOpenMobile(false)}>
-              {t("renew")}
-            </Link>
-          </Button>
+        {/* The time left and the way to renew on one line: the card is short. */}
+        {timeLeft || status.mode === "paid" ? (
+          <div className="mt-1.5 flex items-center justify-between gap-2">
+            {timeLeft ? (
+              <p
+                className="min-w-0 flex-1 text-muted-foreground"
+                data-testid="billing-card-left"
+              >
+                {timeLeft}
+              </p>
+            ) : (
+              <span className="flex-1" />
+            )}
+            {status.mode === "paid" ? (
+              <Button
+                asChild
+                size="sm"
+                variant={needsAction ? "default" : "outline"}
+                className="h-7 shrink-0 px-3"
+              >
+                <Link href="/billing" onClick={() => setOpenMobile(false)}>
+                  {t("renew")}
+                </Link>
+              </Button>
+            ) : null}
+          </div>
         ) : null}
       </li>
     </>

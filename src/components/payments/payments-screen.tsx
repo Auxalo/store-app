@@ -1,11 +1,12 @@
 "use client";
 
-import { ArrowDownLeft, ArrowUpRight, Ban } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Ban, Wallet } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
+import { EmptyState } from "@/components/shared/empty-state";
 import {
   type FilterValues,
   ListToolbar,
@@ -104,7 +105,7 @@ export function PaymentsScreen() {
           </TabsList>
         </Tabs>
       ) : null}
-      <p className="text-sm text-muted-foreground">{t("payments.hint")}</p>
+      <p className="text-xs text-muted-foreground">{t("payments.hint")}</p>
       <div className="flex gap-2">
         <Button asChild variant="outline" size="sm">
           <Link href="/customers">{t("payments.goCustomers")}</Link>
@@ -135,9 +136,21 @@ export function PaymentsScreen() {
       ) : list.status === "loading" ? (
         <Skeleton className="h-16 w-full" />
       ) : list.items.length === 0 ? (
-        <p className="py-10 text-center text-sm text-muted-foreground">
-          {t("payments.empty")}
-        </p>
+        <EmptyState
+          icon={Wallet}
+          title={t("payments.empty")}
+          action={
+            period !== "all" ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPeriod("all")}
+              >
+                {t("list.showAll")}
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
         <ul
           className={cn(
@@ -158,24 +171,27 @@ export function PaymentsScreen() {
                   className="flex min-w-0 flex-1 items-center gap-3 rounded-xl p-3 hover:bg-muted/50"
                   data-testid="payment-row"
                 >
-                  {incoming ? (
-                    <ArrowDownLeft
-                      className="size-5 text-emerald-600"
-                      aria-hidden
-                    />
-                  ) : (
-                    <ArrowUpRight
-                      className="size-5 text-amber-600"
-                      aria-hidden
-                    />
-                  )}
+                  <span
+                    className={cn(
+                      "flex size-9 shrink-0 items-center justify-center rounded-full",
+                      incoming
+                        ? "bg-emerald-500/15 text-emerald-600"
+                        : "bg-amber-500/15 text-amber-600",
+                    )}
+                  >
+                    {incoming ? (
+                      <ArrowDownLeft className="size-5" aria-hidden />
+                    ) : (
+                      <ArrowUpRight className="size-5" aria-hidden />
+                    )}
+                  </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">
-                      {incoming
-                        ? t("payments.received", { name: p.partyName })
-                        : t("payments.paidTo", { name: p.partyName })}
+                    <span className="flex items-center gap-2">
+                      <span className="truncate font-medium">
+                        {p.partyName}
+                      </span>
                       {voided ? (
-                        <Badge variant="destructive" className="ms-2">
+                        <Badge variant="destructive" className="shrink-0">
                           {t("payments.voided")}
                         </Badge>
                       ) : null}
@@ -185,14 +201,21 @@ export function PaymentsScreen() {
                       {p.note ? ` · ${p.note}` : ""}
                     </span>
                   </span>
-                  <span
-                    className={cn(
-                      "shrink-0 font-semibold",
-                      incoming ? "text-emerald-600" : "text-amber-600",
-                      voided && "line-through",
-                    )}
-                  >
-                    {f.money(p.amount)}
+                  <span className="flex shrink-0 flex-col items-end">
+                    <span
+                      className={cn(
+                        "font-semibold",
+                        incoming ? "text-emerald-600" : "text-amber-600",
+                        voided && "line-through",
+                      )}
+                    >
+                      {f.money(p.amount)}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {incoming
+                        ? t("payments.filterIn")
+                        : t("payments.filterOut")}
+                    </span>
                   </span>
                 </Link>
                 {!voided && can(role, "sale.void") ? (

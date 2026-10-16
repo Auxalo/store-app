@@ -193,7 +193,7 @@ export function DashboardScreen() {
           </CardContent>
         </Card>
       ) : null}
-      <Button asChild size="lg" className="h-14 text-lg">
+      <Button asChild size="lg" className="h-14 text-lg md:self-start md:px-10">
         <Link href="/pos" data-testid="open-pos">
           {t("openPos")}
         </Link>
@@ -204,7 +204,7 @@ export function DashboardScreen() {
       <div
         className={cn(
           "grid grid-cols-2 gap-2",
-          stats.length === 4 ? "md:grid-cols-4" : "md:grid-cols-3",
+          stats.length === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3",
         )}
         data-testid="stats"
       >
@@ -251,7 +251,7 @@ export function DashboardScreen() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">

@@ -88,7 +88,7 @@ export function StoreWorth({ figures }: { figures: WorthFigures | undefined }) {
         <p className="mt-2 text-xs text-white/75">{t("worthNote")}</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <Tile
           tone="amber"
           icon={<Package className="size-3.5" aria-hidden />}

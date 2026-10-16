@@ -92,10 +92,11 @@ export function StockLog({
       <p
         className={cn(
           "font-semibold tabular-nums",
+          total === 0 && "text-muted-foreground",
           sign === "−" && total > 0 && "text-destructive",
         )}
       >
-        {total === 0 ? "0" : `${sign}${f.qty(Math.abs(total))}`}{" "}
+        {total === 0 ? f.qty(0) : `${sign}${f.qty(Math.abs(total))}`}{" "}
         {tu(row.unit as never)}
       </p>
       <ul className="mt-0.5 space-y-0.5 text-xs text-muted-foreground">

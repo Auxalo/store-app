@@ -162,6 +162,53 @@ export function SettingsScreen() {
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
+      <div className="grid gap-2 sm:grid-cols-2" data-testid="settings-links">
+        {[
+          {
+            href: "/settings/staff",
+            icon: KeyRound,
+            title: t("settings.staff"),
+            hint: t("settings.staffHint"),
+          },
+          {
+            href: "/settings/devices",
+            icon: Smartphone,
+            title: t("settings.devices"),
+            hint: t("settings.devicesHint"),
+          },
+          {
+            href: "/settings/setup",
+            icon: PackagePlus,
+            title: t("setup.settingsLink"),
+            hint: t("setup.settingsLinkHint"),
+          },
+          {
+            href: "/settings/audit",
+            icon: ScrollText,
+            title: t("settings.audit"),
+            hint: t("settings.auditHint"),
+          },
+        ].map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className="flex items-center gap-3 rounded-xl border bg-card p-3 hover:bg-muted/50"
+          >
+            <item.icon className="size-5 text-muted-foreground" aria-hidden />
+            <span className="min-w-0 flex-1">
+              <span className="block font-medium">{item.title}</span>
+              <span className="block text-xs text-muted-foreground">
+                {item.hint}
+              </span>
+            </span>
+            <ChevronRight
+              className="size-4 text-muted-foreground rtl:rotate-180"
+              aria-hidden
+            />
+          </Link>
+        ))}
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">{t("settings.store")}</CardTitle>
@@ -308,53 +355,6 @@ export function SettingsScreen() {
       </Card>
 
       <AuditToggleCard />
-
-      <div className="grid gap-2">
-        {[
-          {
-            href: "/settings/staff",
-            icon: KeyRound,
-            title: t("settings.staff"),
-            hint: t("settings.staffHint"),
-          },
-          {
-            href: "/settings/devices",
-            icon: Smartphone,
-            title: t("settings.devices"),
-            hint: t("settings.devicesHint"),
-          },
-          {
-            href: "/settings/setup",
-            icon: PackagePlus,
-            title: t("setup.settingsLink"),
-            hint: t("setup.settingsLinkHint"),
-          },
-          {
-            href: "/settings/audit",
-            icon: ScrollText,
-            title: t("settings.audit"),
-            hint: t("settings.auditHint"),
-          },
-        ].map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="flex items-center gap-3 rounded-xl border bg-card p-3 hover:bg-muted/50"
-          >
-            <item.icon className="size-5 text-muted-foreground" aria-hidden />
-            <span className="min-w-0 flex-1">
-              <span className="block font-medium">{item.title}</span>
-              <span className="block text-xs text-muted-foreground">
-                {item.hint}
-              </span>
-            </span>
-            <ChevronRight
-              className="size-4 text-muted-foreground rtl:rotate-180"
-              aria-hidden
-            />
-          </Link>
-        ))}
-      </div>
 
       <Card>
         <CardHeader>

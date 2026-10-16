@@ -62,6 +62,9 @@ export function CashDrawerCard() {
 
   const isSet = cash?.opening != null;
   const form = !isSet || editing;
+  // Until the opening is set (and nothing has moved), a big "৳০" says nothing: only the form shows.
+  const showFigure =
+    !!cash && (isSet || cash.flow.totalIn !== 0 || cash.flow.totalOut !== 0);
 
   async function save() {
     if (amount === null || saving) return;
@@ -163,127 +166,138 @@ export function CashDrawerCard() {
             </div>
           ) : null}
 
-          <div>
-            <p className="text-xs text-muted-foreground">
-              {t("drawerExpected")}
-            </p>
-            <p
-              className={cn(
-                "text-3xl font-bold tabular-nums",
-                cash.expected < 0 && "text-destructive",
-              )}
-              data-testid="drawer-expected"
-            >
-              {f.money(cash.expected)}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {isSet ? (
-                <span data-testid="drawer-opening">
-                  {t("drawerOpening")} {f.money(cash.opening ?? 0)}
-                </span>
-              ) : (
-                t("drawerNotSet")
-              )}
-              {" · "}
-              {t("drawerIn")} {f.money(cash.flow.totalIn)}
-              {" · "}
-              {t("drawerOut")} {f.money(cash.flow.totalOut)}
-            </p>
-          </div>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            className="self-start"
-            onClick={() => setDetails((d) => !d)}
-            aria-expanded={details}
-            data-testid="drawer-details-toggle"
-          >
-            {details ? <ChevronUp aria-hidden /> : <ChevronDown aria-hidden />}
-            {details ? t("drawerHideDetails") : t("drawerDetails")}
-          </Button>
-
-          {details ? (
-            <div
-              className="flex flex-col gap-3 text-sm"
-              data-testid="drawer-details"
-            >
-              <dl className="space-y-0.5">
-                {lines.map(([key, label, value]) => (
-                  <div
-                    key={key}
-                    className="flex justify-between gap-2"
-                    data-testid={`drawer-flow-${key}`}
-                  >
-                    <dt className="text-muted-foreground">{label}</dt>
-                    <dd
-                      className={cn(
-                        "tabular-nums",
-                        value < 0 && "text-destructive",
-                      )}
-                    >
-                      {value < 0 ? "−" : value > 0 ? "+" : ""}
-                      {f.money(Math.abs(value))}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-
-              <div data-testid="drawer-log">
-                <p className="mb-1 text-xs font-medium text-muted-foreground">
-                  {t("drawerLog")}
+          {showFigure ? (
+            <>
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  {t("drawerExpected")}
                 </p>
-                {cash.entries.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    {t("drawerNotSet")}
-                  </p>
-                ) : (
-                  <ul className="space-y-0.5">
-                    {cash.entries.map((e) => (
-                      <li
-                        key={e.id}
-                        className="flex justify-between gap-2"
-                        data-testid="drawer-log-entry"
-                      >
-                        <span>
-                          {e.kind === "open"
-                            ? t("drawerLogOpen")
-                            : t("drawerLogCorrect")}
-                          {e.byName
-                            ? ` · ${t("drawerBy", { name: e.byName })}`
-                            : ""}
-                          <span className="text-xs text-muted-foreground">
-                            {" "}
-                            {f.time(e.createdAt)}
-                          </span>
-                        </span>
-                        <span className="tabular-nums">
-                          {f.money(e.amount)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <p
+                  className={cn(
+                    "text-3xl font-bold tabular-nums",
+                    cash.expected < 0 && "text-destructive",
+                  )}
+                  data-testid="drawer-expected"
+                >
+                  {f.money(cash.expected)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {isSet ? (
+                    <span data-testid="drawer-opening">
+                      {t("drawerOpening")} {f.money(cash.opening ?? 0)}
+                    </span>
+                  ) : (
+                    t("drawerNotSet")
+                  )}
+                  {" · "}
+                  {t("drawerIn")} {f.money(cash.flow.totalIn)}
+                  {" · "}
+                  {t("drawerOut")} {f.money(cash.flow.totalOut)}
+                </p>
               </div>
 
-              {cash.history.length > 0 ? (
-                <div data-testid="drawer-history">
-                  <p className="mb-1 text-xs font-medium text-muted-foreground">
-                    {t("drawerHistory")}
-                  </p>
-                  <ul className="space-y-0.5">
-                    {cash.history.map((h) => (
-                      <li key={h.day} className="flex justify-between gap-2">
-                        <span>{f.date(h.day)}</span>
-                        <span className="tabular-nums">
-                          {t("drawerOpening")} {f.money(h.opening)}
-                        </span>
-                      </li>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="self-start"
+                onClick={() => setDetails((d) => !d)}
+                aria-expanded={details}
+                data-testid="drawer-details-toggle"
+              >
+                {details ? (
+                  <ChevronUp aria-hidden />
+                ) : (
+                  <ChevronDown aria-hidden />
+                )}
+                {details ? t("drawerHideDetails") : t("drawerDetails")}
+              </Button>
+
+              {details ? (
+                <div
+                  className="flex flex-col gap-3 text-sm"
+                  data-testid="drawer-details"
+                >
+                  <dl className="space-y-0.5">
+                    {lines.map(([key, label, value]) => (
+                      <div
+                        key={key}
+                        className="flex justify-between gap-2"
+                        data-testid={`drawer-flow-${key}`}
+                      >
+                        <dt className="text-muted-foreground">{label}</dt>
+                        <dd
+                          className={cn(
+                            "tabular-nums",
+                            value < 0 && "text-destructive",
+                          )}
+                        >
+                          {value < 0 ? "−" : value > 0 ? "+" : ""}
+                          {f.money(Math.abs(value))}
+                        </dd>
+                      </div>
                     ))}
-                  </ul>
+                  </dl>
+
+                  <div data-testid="drawer-log">
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">
+                      {t("drawerLog")}
+                    </p>
+                    {cash.entries.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        {t("drawerNotSet")}
+                      </p>
+                    ) : (
+                      <ul className="space-y-0.5">
+                        {cash.entries.map((e) => (
+                          <li
+                            key={e.id}
+                            className="flex justify-between gap-2"
+                            data-testid="drawer-log-entry"
+                          >
+                            <span>
+                              {e.kind === "open"
+                                ? t("drawerLogOpen")
+                                : t("drawerLogCorrect")}
+                              {e.byName
+                                ? ` · ${t("drawerBy", { name: e.byName })}`
+                                : ""}
+                              <span className="text-xs text-muted-foreground">
+                                {" "}
+                                {f.time(e.createdAt)}
+                              </span>
+                            </span>
+                            <span className="tabular-nums">
+                              {f.money(e.amount)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  {cash.history.length > 0 ? (
+                    <div data-testid="drawer-history">
+                      <p className="mb-1 text-xs font-medium text-muted-foreground">
+                        {t("drawerHistory")}
+                      </p>
+                      <ul className="space-y-0.5">
+                        {cash.history.map((h) => (
+                          <li
+                            key={h.day}
+                            className="flex justify-between gap-2"
+                          >
+                            <span>{f.date(h.day)}</span>
+                            <span className="tabular-nums">
+                              {t("drawerOpening")} {f.money(h.opening)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
-            </div>
+            </>
           ) : null}
         </>
       )}

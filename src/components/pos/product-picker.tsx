@@ -158,7 +158,7 @@ export function ProductPicker({
 
       {chips.length > 1 ? (
         <div
-          className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1"
+          className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1"
           role="tablist"
           aria-label={t("products.category")}
         >

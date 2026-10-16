@@ -1,12 +1,13 @@
 "use client";
 
-import { Ban, Plus } from "lucide-react";
+import { Ban, Banknote, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
 import { MoneyField } from "@/components/pos/money-field";
+import { EmptyState } from "@/components/shared/empty-state";
 import {
   type FilterValues,
   ListToolbar,
@@ -241,14 +242,17 @@ export function ExpensesScreen() {
           ))}
         </div>
       ) : rows.length === 0 ? (
-        <p className="py-10 text-center text-sm text-muted-foreground">
-          {period === "all" &&
-          filters.category === NONE &&
-          filters.method === NONE &&
-          filters.status === NONE
-            ? t("expenses.empty")
-            : t("expenses.emptyFilter")}
-        </p>
+        <EmptyState
+          icon={Banknote}
+          title={
+            period === "all" &&
+            filters.category === NONE &&
+            filters.method === NONE &&
+            filters.status === NONE
+              ? t("expenses.empty")
+              : t("expenses.emptyFilter")
+          }
+        />
       ) : (
         <ul className="flex flex-col gap-2">
           {rows.map((e) => (

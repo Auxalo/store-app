@@ -123,7 +123,6 @@ export function SyncScreen() {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-      <ModeCard />
       <Card>
         <CardContent className="flex flex-col gap-4 pt-4">
           <div className="flex items-start gap-3">
@@ -195,6 +194,8 @@ export function SyncScreen() {
           </dl>
         </CardContent>
       </Card>
+
+      <ModeCard />
 
       <Card>
         <CardHeader>

@@ -1,11 +1,12 @@
 "use client";
 
-import { Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Pencil, Plus, Search, Tags, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
+import { EmptyState } from "@/components/shared/empty-state";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import {
   AlertDialog,
@@ -155,11 +156,14 @@ export function CategoriesScreen() {
           ))}
         </div>
       ) : visible.length === 0 ? (
-        <p className="py-10 text-center text-sm text-muted-foreground">
-          {categories.length === 0
-            ? t("categories.empty")
-            : t("categories.noMatch")}
-        </p>
+        <EmptyState
+          icon={Tags}
+          title={
+            categories.length === 0
+              ? t("categories.empty")
+              : t("categories.noMatch")
+          }
+        />
       ) : (
         <>
           <p className="text-xs text-muted-foreground">

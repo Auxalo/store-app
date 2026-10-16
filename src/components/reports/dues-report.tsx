@@ -27,17 +27,21 @@ function Summary({
   sub,
   tone,
   testId,
+  wide,
 }: {
   label: string;
   value: string;
   sub?: ReactNode;
   tone: "owed" | "owe" | "advance";
   testId: string;
+  /** Takes the whole row on a phone. */
+  wide?: boolean;
 }) {
   return (
     <div
       className={cn(
         "rounded-xl border p-3",
+        wide && "col-span-2 sm:col-span-1",
         tone === "owed" && "border-amber-500/40 bg-amber-500/10",
         tone === "owe" && "border-rose-500/40 bg-rose-500/10",
         tone === "advance" && "border-emerald-500/40 bg-emerald-500/10",
@@ -122,7 +126,7 @@ export function DuesReport() {
   if (!dues.ready) return <Skeleton className="h-40 w-full" />;
   return (
     <div className="flex flex-col gap-3" data-testid="dues-report">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         <Summary
           tone="owed"
           label={t("customersOwe")}
@@ -138,6 +142,7 @@ export function DuesReport() {
           testId="dues-suppliers-total"
         />
         <Summary
+          wide
           tone="advance"
           label={t("advancesHeld")}
           value={f.money(dues.customerAdvance + dues.supplierAdvance)}

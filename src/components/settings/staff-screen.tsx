@@ -14,6 +14,7 @@ import { hashPin, needsStrongPin, normalizePin } from "@/auth/pin";
 import { refreshStaff } from "@/auth/staff-cache";
 import { useProfile } from "@/auth/use-auth";
 import { PinDialog } from "@/components/lock/pin-dialog";
+import { BackLink } from "@/components/shared/back-link";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import {
   AlertDialog,
@@ -103,6 +104,7 @@ export function StaffScreen() {
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
+      <BackLink href="/settings" label={t("nav.settings")} />
       {offline ? (
         <p
           role="alert"
@@ -181,13 +183,19 @@ export function StaffScreen() {
         <CardHeader>
           <CardTitle className="text-base">{t("staff.permissions")}</CardTitle>
         </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <CardContent className="px-3 sm:px-4">
+          <table className="w-full table-fixed text-sm">
+            <colgroup>
+              <col />
+              <col className="w-[3.75rem] sm:w-20" />
+              <col className="w-[3.75rem] sm:w-20" />
+              <col className="w-[3.75rem] sm:w-20" />
+            </colgroup>
             <thead>
-              <tr className="text-xs text-muted-foreground">
-                <th className="py-1 pe-2" />
+              <tr className="text-[11px] text-muted-foreground sm:text-xs">
+                <th className="py-1 pe-1" />
                 {(["owner", "manager", "cashier"] as const).map((r) => (
-                  <th key={r} className="px-2 py-1 text-center font-medium">
+                  <th key={r} className="px-0.5 py-1 text-center font-medium">
                     {t(`role.${r}`)}
                   </th>
                 ))}
@@ -196,12 +204,16 @@ export function StaffScreen() {
             <tbody>
               {PERMISSIONS.map((p) => (
                 <tr key={p} className="border-t">
-                  <td className="py-1.5 pe-2">
+                  <td className="py-1.5 pe-1 text-[13px] leading-snug sm:text-sm">
                     {t(`staff.permissionNames.${p.replace(".", "_")}` as never)}
                   </td>
                   {(["owner", "manager", "cashier"] as const).map((r) => (
-                    <td key={r} className="px-2 py-1.5 text-center">
-                      {ROLE_PERMISSIONS[r].includes(p) ? "✓" : "–"}
+                    <td key={r} className="px-0.5 py-1.5 text-center">
+                      {ROLE_PERMISSIONS[r].includes(p) ? (
+                        <span className="text-emerald-600">✓</span>
+                      ) : (
+                        <span className="text-muted-foreground/60">–</span>
+                      )}
                     </td>
                   ))}
                 </tr>

@@ -191,6 +191,46 @@ describe("audit trail", () => {
     const page2 = await listAudit(mongo.db, storeId, 2, page1[1].at);
     expect(page2.map((r) => r.entityId)).toEqual(["p1"]);
   });
+
+  it("names the product or the sale an entry is about, and only from this store", async () => {
+    await mongo.db.collection("products").insertMany([
+      { _id: "prod-sugar" as never, storeId, name: "চিনি" },
+      {
+        _id: "prod-foreign" as never,
+        storeId: "someone-elses-store",
+        name: "Secret",
+      },
+    ]);
+    await mongo.db
+      .collection("sales")
+      .insertOne({ _id: "sale-7" as never, storeId, invoiceNo: "INV-7" });
+    const at = (n: number) =>
+      new Date(Date.UTC(2026, 9, 3, 10, n)).toISOString();
+    const row = (n: number, entity: string, entityId: string) => ({
+      _id: randomUUID() as never,
+      storeId,
+      userId: owner,
+      action: "x.y",
+      entity,
+      entityId,
+      at: at(n),
+    });
+    await mongo.db
+      .collection("auditLogs")
+      .insertMany([
+        row(1, "product", "prod-sugar"),
+        row(2, "sale", "sale-7"),
+        row(3, "product", "prod-foreign"),
+        row(4, "payment", "pay-1"),
+      ]);
+    const rows = await listAudit(mongo.db, storeId, 4);
+    const subject = (id: string) =>
+      rows.find((r) => r.entityId === id)?.subject;
+    expect(subject("prod-sugar")).toBe("চিনি");
+    expect(subject("sale-7")).toBe("INV-7");
+    expect(subject("prod-foreign")).toBeUndefined();
+    expect(subject("pay-1")).toBeUndefined();
+  });
 });
 
 describe("devices", () => {
@@ -207,6 +247,27 @@ describe("devices", () => {
   };
   const cookie = (d: { deviceId: string; token: string }) =>
     `sa_device=${d.deviceId}.${d.token}`;
+
+  it("a browser that registers twice at the same moment is one device, and neither request fails", async () => {
+    const deviceId = randomUUID();
+    const params = {
+      storeId,
+      userId: owner,
+      deviceId,
+      name: "Phone",
+      existing: { ok: false as const, reason: "missing" as const },
+    };
+    const [a, b] = await Promise.all([
+      registerDevice(mongo.db, params),
+      registerDevice(mongo.db, params),
+    ]);
+    expect(a.code).toBe(b.code);
+    expect(
+      await mongo.db
+        .collection("devices")
+        .countDocuments({ _id: deviceId as never }),
+    ).toBe(1);
+  });
 
   it("gives each new device the next short code", async () => {
     expect([1, 2, 26, 27, 28, 52, 53].map(deviceCodeFor)).toEqual([

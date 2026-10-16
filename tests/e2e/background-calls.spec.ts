@@ -10,12 +10,21 @@ test.afterEach(async ({ page }) => {
  * Background calls cost the server (each wakes a function), so an open tab asks rarely: every few
  * minutes while shown, and not at all while hidden, then once when shown again.
  */
-const THIRTY_MINUTES = 30 * 60_000;
 const background = (path: string) =>
   path.startsWith("/api/sync/") ||
   path === "/api/staff" ||
   path === "/api/health" ||
   path.startsWith("/api/data/settings");
+
+async function runMinutes(
+  page: import("@playwright/test").Page,
+  minutes: number,
+) {
+  for (let done = 0; done < minutes; done += 5) {
+    await page.clock.runFor(5 * 60_000);
+    await page.waitForTimeout(1_200);
+  }
+}
 
 async function setVisibility(
   page: import("@playwright/test").Page,
@@ -48,9 +57,10 @@ test("an idle tab asks the server every few minutes, a hidden tab not at all, an
     if (background(path)) calls.push(path);
   });
 
-  // Half an hour of an open tab nobody touches: a few checks, not one a minute.
-  await page.clock.runFor(THIRTY_MINUTES);
-  await page.waitForTimeout(2_000);
+  // Half an hour of an open tab nobody touches: a few checks, not one a minute. (In steps of five
+  // minutes, letting each request finish: jumping half an hour at once also cuts requests short.)
+  await runMinutes(page, 30);
+  await page.waitForTimeout(1_000);
   // (Checks whether the server is back, after a failed try, are not counted: the test's clock jumps
   // half an hour in a moment, which no real outage does.)
   const regular = calls.filter((path) => path !== "/api/health");
@@ -61,8 +71,8 @@ test("an idle tab asks the server every few minutes, a hidden tab not at all, an
   await setVisibility(page, "hidden");
   await page.waitForTimeout(1_000);
   calls.length = 0;
-  await page.clock.runFor(THIRTY_MINUTES);
-  await page.waitForTimeout(2_000);
+  await runMinutes(page, 30);
+  await page.waitForTimeout(1_000);
   expect(calls).toEqual([]);
 
   // Shown again: it syncs right away.

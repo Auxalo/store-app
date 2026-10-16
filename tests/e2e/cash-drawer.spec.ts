@@ -20,11 +20,11 @@ test("the drawer: set the opening, a cash sale moves it, the owner corrects it, 
     stock: "10",
   });
 
-  // Not set yet: a reminder, counting from zero.
+  // Not set yet: only the form asks for the opening cash (no figure of zero beside it).
   await page.goto("/dashboard");
   const card = page.getByTestId("cash-drawer");
   await expect(card.getByTestId("drawer-form")).toBeVisible();
-  await expect(card.getByTestId("drawer-expected")).toHaveText("৳০");
+  await expect(card.getByTestId("drawer-expected")).toHaveCount(0);
 
   await card.getByTestId("drawer-amount").fill("500");
   await card.getByTestId("drawer-save").click();

@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, Pencil, Plus, Trash2, Truck, Users } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
@@ -11,6 +11,7 @@ import { useDebounceValue } from "usehooks-ts";
 import { z } from "zod";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
+import { EmptyState } from "@/components/shared/empty-state";
 import { ValidationError } from "@/components/shared/field-text";
 import { ListToolbar } from "@/components/shared/list-toolbar";
 import { ListError, LoadMore } from "@/components/shared/load-more";
@@ -234,9 +235,10 @@ export function PartiesScreen({ kind }: { kind: PartyKind }) {
           ))}
         </div>
       ) : rows.length === 0 ? (
-        <p className="py-10 text-center text-sm text-muted-foreground">
-          {filtered ? tk("noMatch") : tk("empty")}
-        </p>
+        <EmptyState
+          icon={kind === "customer" ? Users : Truck}
+          title={filtered ? tk("noMatch") : tk("empty")}
+        />
       ) : (
         <ul className="flex flex-col gap-2">
           {rows.map((p) => (
@@ -258,19 +260,19 @@ export function PartiesScreen({ kind }: { kind: PartyKind }) {
                   <span className="block truncate text-xs text-muted-foreground">
                     {[p.phone, p.address].filter(Boolean).join(" · ")}
                   </span>
+                  {p.balance !== 0 ? (
+                    <Badge
+                      variant={p.balance > 0 ? "secondary" : "outline"}
+                      className="mt-1"
+                      data-testid="party-balance"
+                    >
+                      {p.balance > 0
+                        ? tk(kind === "customer" ? "due" : "owed")
+                        : tk("advance")}{" "}
+                      {f.money(Math.abs(p.balance))}
+                    </Badge>
+                  ) : null}
                 </span>
-                {p.balance !== 0 ? (
-                  <Badge
-                    variant={p.balance > 0 ? "secondary" : "outline"}
-                    className="shrink-0"
-                    data-testid="party-balance"
-                  >
-                    {p.balance > 0
-                      ? tk(kind === "customer" ? "due" : "owed")
-                      : tk("advance")}{" "}
-                    {f.money(Math.abs(p.balance))}
-                  </Badge>
-                ) : null}
                 <ChevronRight
                   className="size-4 text-muted-foreground max-sm:hidden rtl:rotate-180"
                   aria-hidden

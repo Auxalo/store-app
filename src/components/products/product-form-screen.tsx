@@ -10,6 +10,7 @@ import { z } from "zod";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
 import { peekSku } from "@/commands/local/sku";
+import { BackLink } from "@/components/shared/back-link";
 import { ValidationError } from "@/components/shared/field-text";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +44,7 @@ import { newId } from "@/lib/ids";
 import { parseMoney } from "@/lib/money";
 import { parseQty, roundToUnit } from "@/lib/qty";
 import { UNIT_CODES, unitDecimals } from "@/lib/units";
+import { cn } from "@/lib/utils";
 import { usePreferences } from "@/stores/preferences";
 
 const NONE = "none";
@@ -302,6 +304,10 @@ function ProductForm({ product }: { product?: Product }) {
       noValidate
       className="mx-auto flex w-full max-w-2xl flex-col gap-6"
     >
+      <BackLink
+        href={product ? `/products/view?id=${product.id}` : "/products"}
+        label={t("nav.products")}
+      />
       <h2 className="text-lg font-semibold">
         {product ? t("products.editTitle") : t("products.newTitle")}
       </h2>
@@ -361,7 +367,13 @@ function ProductForm({ product }: { product?: Product }) {
           />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        {/* The two prices side by side, also on a phone: they are short numbers. */}
+        <div
+          className={cn(
+            "grid gap-3 sm:gap-4",
+            canSeeCost ? "grid-cols-2" : "sm:grid-cols-2",
+          )}
+        >
           {canSeeCost
             ? text(
                 "purchasePrice",
