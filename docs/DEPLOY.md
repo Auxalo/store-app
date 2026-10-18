@@ -22,6 +22,8 @@ A short runbook. The app is one Next.js project (pages plus `/api` routes) and o
 | `SKIP_RUNTIME_INDEXES` | no | Set to `1` after running `pnpm db:indexes` as part of a deploy: servers then skip the start-up index check (about 70 index commands, run once on every cold start otherwise). **Run `pnpm db:indexes` again after any release that adds an index, or the new index will not exist.** |
 | `RATE_LIMIT_READ_PER_MIN`, `RATE_LIMIT_WRITE_PER_MIN` | no | Per-device request limits (default 600 and 180). |
 | `NEXT_PUBLIC_SIGNUP_ENABLED` | no | `1` at build time opens shop sign-up (section 13). |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | no | Email for the "forgot password" link and the welcome mail (any SMTP service: Brevo, or Gmail with an app password). `SMTP_PORT` defaults to 587 (STARTTLS); 465 uses TLS from the start. `MAIL_FROM` looks like `Heshabe <no-reply@yourdomain.com>`. Without these, the forgot-password page still works but nothing is sent, and tells people to contact the developer. Passwords are never mailed, only a one-hour link. |
+| `MAIL_TRANSPORT` | no | `outbox` keeps mails in the database (`mailOutbox` collection) instead of sending them: for local tries and the browser tests only, never production. |
 
 Never set `E2E_DISABLE_RATE_LIMIT` in production: it exists only for the automated browser tests.
 

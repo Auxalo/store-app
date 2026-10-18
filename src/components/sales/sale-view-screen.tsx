@@ -4,28 +4,18 @@ import { Ban, Printer, Undo2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
-import { toast } from "sonner";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
 import { Receipt } from "@/components/pos/receipt";
+import { ShareReceiptButton } from "@/components/pos/share-receipt-button";
 import { ReturnDialog } from "@/components/returns/return-dialog";
+import { VoidSaleDialog } from "@/components/sales/void-sale-dialog";
 import { BackLink } from "@/components/shared/back-link";
 import { ListError } from "@/components/shared/load-more";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCommand, useRecord } from "@/data/hooks";
+import { useRecord } from "@/data/hooks";
 import type { Sale, SaleItem } from "@/db/local/types";
 import { useFormat } from "@/i18n/use-format";
 import { isFullyReturned, returnSplit } from "@/lib/refund";
@@ -42,12 +32,10 @@ interface ReturnRecord {
 export function SaleViewScreen() {
   const t = useTranslations();
   const f = useFormat();
-  const run = useCommand();
   const { role, storeName } = useProfile();
   const id = useSearchParams().get("id") ?? "";
   const [voiding, setVoiding] = useState(false);
   const [returning, setReturning] = useState(false);
-  const [reason, setReason] = useState("");
 
   const loaded = useRecord("sales", id);
   if (loaded.status === "loading")
@@ -80,16 +68,6 @@ export function SaleViewScreen() {
   const partlyReturned =
     sale.status === "active" && saleReturns.length > 0 && !fullyReturned;
 
-  async function voidSale() {
-    try {
-      await run("sale.void", { saleId: id, reason });
-      setVoiding(false);
-      setReason("");
-    } catch {
-      toast.error(t("common.somethingWrong"));
-    }
-  }
-
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-3">
       <BackLink href="/sales" label={t("nav.sales")} />
@@ -98,6 +76,11 @@ export function SaleViewScreen() {
           <Printer aria-hidden />
           {t("pos.printReceipt")}
         </Button>
+        <ShareReceiptButton
+          sale={sale}
+          items={items}
+          storeName={storeName ?? ""}
+        />
         {fullyReturned ? (
           <Badge variant="secondary" data-testid="fully-returned">
             {t("sales.fullyReturned")}
@@ -207,29 +190,11 @@ export function SaleViewScreen() {
         onClose={() => setReturning(false)}
       />
 
-      <AlertDialog open={voiding} onOpenChange={setVoiding}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("sales.voidTitle")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("sales.voidBody")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <Input
-            value={reason}
-            maxLength={200}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder={t("sales.voidReason")}
-            aria-label={t("sales.voidReason")}
-          />
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void voidSale()}>
-              {t("sales.voidConfirm")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <VoidSaleDialog
+        saleId={id}
+        open={voiding}
+        onClose={() => setVoiding(false)}
+      />
     </div>
   );
 }

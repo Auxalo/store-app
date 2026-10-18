@@ -2,13 +2,28 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ClipboardPaste, Copy, Plus, Trash2, X } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  ClipboardPaste,
+  Copy,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useCategories, useCommand } from "@/data/hooks";
 import { useDataMode } from "@/data/mode-store";
@@ -35,6 +50,7 @@ import {
   type SetupKind,
   templateText,
 } from "@/setup/rows";
+import { usePreferences } from "@/stores/preferences";
 
 type Doc = Record<string, unknown>;
 
@@ -105,6 +121,10 @@ interface SetupTableProps {
   onSaved: (count: number) => void;
 }
 
+const NONE = "__none";
+/** Columns kept out of the way until asked for (a shop that has no barcodes never needs them). */
+const EXTRA_COLUMNS = ["barcode", "sku"];
+
 const blankRow = (kind: SetupKind): SetupRow => ({
   id: newId(),
   cells: COLUMNS[kind].map(() => ""),
@@ -122,6 +142,8 @@ export function SetupTable({ kind, rows, onRows, onSaved }: SetupTableProps) {
   const run = useCommand();
   const mode = useDataMode();
   const categoryList = useCategories();
+  const locale = usePreferences((s) => s.locale);
+  const [moreFields, setMoreFields] = useState(false);
   const [pasting, setPasting] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [progress, setProgress] = useState<{
@@ -130,6 +152,23 @@ export function SetupTable({ kind, rows, onRows, onSaved }: SetupTableProps) {
   } | null>(null);
 
   const columns = COLUMNS[kind];
+  const hasExtra =
+    kind === "products" &&
+    rows.some((r) =>
+      columns.some(
+        (c, j) => EXTRA_COLUMNS.includes(c.key) && (r.cells[j] ?? "").trim(),
+      ),
+    );
+  // Barcode and SKU only show when asked for (or when pasted rows already carry them).
+  const shown = columns
+    .map((c, j) => ({ c, j }))
+    .filter(
+      ({ c }) =>
+        kind !== "products" ||
+        !EXTRA_COLUMNS.includes(c.key) ||
+        moreFields ||
+        hasExtra,
+    );
   const label = (key: string) => {
     if (key === "balance")
       return t(
@@ -299,7 +338,17 @@ export function SetupTable({ kind, rows, onRows, onSaved }: SetupTableProps) {
   }
 
   const gridStyle = {
-    gridTemplateColumns: `repeat(${columns.length}, minmax(7.5rem, 1fr))`,
+    gridTemplateColumns: `repeat(${shown.length}, minmax(6rem, 1fr))`,
+  };
+  const activeCategories = (categoryList ?? []).filter((c) => c.isActive);
+  const categoryValue = (text: string) => {
+    const key = normalizeSearch(text);
+    if (key === "") return NONE;
+    const found = activeCategories.find(
+      (c) =>
+        normalizeSearch(c.name) === key || normalizeSearch(c.nameBn) === key,
+    );
+    return found ? found.name : text.trim();
   };
 
   return (
@@ -327,6 +376,22 @@ export function SetupTable({ kind, rows, onRows, onSaved }: SetupTableProps) {
           <Plus aria-hidden />
           {t("setup.addRow")}
         </Button>
+        {kind === "products" && !hasExtra ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setMoreFields((v) => !v)}
+            data-testid="setup-more-fields"
+          >
+            {moreFields ? (
+              <ChevronUp aria-hidden />
+            ) : (
+              <ChevronDown aria-hidden />
+            )}
+            {t("setup.moreFields")}
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant="ghost"
@@ -361,7 +426,7 @@ export function SetupTable({ kind, rows, onRows, onSaved }: SetupTableProps) {
               className="hidden gap-2 text-xs font-medium text-muted-foreground md:grid"
               style={gridStyle}
             >
-              {columns.map((c) => (
+              {shown.map(({ c }) => (
                 <span key={c.key}>
                   {label(c.key)}
                   {c.required ? (
@@ -388,36 +453,111 @@ export function SetupTable({ kind, rows, onRows, onSaved }: SetupTableProps) {
                       } as React.CSSProperties
                     }
                   >
-                    {columns.map((c, j) => (
+                    {shown.map(({ c, j }) => (
                       <div
                         key={c.key}
                         className="flex flex-col gap-1 text-xs text-muted-foreground md:contents"
                       >
                         <span aria-hidden className="md:hidden">
                           {label(c.key)}
+                          {c.required ? (
+                            <span className="text-destructive"> *</span>
+                          ) : (
+                            <span className="opacity-70">
+                              {" "}
+                              ({t("setup.optional")})
+                            </span>
+                          )}
                         </span>
-                        <Input
-                          value={cells[j] ?? ""}
-                          onChange={(e) => setCell(row.id, j, e.target.value)}
-                          aria-label={`${label(c.key)} ${f.integer(i + 1)}`}
-                          aria-invalid={!!issues[c.key]}
-                          disabled={saving}
-                          inputMode={
-                            [
-                              "purchasePrice",
-                              "sellingPrice",
-                              "stock",
-                              "lowStock",
-                              "balance",
-                              "barcode",
-                            ].includes(c.key)
-                              ? "decimal"
-                              : c.key === "phone"
-                                ? "tel"
-                                : undefined
-                          }
-                          className="h-9"
-                        />
+                        {c.key === "category" ? (
+                          <Select
+                            value={categoryValue(cells[j] ?? "")}
+                            onValueChange={(v) =>
+                              setCell(row.id, j, v === NONE ? "" : v)
+                            }
+                            disabled={saving}
+                          >
+                            <SelectTrigger
+                              className="h-9 w-full"
+                              aria-label={`${label(c.key)} ${f.integer(i + 1)}`}
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={NONE}>
+                                {t("products.noCategory")}
+                              </SelectItem>
+                              {activeCategories.map((cat) => (
+                                <SelectItem key={cat.id} value={cat.name}>
+                                  {locale === "bn" && cat.nameBn
+                                    ? cat.nameBn
+                                    : cat.name}
+                                </SelectItem>
+                              ))}
+                              {categoryValue(cells[j] ?? "") !== NONE &&
+                              !activeCategories.some(
+                                (cat) =>
+                                  cat.name === categoryValue(cells[j] ?? ""),
+                              ) ? (
+                                <SelectItem
+                                  value={categoryValue(cells[j] ?? "")}
+                                >
+                                  {t("setup.newCategory", {
+                                    name: (cells[j] ?? "").trim(),
+                                  })}
+                                </SelectItem>
+                              ) : null}
+                              {activeCategories.length === 0 ? (
+                                <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                                  {t("setup.noCategoriesYet")}
+                                </p>
+                              ) : null}
+                            </SelectContent>
+                          </Select>
+                        ) : c.key === "unit" ? (
+                          <Select
+                            value={unitOf(cells[j] ?? "") ?? ""}
+                            onValueChange={(v) => setCell(row.id, j, v)}
+                            disabled={saving}
+                          >
+                            <SelectTrigger
+                              className="h-9 w-full"
+                              aria-label={`${label(c.key)} ${f.integer(i + 1)}`}
+                              aria-invalid={!!issues[c.key]}
+                            >
+                              <SelectValue placeholder={t("setup.pickUnit")} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {UNIT_CODES.map((u) => (
+                                <SelectItem key={u} value={u}>
+                                  {t(`units.${u}`)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            value={cells[j] ?? ""}
+                            onChange={(e) => setCell(row.id, j, e.target.value)}
+                            aria-label={`${label(c.key)} ${f.integer(i + 1)}`}
+                            aria-invalid={!!issues[c.key]}
+                            disabled={saving}
+                            inputMode={
+                              [
+                                "purchasePrice",
+                                "sellingPrice",
+                                "stock",
+                                "lowStock",
+                                "balance",
+                              ].includes(c.key)
+                                ? "decimal"
+                                : c.key === "phone"
+                                  ? "tel"
+                                  : undefined
+                            }
+                            className="h-9"
+                          />
+                        )}
                       </div>
                     ))}
                   </div>

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useRecord } from "@/data/hooks";
 import type { Sale, SaleItem } from "@/db/local/types";
 import { Receipt } from "./receipt";
+import { ShareReceiptButton } from "./share-receipt-button";
 
 /** Shown right after a sale: the receipt, ready to print, and a button for the next customer. */
 export function ReceiptDialog({
@@ -45,6 +46,11 @@ export function ReceiptDialog({
             />
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <ShareReceiptButton
+              sale={data.sale}
+              items={data.items}
+              storeName={storeName ?? ""}
+            />
             <Button variant="outline" onClick={() => window.print()}>
               <Printer aria-hidden />
               {t("printReceipt")}

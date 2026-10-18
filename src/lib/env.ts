@@ -8,6 +8,15 @@ const schema = z.object({
     .string()
     .min(32, "BETTER_AUTH_SECRET must be at least 32 characters"),
   BETTER_AUTH_URL: z.url().optional(),
+  // Email (all optional: without them "forgot password" says to contact the developer).
+  // MAIL_TRANSPORT=outbox keeps mails in the database instead of sending them (tests, local tries).
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().optional(),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_SECURE: z.string().optional(),
+  MAIL_FROM: z.string().optional(),
+  MAIL_TRANSPORT: z.enum(["smtp", "outbox"]).optional(),
 });
 
 export type ServerEnv = z.infer<typeof schema>;

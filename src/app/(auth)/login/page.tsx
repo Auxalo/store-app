@@ -102,6 +102,13 @@ export default function LoginPage() {
               {...register("password")}
             />
             <ValidationError error={errors.password} />
+            <Link
+              href="/forgot-password"
+              className="self-start text-sm font-medium text-primary underline-offset-4 hover:underline"
+              data-testid="forgot-link"
+            >
+              {t("forgotPassword")}
+            </Link>
           </Field>
 
           {formError ? (

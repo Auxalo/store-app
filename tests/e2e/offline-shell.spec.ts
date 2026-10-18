@@ -18,6 +18,7 @@ test("app shell works offline after first load", async ({
   await page.getByLabel("দোকানের নাম").fill("রহিম স্টোর");
   await page.getByLabel("আপনার নাম").fill("রহিম উদ্দিন");
   await page.getByLabel("মোবাইল নম্বর বা ইউজারনেম").fill(username);
+  await page.getByLabel("ইমেইল").fill(`${username}@example.test`);
   await page.getByLabel("পাসওয়ার্ড").fill("password123");
   await page.getByRole("button", { name: "দোকান তৈরি করুন" }).click();
   // A new owner starts in the first-time setup; skip it to reach the dashboard.

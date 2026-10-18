@@ -6,6 +6,8 @@ import { username } from "better-auth/plugins";
 import { ObjectId } from "mongodb";
 import { getMongoClient } from "@/db/server/mongo";
 import { serverEnv } from "@/lib/env";
+import { sendMail } from "@/server/mail";
+import { resetPasswordMail } from "@/server/mail-templates";
 import { ensureUserIndexes } from "@/server/sync/collections";
 
 async function createAuth() {
@@ -46,6 +48,17 @@ async function createAuth() {
       enabled: true,
       disableSignUp: true,
       minPasswordLength: 8,
+      // "Forgot password": a link by email, valid for an hour. Someone who sets a new password is
+      // signed out everywhere. (Staff and older owners have no real email: they ask the owner or
+      // the developer, who can set a password for them.)
+      resetPasswordTokenExpiresIn: 60 * 60,
+      revokeSessionsOnPasswordReset: true,
+      sendResetPassword: async ({ user, url }) => {
+        await sendMail({
+          to: user.email,
+          ...resetPasswordMail(user.name, url),
+        });
+      },
     },
     user: {
       additionalFields: {

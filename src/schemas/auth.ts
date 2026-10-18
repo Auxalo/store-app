@@ -19,10 +19,23 @@ export const loginSchema = z.object({
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
-export const ownerSignupSchema = z.object({
+export const emailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(120, { error: "emailInvalid" })
+  .pipe(z.email({ error: "emailInvalid" }));
+
+const ownerFields = z.object({
   storeName: z.string().trim().min(2, { error: "storeNameMin" }).max(80),
   ownerName: z.string().trim().min(2, { error: "ownerNameMin" }).max(80),
   username: usernameSchema,
   password: passwordSchema,
 });
-export type OwnerSignupInput = z.infer<typeof ownerSignupSchema>;
+/** Public sign-up: the owner gives an email, where a forgotten password's link goes. */
+export const ownerSignupSchema = ownerFields.extend({ email: emailSchema });
+/** The operator and `pnpm shop:create` may leave the email out (the owner can add it later). */
+export const ownerCreateSchema = ownerFields.extend({
+  email: emailSchema.optional(),
+});
+export type OwnerSignupInput = z.infer<typeof ownerCreateSchema>;

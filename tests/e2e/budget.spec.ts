@@ -20,10 +20,12 @@ test.afterEach(async ({ page }) => {
 // product list, the dues and stock cards, and their words in both languages: measured 384 / 568 /
 // 576 / 582 / 579 on a desktop. (Reports and the dashboard could load the cards and charts only when
 // opened; worth trimming later.)
+// Raised for the dashboard by about 20 KB for the money in/out cards and the shared invoice button:
+// measured 393 / 576 / 602 / 590 / 588 on a desktop.
 const BUDGET_KB: Record<string, number> = {
   "/login": 405,
   "/pos": 590,
-  "/dashboard": 598,
+  "/dashboard": 622,
   "/reports": 604,
   "/products": 600,
 };

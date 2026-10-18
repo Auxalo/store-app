@@ -104,6 +104,8 @@ function overlaySale(doc: Doc, op: OutboxOp, sign: 1 | -1): Doc {
     saleId?: string;
     customerId: string | null;
     due?: number;
+    voidPayment?: boolean;
+    paymentAmount?: number;
     lines: Array<{ productId: string; qty: number }>;
     discount?: number;
     tendered?: number;
@@ -129,11 +131,16 @@ function overlaySale(doc: Doc, op: OutboxOp, sign: 1 | -1): Doc {
         : null;
     // (The extra kept on the account comes off the balance too: it can leave an advance.)
     const due = t ? t.due + t.creditUsed - (p.toAccount ?? 0) : (p.due ?? 0);
-    return due !== 0
-      ? { ...doc, balance: (doc.balance as number) + sign * due, ...bump }
+    // A cancellation that also cancels the kept-on-account payment puts that money back as owed.
+    const back = sign === -1 && p.voidPayment ? (p.paymentAmount ?? 0) : 0;
+    const delta = sign * due + back;
+    return delta !== 0
+      ? { ...doc, balance: (doc.balance as number) + delta, ...bump }
       : doc;
   }
   if (sign === -1 && p.saleId === doc.id)
+    return { ...doc, status: "voided", voidedAt: op.createdAt, ...bump };
+  if (sign === -1 && p.voidPayment && doc.id === `${p.saleId}:p`)
     return { ...doc, status: "voided", voidedAt: op.createdAt, ...bump };
   return doc;
 }

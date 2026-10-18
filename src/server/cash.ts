@@ -3,13 +3,17 @@ import {
   buildCash,
   type CashEntryRow,
   type CashExpense,
+  type CashInputs,
   type CashPayment,
   type CashPurchase,
   type CashReport,
   type CashReturn,
   type CashSale,
+  type MoneyFlow,
+  moneyFlow,
+  returnsWithMethod,
 } from "@/reports/cash";
-import { rangeBounds } from "@/reports/compute";
+import { type DayRange, rangeBounds } from "@/reports/compute";
 
 const HISTORY_DAYS = 14;
 const MAX_TIME_MS = 8_000;
@@ -19,14 +23,14 @@ const addDays = (day: string, delta: number) => {
   return new Date(Date.UTC(y, m - 1, d + delta)).toISOString().slice(0, 10);
 };
 
-/** The cash drawer's day, from the server's copy of the shop (same rules as the device: src/reports/cash.ts). */
-export async function serverCash(
+/** What moved money in the days of `range` (made in them, or cancelled in them), from the server's copy. */
+export async function serverFlowInputs(
   db: Db,
   storeId: string,
-  day: string,
+  range: DayRange,
   timeZone: string,
-): Promise<CashReport> {
-  const { start, end } = rangeBounds({ from: day, to: day }, timeZone);
+): Promise<CashInputs> {
+  const { start, end } = rangeBounds(range, timeZone);
   const made = { storeId, createdAt: { $gte: start, $lt: end } };
   const find = <T>(
     collection: string,
@@ -74,7 +78,6 @@ export async function serverCash(
     expensesVoided,
     purchases,
     returns,
-    entries,
   ] = await Promise.all([
     find<CashSale>("sales", made, saleFields),
     find<CashSale>(
@@ -99,28 +102,75 @@ export async function serverCash(
       paymentMethod: 1,
       createdAt: 1,
     }),
-    find<CashReturn>("returns", made, {
+    find<CashReturn & { refId: string }>("returns", made, {
       kind: 1,
+      refId: 1,
       total: 1,
       cashBack: 1,
       credited: 1,
       settlement: 1,
       createdAt: 1,
     }),
-    find<Omit<CashEntryRow, "id">>(
-      "cashDrawer",
-      { storeId, day: { $gte: addDays(day, -HISTORY_DAYS), $lte: day } },
-      {
-        day: 1,
-        amount: 1,
-        kind: 1,
-        note: 1,
-        byName: 1,
-        createdAt: 1,
-      },
-    ),
   ]);
 
+  // A refund moves money the way its bill was paid, so look the bills up.
+  const methodsOf = async (collection: string, kind: "sale" | "purchase") => {
+    const ids = [
+      ...new Set(returns.filter((r) => r.kind === kind).map((r) => r.refId)),
+    ];
+    if (ids.length === 0) return new Map<string, string>();
+    const bills = await find<{ paymentMethod?: string }>(
+      collection,
+      { storeId, _id: { $in: ids } },
+      { paymentMethod: 1 },
+    );
+    return new Map(
+      bills.map((b) => [String(b._id), String(b.paymentMethod ?? "cash")]),
+    );
+  };
+  const [saleMethods, purchaseMethods] = await Promise.all([
+    methodsOf("sales", "sale"),
+    methodsOf("purchases", "purchase"),
+  ]);
+
+  return {
+    sales: merge(salesMade, salesVoided),
+    payments: merge(paymentsMade, paymentsVoided),
+    expenses: merge(expensesMade, expensesVoided),
+    purchases,
+    returns: returnsWithMethod(returns, saleMethods, purchaseMethods),
+  };
+}
+
+/** The cash drawer's day, from the server's copy of the shop (same rules as the device: src/reports/cash.ts). */
+export async function serverCash(
+  db: Db,
+  storeId: string,
+  day: string,
+  timeZone: string,
+): Promise<CashReport> {
+  const [inputs, entries] = await Promise.all([
+    serverFlowInputs(db, storeId, { from: day, to: day }, timeZone),
+    db
+      .collection("cashDrawer")
+      .find(
+        { storeId, day: { $gte: addDays(day, -HISTORY_DAYS), $lte: day } },
+        {
+          projection: {
+            day: 1,
+            amount: 1,
+            kind: 1,
+            note: 1,
+            byName: 1,
+            createdAt: 1,
+          },
+        },
+      )
+      .maxTimeMS(MAX_TIME_MS)
+      .toArray() as unknown as Promise<
+      Array<Omit<CashEntryRow, "id"> & { _id: string }>
+    >,
+  ]);
   const rows: CashEntryRow[] = entries.map((e) => ({
     id: String(e._id),
     day: e.day,
@@ -130,16 +180,47 @@ export async function serverCash(
     byName: e.byName,
     createdAt: e.createdAt,
   }));
-  return buildCash(
-    day,
+  return buildCash(day, timeZone, inputs, rows);
+}
+
+/** Money in and out for the days of `range`, by payment method, from the server's copy. */
+export async function serverMoney(
+  db: Db,
+  storeId: string,
+  range: DayRange,
+  timeZone: string,
+): Promise<MoneyFlow> {
+  return moneyFlow(
+    range,
     timeZone,
-    {
-      sales: merge(salesMade, salesVoided),
-      payments: merge(paymentsMade, paymentsVoided),
-      expenses: merge(expensesMade, expensesVoided),
-      purchases,
-      returns,
-    },
-    rows,
+    await serverFlowInputs(db, storeId, range, timeZone),
   );
+}
+
+const cache = new Map<string, { head: number; flow: MoneyFlow }>();
+const CACHE_ENTRIES = 40;
+
+/**
+ * Money in and out for a range, kept in memory until anything changes in the shop (the shop's
+ * change counter moves with every saved change), like the sales report.
+ */
+export async function serverMoneyCached(
+  db: Db,
+  storeId: string,
+  range: DayRange,
+  timeZone: string,
+): Promise<MoneyFlow> {
+  const store = await db
+    .collection<{ _id: string; syncSeq?: number }>("stores")
+    .findOne({ _id: storeId }, { projection: { syncSeq: 1 } });
+  const head = store?.syncSeq ?? 0;
+  const key = `${storeId}|${range.from}|${range.to}|${timeZone}`;
+  const hit = cache.get(key);
+  if (hit && hit.head === head) return hit.flow;
+  const flow = await serverMoney(db, storeId, range, timeZone);
+  cache.delete(key);
+  cache.set(key, { head, flow });
+  if (cache.size > CACHE_ENTRIES)
+    cache.delete(cache.keys().next().value as string);
+  return flow;
 }

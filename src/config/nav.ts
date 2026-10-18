@@ -1,4 +1,5 @@
 import {
+  ArrowLeftRight,
   Banknote,
   Boxes,
   ChartColumn,
@@ -32,6 +33,7 @@ export type NavKey =
   | "returns"
   | "customers"
   | "suppliers"
+  | "money"
   | "expenses"
   | "payments"
   | "reports"
@@ -134,6 +136,13 @@ export const navItems: readonly NavItem[] = [
     phase: 5,
   },
   {
+    key: "money",
+    href: "/money",
+    icon: ArrowLeftRight,
+    group: "money",
+    phase: 7,
+  },
+  {
     key: "expenses",
     href: "/expenses",
     icon: Wallet,
@@ -188,6 +197,7 @@ const NAV_PERMISSION: Partial<Record<NavKey, Permission>> = {
   purchases: "purchase.manage",
   returns: "sale.void",
   suppliers: "purchase.manage",
+  money: "report.view",
   expenses: "expense.manage",
   reports: "report.view",
   settings: "settings.manage",

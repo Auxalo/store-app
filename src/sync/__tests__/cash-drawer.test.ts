@@ -3,9 +3,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PermissionError } from "@/commands/errors";
 import { runCommand } from "@/commands/local/run";
 import { newId } from "@/lib/ids";
-import { loadCash } from "@/reports/cash-local";
+import { loadCash, loadMoney } from "@/reports/cash-local";
 import { dayKey } from "@/reports/compute";
-import { serverCash } from "@/server/cash";
+import { serverCash, serverMoney } from "@/server/cash";
 import { createDevice, type Device } from "../../../tests/helpers/devices";
 import { startMongo, type TestMongo } from "../../../tests/helpers/mongo";
 
@@ -261,5 +261,88 @@ describe("the cash drawer", () => {
       type: "drawer.set",
       lastError: "FORBIDDEN",
     });
+  });
+});
+
+describe("money in and out, by payment method", () => {
+  it("the device and the server give the same figures, with a refund counted under its bill's method", async () => {
+    const shop = await freshShop();
+    const d = await shop.owner();
+    const milk = await addProduct(d);
+
+    // Cash ৳100 and bKash ৳80 sales; ৳50 of the bKash one is refunded.
+    await runCommand(d.db, d.ctx, "sale.create", {
+      id: newId(),
+      lines: [sLine(milk, 2000)],
+      tendered: 20_000,
+    });
+    const bkashSale = newId();
+    await runCommand(d.db, d.ctx, "sale.create", {
+      id: bkashSale,
+      lines: [sLine(milk, 1600)],
+      tendered: 8_000,
+      paymentMethod: "bkash",
+    });
+    await runCommand(d.db, d.ctx, "saleReturn.create", {
+      id: newId(),
+      saleId: bkashSale,
+      lines: [
+        {
+          itemIndex: 0,
+          productId: milk,
+          productName: "Fresh Milk",
+          productNameBn: "",
+          unit: "pcs",
+          qty: 1000,
+          unitPrice: 5000,
+        },
+      ],
+    });
+    // ৳30 of a due collected in Nagad, ৳20 expense through the bank.
+    const customer = newId();
+    await runCommand(d.db, d.ctx, "customer.create", {
+      id: customer,
+      name: "রহিম",
+    });
+    await runCommand(d.db, d.ctx, "payment.collect", {
+      id: newId(),
+      partyId: customer,
+      amount: 3_000,
+      method: "nagad",
+    });
+    await runCommand(d.db, d.ctx, "expense.create", {
+      id: newId(),
+      category: "other",
+      amount: 2_000,
+      date: today(),
+      method: "bank",
+    });
+
+    const range = { from: today(), to: today() };
+    const device = await loadMoney(d.db, range, TZ);
+    expect(device.methods.cash).toMatchObject({ totalIn: 10_000, totalOut: 0 });
+    expect(device.methods.bkash).toMatchObject({
+      sales: 8_000,
+      customerRefunds: 5_000,
+      totalIn: 8_000,
+      totalOut: 5_000,
+    });
+    expect(device.methods.nagad.totalIn).toBe(3_000);
+    expect(device.methods.bank.totalOut).toBe(2_000);
+    expect(device.all).toMatchObject({ totalIn: 21_000, totalOut: 7_000 });
+    // The drawer's cash line is the cash column, and the bKash refund is not taken from it.
+    expect((await loadCash(d.db, today(), TZ)).flow).toEqual(
+      device.methods.cash,
+    );
+
+    await d.sync();
+    expect(await serverMoney(mongo.db, shop.storeId, range, TZ)).toEqual(
+      device,
+    );
+    // A wider range sees the same today.
+    const wide = { from: dayKey(Date.now() - 3 * 86_400_000, TZ), to: today() };
+    expect(await serverMoney(mongo.db, shop.storeId, wide, TZ)).toEqual(
+      await loadMoney(d.db, wide, TZ),
+    );
   });
 });

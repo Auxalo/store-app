@@ -54,6 +54,8 @@ export default defineConfig({
         NEXT_PUBLIC_SIGNUP_ENABLED: "1",
         // Tests sign in far more often than any person would; production keeps the limiter on.
         E2E_DISABLE_RATE_LIMIT: "1",
+        // Mails go to the database (the `mailOutbox` collection) so tests can read the reset link.
+        MAIL_TRANSPORT: "outbox",
       },
       timeout: 300_000,
     },

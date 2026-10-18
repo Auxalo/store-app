@@ -47,6 +47,14 @@ export async function undoLocalEffects(
   const ledger = (
     await db.ledgerEntries.where("id").startsWith(`${root}:`).toArray()
   ).filter((l) => mine(l.id));
+  // A sale cancelled together with its kept-on-account payment also wrote that payment's reversal.
+  const withPayment =
+    op.type === "sale.void" &&
+    (op.payload as { voidPayment?: boolean }).voidPayment === true;
+  if (withPayment) {
+    const reversal = await db.ledgerEntries.get(`${root}:p:vl`);
+    if (reversal) ledger.push(reversal);
+  }
 
   // What they moved, taken back.
   const stock = new Map<string, number>();
@@ -101,6 +109,16 @@ export async function undoLocalEffects(
 
   // A cancellation that did not happen: the sale is as it was.
   if (op.type === "sale.void") {
+    if (withPayment) {
+      const payment = await db.payments.get(`${root}:p`);
+      if (payment?.status === "voided")
+        await db.payments.update(payment.id, {
+          status: "active",
+          voidReason: undefined,
+          voidedAt: undefined,
+          voidedBy: undefined,
+        });
+    }
     const sale = await db.sales.get(root);
     if (sale?.status === "voided")
       await db.sales.update(root, {

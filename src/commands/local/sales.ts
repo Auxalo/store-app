@@ -10,7 +10,7 @@ import {
 import { derivedSearchFields } from "@/lib/search-fields";
 import type { CommandInput, CommandPayload } from "../definitions";
 import { AlreadyExistsError, ConflictError, NotFoundError } from "../errors";
-import { paymentCreate } from "./purchasing";
+import { paymentCreate, paymentVoid } from "./purchasing";
 import type { LocalContext } from "./registry";
 
 /**
@@ -390,10 +390,22 @@ export async function saleVoid(
     updatedAt: now,
   });
 
+  // The extra this sale kept on the customer's account is a payment of its own: it is cancelled
+  // here too when asked (the sale is already marked cancelled, so the payment may go).
+  let paymentAmount = 0;
+  if (input.voidPayment) {
+    const linked = await db.payments.get(saleRecordIds.payment(sale.id));
+    if (linked && linked.status !== "voided") {
+      await paymentVoid(db, ctx, { id: linked.id, reason: input.reason }, now);
+      paymentAmount = linked.amount;
+    }
+  }
+
   return {
     ...input,
     customerId: sale.customerId,
     due: dueLeft,
+    paymentAmount,
     lines: left.filter((l) => l.qty > 0),
   };
 }

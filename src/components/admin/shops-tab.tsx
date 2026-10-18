@@ -314,6 +314,10 @@ function NewShopDialog({
         ownerName: String(form.get("ownerName") ?? ""),
         username: String(form.get("username") ?? ""),
         password: String(form.get("password") ?? ""),
+        // Optional: the owner can add it later in Settings.
+        ...(String(form.get("email") ?? "").trim()
+          ? { email: String(form.get("email")).trim() }
+          : {}),
         billing,
       },
     });
@@ -349,6 +353,12 @@ function NewShopDialog({
             placeholder="Username (a phone number works)"
             autoCapitalize="none"
             required
+          />
+          <Input
+            name="email"
+            type="email"
+            placeholder="Owner's email (optional, for password reset)"
+            autoCapitalize="none"
           />
           <Input
             name="password"

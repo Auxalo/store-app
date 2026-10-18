@@ -3,13 +3,22 @@ import { getAuth } from "@/auth/server";
 import type { BillingMode } from "@/billing/state";
 import { getDb } from "@/db/server/mongo";
 import { DEFAULT_CURRENCY, DEFAULT_TIME_ZONE } from "@/lib/constants";
+import { serverEnv } from "@/lib/env";
 import { newId } from "@/lib/ids";
 import type { OwnerSignupInput } from "@/schemas/auth";
 import { getPlatformBilling, initialBilling } from "./billing-settings";
+import { sendMail } from "./mail";
+import { welcomeMail } from "./mail-templates";
 
 export class UsernameTakenError extends Error {
   constructor() {
     super("USERNAME_TAKEN");
+  }
+}
+
+export class EmailTakenError extends Error {
+  constructor() {
+    super("EMAIL_TAKEN");
   }
 }
 
@@ -61,7 +70,19 @@ export async function createStoreWithOwner(
       displayName: input.ownerName,
       password: input.password,
       role: "owner",
+      email: input.email,
     });
+    // A welcome mail with the username (never the password), best effort.
+    if (input.email) {
+      const base = serverEnv().BETTER_AUTH_URL ?? "";
+      const mail = welcomeMail(
+        input.ownerName,
+        input.storeName,
+        username,
+        base ? `${base.replace(/\/$/, "")}/login` : "",
+      );
+      await sendMail({ to: input.email, ...mail });
+    }
     return { storeId, userId: user.id };
   } catch (error) {
     await db.collection("stores").deleteOne({ _id: storeId } as never);
@@ -75,6 +96,8 @@ export async function createStoreUser(params: {
   displayName: string;
   password: string;
   role: "owner" | "manager" | "cashier";
+  /** A real address (the owner's, for "forgot password"); staff have none and get a made-up one. */
+  email?: string;
 }) {
   const auth = await getAuth();
   const ctx = await auth.$context;
@@ -85,12 +108,20 @@ export async function createStoreUser(params: {
     where: [{ field: "username", value: username }],
   });
   if (existing) throw new UsernameTakenError();
+  const email = params.email?.trim().toLowerCase();
+  if (email) {
+    const taken = await ctx.adapter.findOne({
+      model: "user",
+      where: [{ field: "email", value: email }],
+    });
+    if (taken) throw new EmailTakenError();
+  }
 
   let user: Awaited<ReturnType<typeof ctx.internalAdapter.createUser>>;
   try {
     user = await ctx.internalAdapter.createUser(
       {
-        email: syntheticEmail(username),
+        email: email ?? syntheticEmail(username),
         emailVerified: true,
         name: params.displayName,
         username,
@@ -102,9 +133,12 @@ export async function createStoreUser(params: {
       { method: "admin" },
     );
   } catch (error) {
-    // Unique index race (two signups with the same username at once).
+    // Unique index race (two signups with the same username or email at once).
     if ((error as { code?: number })?.code === 11000)
-      throw new UsernameTakenError();
+      throw (error as { keyPattern?: Record<string, unknown> }).keyPattern
+        ?.email
+        ? new EmailTakenError()
+        : new UsernameTakenError();
     throw error;
   }
 

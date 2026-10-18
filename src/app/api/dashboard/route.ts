@@ -4,6 +4,7 @@ import { can } from "@/auth/permissions";
 import { parseListParams } from "@/data/spec";
 import { presetRange } from "@/reports/ranges";
 import { requireActor } from "@/server/actor-request";
+import { serverMoneyCached } from "@/server/cash";
 import {
   listResource,
   stockSummary,
@@ -46,35 +47,53 @@ export async function GET(request: Request) {
         timeZone,
       );
 
-    const [today, yesterday, trend, customers, suppliers, low, recent, stock] =
-      await Promise.all([
-        summary("today"),
-        summary("yesterday"),
-        summary(days),
-        totalsOf(db, "customers", parseListParams("customers", {}), viewer),
-        can(actor.role, "purchase.manage")
-          ? totalsOf(db, "suppliers", parseListParams("suppliers", {}), viewer)
-          : Promise.resolve({ owed: 0 } as Record<string, number>),
-        listResource(
-          db,
-          "products",
-          parseListParams("products", {
-            stock: "low",
-            active: "active",
-            sort: "stock",
-          }),
-          viewer,
-          { limit: 6 },
-        ),
-        listResource(
-          db,
-          "sales",
-          parseListParams("sales", { status: "active", sort: "newest" }),
-          viewer,
-          { limit: 6 },
-        ),
-        stockSummary(db, viewer),
-      ]);
+    const [
+      today,
+      yesterday,
+      trend,
+      customers,
+      suppliers,
+      low,
+      recent,
+      stock,
+      money,
+    ] = await Promise.all([
+      summary("today"),
+      summary("yesterday"),
+      summary(days),
+      totalsOf(db, "customers", parseListParams("customers", {}), viewer),
+      can(actor.role, "purchase.manage")
+        ? totalsOf(db, "suppliers", parseListParams("suppliers", {}), viewer)
+        : Promise.resolve({ owed: 0 } as Record<string, number>),
+      listResource(
+        db,
+        "products",
+        parseListParams("products", {
+          stock: "low",
+          active: "active",
+          sort: "stock",
+        }),
+        viewer,
+        { limit: 6 },
+      ),
+      listResource(
+        db,
+        "sales",
+        parseListParams("sales", { status: "active", sort: "newest" }),
+        viewer,
+        { limit: 6 },
+      ),
+      stockSummary(db, viewer),
+      // What came in and went out today: only for people who may see the money reports.
+      can(actor.role, "report.view")
+        ? serverMoneyCached(
+            db,
+            actor.storeId,
+            presetRange("today", timeZone),
+            timeZone,
+          )
+        : Promise.resolve(null),
+    ]);
 
     const seeProfit = can(actor.role, "profit.view");
     const shown = (s: typeof today) => (seeProfit ? s : hideProfit(s));
@@ -89,6 +108,9 @@ export async function GET(request: Request) {
       stock: { costValue: stock.costValue, retailValue: stock.retailValue },
       low: low.items,
       recent: recent.items,
+      money: money
+        ? { totalIn: money.all.totalIn, totalOut: money.all.totalOut }
+        : null,
     });
   } catch (error) {
     return errorResponse(error);

@@ -19,6 +19,8 @@ export interface DashboardData {
   stock: { costValue: number; retailValue: number };
   low: Product[];
   recent: Sale[];
+  /** Today's money in and out (null for people who may not see money reports). */
+  money: { totalIn: number; totalOut: number } | null;
 }
 
 /**

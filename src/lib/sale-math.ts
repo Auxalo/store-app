@@ -66,6 +66,11 @@ export function qtyByProduct(
  * Ids of the records a sale creates besides the sale itself. They are derived from the sale id,
  * so the device and the server always agree on them and a retry can never create a second copy.
  */
+/** The sale that kept this payment on the customer's account (its id ends ":p"), or null. */
+export function saleIdOfPayment(paymentId: string): string | null {
+  return paymentId.endsWith(":p") ? paymentId.slice(0, -2) : null;
+}
+
 export const saleRecordIds = {
   item: (saleId: string, index: number) => `${saleId}:i${index}`,
   movement: (saleId: string, index: number) => `${saleId}:m${index}`,

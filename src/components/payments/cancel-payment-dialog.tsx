@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -14,8 +15,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { useCommand } from "@/data/hooks";
+import { useCommand, useRecord } from "@/data/hooks";
 import { useFormat } from "@/i18n/use-format";
+import { saleIdOfPayment } from "@/lib/sale-math";
 
 /**
  * Cancels a payment that was recorded by mistake. It is never deleted: it stays on record, marked
@@ -34,8 +36,19 @@ export function CancelPaymentDialog({
   const run = useCommand();
   const [reason, setReason] = useState("");
 
+  // Money a sale kept on the account belongs to that sale: while the sale stands, it is cancelled
+  // from the sale (which can take this money with it), not from here.
+  const saleId = payment ? saleIdOfPayment(payment.id) : null;
+  const sale = useRecord("sales", saleId);
+  const saleRecord = sale.record as
+    | { id: string; invoiceNo?: string; status?: string }
+    | undefined;
+  const linkedSale =
+    saleRecord && saleRecord.status !== "voided" ? saleRecord : null;
+  const checking = !!saleId && sale.status === "loading";
+
   async function cancel() {
-    if (!payment || !reason.trim()) return;
+    if (!payment || !reason.trim() || linkedSale || checking) return;
     try {
       await run("payment.void", { id: payment.id, reason: reason.trim() });
       setReason("");
@@ -62,6 +75,20 @@ export function CancelPaymentDialog({
             {t("voidBody")}
           </AlertDialogDescription>
         </AlertDialogHeader>
+        {linkedSale ? (
+          <p
+            className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-sm"
+            data-testid="payment-linked-sale"
+          >
+            {t("linkedToSale", { invoice: linkedSale.invoiceNo ?? "" })}{" "}
+            <Link
+              href={`/sales/view?id=${linkedSale.id}`}
+              className="font-medium text-primary underline"
+            >
+              {t("openSale")}
+            </Link>
+          </p>
+        ) : null}
         <Input
           value={reason}
           maxLength={200}
@@ -73,7 +100,7 @@ export function CancelPaymentDialog({
         <AlertDialogFooter>
           <AlertDialogCancel>{tc("cancel")}</AlertDialogCancel>
           <AlertDialogAction
-            disabled={!reason.trim()}
+            disabled={!reason.trim() || !!linkedSale || checking}
             onClick={() => void cancel()}
             data-testid="payment-void-confirm"
           >

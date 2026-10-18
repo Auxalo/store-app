@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
+import { AccountEmailCard } from "@/components/settings/account-email-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -251,6 +252,8 @@ export function SettingsScreen() {
           </form>
         </CardContent>
       </Card>
+
+      {role === "owner" ? <AccountEmailCard /> : null}
 
       <Card>
         <CardHeader>

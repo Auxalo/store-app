@@ -31,9 +31,12 @@ export function rangeOf(state: RangeState, timeZone: string): DayRange {
 export function RangePicker({
   value,
   onChange,
+  presets = PRESETS,
 }: {
   value: RangeState;
   onChange: (next: RangeState) => void;
+  /** Which quick ranges to offer (all of them by default). */
+  presets?: RangePreset[];
 }) {
   const t = useTranslations("reports.range");
   return (
@@ -46,7 +49,7 @@ export function RangePicker({
           }
         >
           <TabsList>
-            {PRESETS.map((p) => (
+            {presets.map((p) => (
               <TabsTrigger key={p} value={p} className="px-3">
                 {t(p)}
               </TabsTrigger>

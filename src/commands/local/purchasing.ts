@@ -2,12 +2,12 @@ import type { StoreDB } from "@/db/local/db";
 import { divRound } from "@/lib/money";
 import { lineTotal } from "@/lib/qty";
 import { refundAmounts, resolveSplit } from "@/lib/refund";
-import { qtyByProduct } from "@/lib/sale-math";
+import { qtyByProduct, saleIdOfPayment } from "@/lib/sale-math";
 import { derivedSearchFields } from "@/lib/search-fields";
 import { purchaseTotals } from "@/schemas/purchase";
 import { returnTotal } from "@/schemas/return";
 import type { CommandInput, CommandPayload } from "../definitions";
-import { AlreadyExistsError, NotFoundError } from "../errors";
+import { AlreadyExistsError, ConflictError, NotFoundError } from "../errors";
 import type { LocalContext } from "./registry";
 import { nextDocNo } from "./sales";
 
@@ -314,6 +314,14 @@ export async function paymentVoid(
   const payment = await db.payments.get(input.id);
   if (!payment) throw new NotFoundError("payment");
   if (payment.status === "voided") throw new AlreadyExistsError("void");
+  // Money a sale kept on the account belongs to that sale: cancel the sale first (it can take the
+  // payment with it), otherwise the books would disagree.
+  const saleId = saleIdOfPayment(payment.id);
+  if (saleId) {
+    const sale = await db.sales.get(saleId);
+    if (sale && sale.status !== "voided")
+      throw new ConflictError("LINKED_TO_SALE");
+  }
   // The balance goes back when the person is still on the books; a deleted one has nothing to fix.
   await adjustParty(
     db,

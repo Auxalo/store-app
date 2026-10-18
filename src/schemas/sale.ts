@@ -94,11 +94,15 @@ export const saleCreatePayload = saleBase
 export const saleVoidInput = z.object({
   saleId: idSchema,
   reason: text(200).default(""),
+  /** Also cancel the extra this sale kept on the customer's account (a payment of its own). */
+  voidPayment: z.boolean().default(false),
 });
 /** The device fills in what the sale touched so unsynced voids can be replayed on screen. */
 export const saleVoidPayload = saleVoidInput.extend({
   customerId: idSchema.nullable(),
   due: money,
+  /** The amount of the kept-on-account payment cancelled together with the sale (0 when none). */
+  paymentAmount: money.optional(),
   /** What goes back into stock: the goods not already returned (none, if all of it had come back). */
   lines: z.array(
     z.object({ productId: idSchema, qty: z.number().int().min(1) }),
