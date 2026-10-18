@@ -1082,3 +1082,140 @@ describe("returns, store credit and the way a refund is settled (device)", () =>
     expect(await serverBalance("suppliers", supplier)).toBe(15_000);
   });
 });
+
+describe("a sale that kept money on the account and its payment go together", () => {
+  // ৳50 bill, ৳300 handed over, ৳250 kept on the account (advance, since nothing was owed).
+  async function soldWithAdvance(d: Device) {
+    const milk = await addProduct(d);
+    const customer = await addCustomer(d);
+    const id = await sellTo(d, [sLine(milk, 1000)], {
+      customerId: customer,
+      customerName: "রহিম",
+      tendered: 30_000,
+      toAccount: 25_000,
+    });
+    return { id, customer, milk };
+  }
+
+  it("the payment cannot be cancelled by itself while its sale stands", async () => {
+    const d = await newDevice();
+    const { id, customer } = await soldWithAdvance(d);
+    expect((await d.db.customers.get(customer))?.balance).toBe(-25_000);
+    await expect(
+      runCommand(d.db, d.ctx, "payment.void", { id: `${id}:p`, reason: "x" }),
+    ).rejects.toThrow(/LINKED_TO_SALE/);
+    expect((await d.db.payments.get(`${id}:p`))?.status).not.toBe("voided");
+    expect((await d.db.customers.get(customer))?.balance).toBe(-25_000);
+  });
+
+  it("cancelling only the sale leaves the payment, which can then be cancelled on its own", async () => {
+    const d = await newDevice();
+    const { id, customer } = await soldWithAdvance(d);
+    await runCommand(d.db, d.ctx, "sale.void", { saleId: id, reason: "x" });
+    expect((await d.db.sales.get(id))?.status).toBe("voided");
+    expect((await d.db.payments.get(`${id}:p`))?.status).not.toBe("voided");
+    expect((await d.db.customers.get(customer))?.balance).toBe(-25_000);
+    await runCommand(d.db, d.ctx, "payment.void", {
+      id: `${id}:p`,
+      reason: "x",
+    });
+    expect((await d.db.customers.get(customer))?.balance).toBe(0);
+  });
+
+  it("cancelling the sale with its payment puts the account back, on device and server", async () => {
+    const d = await newDevice();
+    const { id, customer, milk } = await soldWithAdvance(d);
+    await d.sync();
+    await runCommand(d.db, d.ctx, "sale.void", {
+      saleId: id,
+      reason: "wrong bill",
+      voidPayment: true,
+    });
+    expect((await d.db.sales.get(id))?.status).toBe("voided");
+    expect(await d.db.payments.get(`${id}:p`)).toMatchObject({
+      status: "voided",
+    });
+    expect((await d.db.customers.get(customer))?.balance).toBe(0);
+    expect(await stock(d, milk)).toBe(10_000);
+    expect(await d.db.ledgerEntries.get(`${id}:p:vl`)).toMatchObject({
+      refType: "payment_void",
+      amountDelta: 25_000,
+    });
+
+    await d.sync();
+    expect(
+      await mongo.db
+        .collection("payments")
+        .findOne({ _id: `${id}:p` as never }),
+    ).toMatchObject({ status: "voided" });
+    expect(
+      (
+        await mongo.db
+          .collection("customers")
+          .findOne({ _id: customer as never })
+      )?.balance,
+    ).toBe(0);
+    // A second device sees the same, with no second payment cancellation.
+    const other = await newDevice();
+    await pullAll(other.db, other.transport);
+    expect((await other.db.customers.get(customer))?.balance).toBe(0);
+    expect((await other.db.payments.get(`${id}:p`))?.status).toBe("voided");
+  });
+
+  it("the server refuses a lone cancellation of the payment while the sale stands, and the device goes back", async () => {
+    const d = await newDevice();
+    const { id, customer } = await soldWithAdvance(d);
+    await d.sync();
+    // A stale screen thinks the sale is already cancelled, so it lets the payment be cancelled.
+    await d.db.sales.update(id, { status: "voided" });
+    await runCommand(d.db, d.ctx, "payment.void", {
+      id: `${id}:p`,
+      reason: "x",
+    });
+    expect((await d.db.customers.get(customer))?.balance).toBe(0);
+    await d.sync();
+    const op = (await d.db.outbox.toArray()).find(
+      (o) => o.type === "payment.void",
+    );
+    expect(op).toMatchObject({ status: "failed", lastError: "LINKED_TO_SALE" });
+    expect((await d.db.payments.get(`${id}:p`))?.status).not.toBe("voided");
+    expect((await d.db.customers.get(customer))?.balance).toBe(-25_000);
+    expect(
+      (
+        await mongo.db
+          .collection("customers")
+          .findOne({ _id: customer as never })
+      )?.balance,
+    ).toBe(-25_000);
+  });
+
+  it("a refused cancellation (sale and payment) is undone on screen, payment included", async () => {
+    const d = await newDevice();
+    const { id, customer } = await soldWithAdvance(d);
+    await d.sync();
+    // The server has returns on it (so it refuses the cancellation).
+    await mongo.db.collection("returns").insertOne({
+      _id: newId() as never,
+      storeId,
+      kind: "sale",
+      refId: id,
+      total: 1,
+      createdAt: new Date().toISOString(),
+    } as never);
+    await runCommand(d.db, d.ctx, "sale.void", {
+      saleId: id,
+      reason: "x",
+      voidPayment: true,
+    });
+    expect((await d.db.customers.get(customer))?.balance).toBe(0);
+    await d.sync();
+    const op = (await d.db.outbox.toArray()).find(
+      (o) => o.type === "sale.void",
+    );
+    expect(op).toMatchObject({ status: "failed", lastError: "HAS_RETURNS" });
+    expect((await d.db.sales.get(id))?.status).toBe("active");
+    expect((await d.db.payments.get(`${id}:p`))?.status).not.toBe("voided");
+    expect((await d.db.customers.get(customer))?.balance).toBe(-25_000);
+    expect(await d.db.ledgerEntries.get(`${id}:p:vl`)).toBeUndefined();
+  });
+});

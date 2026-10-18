@@ -2,7 +2,7 @@ import type { CommandPayload } from "@/commands/definitions";
 import { divRound } from "@/lib/money";
 import { lineTotal } from "@/lib/qty";
 import { refundAmounts, resolveSplit } from "@/lib/refund";
-import { qtyByProduct } from "@/lib/sale-math";
+import { qtyByProduct, saleIdOfPayment } from "@/lib/sale-math";
 import { derivedSearchFields } from "@/lib/search-fields";
 import { purchaseTotals } from "@/schemas/purchase";
 import { returnTotal } from "@/schemas/return";
@@ -379,6 +379,19 @@ export async function paymentVoid(
   if (!payment) return { status: "rejected", error: "NOT_FOUND" };
   if (payment.status === "voided")
     return { status: "applied", docs: [wire("payments", payment)] };
+
+  // Money a sale kept on the account belongs to that sale: it goes with the sale, not on its own.
+  const saleId = saleIdOfPayment(p.id);
+  if (saleId) {
+    const sale = await ctx.db
+      .collection<{ _id: string; status?: string }>("sales")
+      .findOne({ _id: saleId, storeId: ctx.storeId } as never, {
+        session: ctx.session,
+        projection: { status: 1 },
+      });
+    if (sale && sale.status !== "voided")
+      return { status: "rejected", error: "LINKED_TO_SALE" };
+  }
 
   const party = await liveParty(ctx, payment.partyType, payment.partyId);
   const seq = await allocSeq(ctx.db, ctx.session, ctx.storeId, 3);

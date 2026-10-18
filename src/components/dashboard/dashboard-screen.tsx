@@ -2,6 +2,8 @@
 
 import {
   AlertTriangle,
+  ArrowDownLeft,
+  ArrowUpRight,
   Banknote,
   ReceiptText,
   ShoppingBasket,
@@ -27,6 +29,7 @@ import { useFormat } from "@/i18n/use-format";
 import { SETUP_SETTING } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { changeBetween } from "@/reports/compare";
+import { useLocalMoney } from "@/reports/use-cash";
 import { useStockHeader } from "@/reports/use-reports";
 import { presetRange, useSummary } from "@/reports/use-summary";
 import { usePreferences } from "@/stores/preferences";
@@ -82,6 +85,18 @@ export function DashboardScreen() {
     { status: "active", sort: "newest" },
     { pageSize: 6, enabled: !online },
   );
+  // What came in and went out today (owners and managers).
+  const showMoney = can(role, "report.view");
+  const moneyLocal = useLocalMoney(
+    presetRange("today", timeZone),
+    !online && showMoney,
+  );
+  const money = online
+    ? (remote.data?.money ?? undefined)
+    : moneyLocal && {
+        totalIn: moneyLocal.all.totalIn,
+        totalOut: moneyLocal.all.totalOut,
+      };
   const today = online ? remote.data?.today : todayLocal;
   const yesterday = online ? remote.data?.yesterday : yesterdayLocal;
   const trend = online ? remote.data?.trend : trendLocal;
@@ -223,6 +238,47 @@ export function DashboardScreen() {
           />
         ))}
       </div>
+
+      {showMoney ? (
+        <div className="grid grid-cols-2 gap-2" data-testid="money-today">
+          {(["in", "out"] as const).map((dir) => {
+            const incoming = dir === "in";
+            const Icon = incoming ? ArrowDownLeft : ArrowUpRight;
+            return (
+              <Link
+                key={dir}
+                href="/money"
+                className={cn(
+                  "flex flex-col gap-1 rounded-xl border border-l-4 bg-card p-3 transition-colors hover:bg-muted/40",
+                  incoming ? "border-l-emerald-500" : "border-l-rose-500",
+                )}
+                data-testid={`money-today-${dir}`}
+              >
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Icon
+                    className={cn(
+                      "size-3.5",
+                      incoming ? "text-emerald-600" : "text-rose-600",
+                    )}
+                    aria-hidden
+                  />
+                  {t(incoming ? "moneyInToday" : "moneyOutToday")}
+                </span>
+                {money ? (
+                  <span
+                    className="text-xl font-bold tabular-nums"
+                    data-testid={`money-today-${dir}-total`}
+                  >
+                    {f.money(incoming ? money.totalIn : money.totalOut)}
+                  </span>
+                ) : (
+                  <Skeleton className="h-7 w-24" />
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      ) : null}
 
       {showWorth ? <StoreWorth figures={worthFigures} /> : null}
 

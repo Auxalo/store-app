@@ -17,11 +17,13 @@ import { changeBetween } from "@/reports/compare";
 import type { Summary } from "@/reports/compute";
 import { KpiCard } from "./kpi-card";
 
-const METHOD_COLOUR: Record<string, string> = {
+export const METHOD_COLOUR: Record<string, string> = {
   cash: "bg-emerald-500",
   bkash: "bg-pink-500",
   nagad: "bg-orange-500",
+  rocket: "bg-purple-500",
   card: "bg-sky-500",
+  bank: "bg-indigo-500",
   other: "bg-slate-400",
 };
 

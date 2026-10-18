@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 import { z } from "zod";
 import { endOfDhakaDay } from "@/billing/state";
-import { ownerSignupSchema } from "@/schemas/auth";
+import { ownerCreateSchema } from "@/schemas/auth";
 import { dayKeySchema } from "@/schemas/billing";
 import { listShops, logAdminAction } from "@/server/admin-shops";
 import { createStoreWithOwner, UsernameTakenError } from "@/server/onboarding";
@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   }
 }
 
-const createSchema = ownerSignupSchema.extend({
+const createSchema = ownerCreateSchema.extend({
   billing: z
     .object({
       mode: z.enum(["off", "free", "paid"]),

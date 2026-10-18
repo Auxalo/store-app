@@ -7,15 +7,21 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import type { z } from "zod";
 import { authClient } from "@/auth/client";
 import { ValidationError } from "@/components/shared/field-text";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Button } from "@/components/ui/button";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { DEVELOPER } from "@/config/developer";
 import { SIGNUP_OPEN } from "@/config/signup";
-import { type OwnerSignupInput, ownerSignupSchema } from "@/schemas/auth";
+import { ownerSignupSchema } from "@/schemas/auth";
 import { useActiveUser } from "@/stores/active-user";
 
 export default function SignupPage() {
@@ -28,9 +34,15 @@ export default function SignupPage() {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<OwnerSignupInput>({
+  } = useForm<z.input<typeof ownerSignupSchema>>({
     resolver: zodResolver(ownerSignupSchema),
-    defaultValues: { storeName: "", ownerName: "", username: "", password: "" },
+    defaultValues: {
+      storeName: "",
+      ownerName: "",
+      username: "",
+      email: "",
+      password: "",
+    },
   });
 
   const onSubmit = handleSubmit(async (values) => {
@@ -56,7 +68,16 @@ export default function SignupPage() {
       return;
     }
     if (response.status === 409) {
-      setFormError(t("usernameTaken"));
+      const body = (await response.json().catch(() => null)) as {
+        code?: string;
+      } | null;
+      setFormError(
+        body?.code === "EMAIL_TAKEN" ? t("emailTaken") : t("usernameTaken"),
+      );
+      return;
+    }
+    if (response.status === 429) {
+      setFormError(t("tooManyTries"));
       return;
     }
     if (!response.ok) {
@@ -156,6 +177,22 @@ export default function SignupPage() {
             <ValidationError error={errors.username} />
           </Field>
 
+          <Field data-invalid={!!errors.email}>
+            <FieldLabel htmlFor="email">{t("email")}</FieldLabel>
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              inputMode="email"
+              aria-invalid={!!errors.email}
+              {...register("email")}
+            />
+            <ValidationError error={errors.email} />
+            <FieldDescription>{t("emailHint")}</FieldDescription>
+          </Field>
+
           <Field data-invalid={!!errors.password}>
             <FieldLabel htmlFor="password">{t("password")}</FieldLabel>
             <Input
@@ -182,6 +219,21 @@ export default function SignupPage() {
           </Button>
         </FieldGroup>
       </form>
+
+      <p
+        className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground"
+        data-testid="signup-dev-note"
+      >
+        {t("devCreatesAccount", { name: DEVELOPER.name })}{" "}
+        <a
+          href={DEVELOPER.whatsappUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-primary underline-offset-4 hover:underline"
+        >
+          WhatsApp {DEVELOPER.whatsapp}
+        </a>
+      </p>
 
       <p className="text-center text-sm text-muted-foreground">
         {t("haveAccount")}{" "}

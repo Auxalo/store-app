@@ -79,6 +79,7 @@ export function applyResultToCache(
         case "categories":
           return touched.has("categories");
         case "summary":
+        case "money":
           return [...touched].some((c) => REPORT_SOURCES.has(c));
         case "movement-summary":
           return touched.has("stockMovements") || touched.has("products");

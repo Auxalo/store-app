@@ -95,15 +95,15 @@ export function SetupScreen() {
         </Button>
       </div>
 
-      <ol className="flex gap-1 overflow-x-auto" aria-label={t("title")}>
+      <ol className="grid grid-cols-5 gap-1" aria-label={t("title")}>
         {STEPS.map((s, i) => (
-          <li key={s} className="flex-1">
+          <li key={s} className="min-w-0">
             <button
               type="button"
               onClick={() => go(s)}
               aria-current={s === step ? "step" : undefined}
               data-testid={`setup-step-${s}`}
-              className={`flex w-full min-w-24 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-medium ${
+              className={`flex w-full min-w-0 items-center justify-center gap-1.5 rounded-lg border px-1 py-2 text-xs font-medium ${
                 s === step
                   ? "border-primary bg-primary/10 text-primary"
                   : i < index
@@ -122,11 +122,22 @@ export function SetupScreen() {
                   i + 1
                 )}
               </span>
-              {t(`steps.${s}`)}
+              <span
+                className={`truncate ${s === step ? "" : "hidden sm:inline"}`}
+              >
+                {t(`steps.${s}`)}
+              </span>
             </button>
           </li>
         ))}
       </ol>
+      <p className="text-xs text-muted-foreground" data-testid="setup-step-of">
+        {t("stepOf", {
+          n: f.integer(index + 1),
+          total: f.integer(STEPS.length),
+          name: t(`steps.${step}`),
+        })}
+      </p>
 
       {step === "store" ? (
         <Card>
@@ -178,6 +189,12 @@ export function SetupScreen() {
           <CardHeader>
             <CardTitle className="text-base">{t(`steps.${step}`)}</CardTitle>
             <p className="text-sm text-muted-foreground">{t(`${step}Intro`)}</p>
+            <p
+              className="rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary"
+              data-testid="setup-later-note"
+            >
+              {t("laterNote")}
+            </p>
             {step === "customers" || step === "suppliers" ? (
               <p className="text-xs text-muted-foreground">
                 {t("balanceHint")}
@@ -240,7 +257,9 @@ export function SetupScreen() {
             onClick={() => go(STEPS[index + 1])}
             data-testid="setup-next"
           >
-            {rows[step as SetupKind].length > 0 ? t("nextWithout") : t("next")}
+            {rows[step as SetupKind].length > 0
+              ? t("nextWithout")
+              : t("nextLater")}
           </Button>
         </div>
       ) : null}

@@ -10,6 +10,7 @@ export async function signUpToSetup(
   await page.getByLabel("দোকানের নাম").fill(storeName);
   await page.getByLabel("আপনার নাম").fill("রহিম উদ্দিন");
   await page.getByLabel("মোবাইল নম্বর বা ইউজারনেম").fill(username);
+  await page.getByLabel("ইমেইল").fill(`${username}@example.test`);
   await page.getByLabel("পাসওয়ার্ড").fill("password123");
   await page.getByRole("button", { name: "দোকান তৈরি করুন" }).click();
   await expect(page).toHaveURL(/\/settings\/setup$/);

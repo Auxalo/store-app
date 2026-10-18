@@ -14,7 +14,7 @@ import { allocSeq } from "../sync/txn";
 import type { StoredDoc } from "./master-data";
 import { toWire } from "./master-data";
 import type { StoredMovement } from "./products";
-import { paymentCreate } from "./purchasing";
+import { paymentCreate, paymentVoid } from "./purchasing";
 import type { ApplyResult, ServerCtx } from "./types";
 
 interface StoredSaleItem {
@@ -574,6 +574,24 @@ export async function saleVoid(
       .collection<StoredLedger>("ledgerEntries")
       .insertOne(entry, { session: ctx.session });
     docs.push(wire("ledgerEntries", entry));
+  }
+
+  // The extra this sale kept on the customer's account is a payment of its own: it is cancelled
+  // too when asked (the sale is already marked cancelled above, so the payment may go).
+  if (p.voidPayment) {
+    const linked = await ctx.db
+      .collection<{ _id: string; status?: string }>("payments")
+      .findOne(
+        { _id: saleRecordIds.payment(sale._id), storeId: ctx.storeId } as never,
+        { session: ctx.session, projection: { status: 1 } },
+      );
+    if (linked && linked.status !== "voided") {
+      const result = await paymentVoid(ctx, {
+        id: linked._id,
+        reason: p.reason,
+      });
+      if (result.status === "applied") docs.push(...result.docs);
+    }
   }
 
   await writeAudit(ctx, {

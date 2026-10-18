@@ -1,5 +1,5 @@
 import { getDb } from "@/db/server/mongo";
-import { ownerSignupSchema } from "@/schemas/auth";
+import { ownerCreateSchema } from "@/schemas/auth";
 import { createStoreWithOwner, UsernameTakenError } from "@/server/onboarding";
 import { ask, parseFlags } from "../lib/prompt";
 
@@ -26,9 +26,11 @@ async function main() {
     password:
       flags.get("password") ??
       (await ask("Password (min 8 letters, hidden): ", true)),
+    // Optional (--email): where a forgotten password's link goes.
+    email: flags.get("email") || undefined,
   };
 
-  const parsed = ownerSignupSchema.safeParse(input);
+  const parsed = ownerCreateSchema.safeParse(input);
   if (!parsed.success) {
     const problems: Record<string, string> = {
       storeNameMin: "The shop name needs at least 2 letters.",
@@ -38,6 +40,7 @@ async function main() {
       usernameFormat: "The username can only use letters, numbers, . _ and -",
       passwordMin: "The password needs at least 8 characters.",
       passwordMax: "The password can be at most 100 characters.",
+      emailInvalid: "That email address does not look right.",
     };
     for (const issue of parsed.error.issues)
       console.error(`- ${problems[issue.message] ?? issue.message}`);

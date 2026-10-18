@@ -1,5 +1,6 @@
 import type { CommandInput, CommandType } from "@/commands/definitions";
 import { onlineNumber, onlineSku, yearMonth } from "@/lib/doc-number";
+import { saleRecordIds } from "@/lib/sale-math";
 import { storeTimeZone } from "../data/service";
 import { PrepareRejection } from "../sync/push";
 import type { ServerCtx } from "./types";
@@ -209,11 +210,17 @@ export const preparePayload: {
     const sale = await find(ctx, "sales", input.saleId);
     if (!sale) throw new PrepareRejection("NOT_FOUND");
     const items = (sale.items as StoredItem[]) ?? [];
+    // The extra the sale kept on the customer's account, when it is to be cancelled with the sale.
+    const linked = input.voidPayment
+      ? await find(ctx, "payments", saleRecordIds.payment(input.saleId))
+      : null;
     return {
       ...input,
       customerId: (sale.customerId as string | null) ?? null,
       // What the sale put on the balance: its due plus the store credit it used up.
       due: Number(sale.due ?? 0) + Number(sale.creditUsed ?? 0),
+      paymentAmount:
+        linked && linked.status !== "voided" ? Number(linked.amount ?? 0) : 0,
       lines: items.map((i) => ({ productId: i.productId, qty: i.qty })),
     };
   },
