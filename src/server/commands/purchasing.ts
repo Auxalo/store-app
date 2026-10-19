@@ -1,7 +1,7 @@
 import type { CommandPayload } from "@/commands/definitions";
 import { divRound } from "@/lib/money";
 import { lineTotal } from "@/lib/qty";
-import { refundAmounts, resolveSplit } from "@/lib/refund";
+import { refundAmounts, resolveSplit, returnSplit } from "@/lib/refund";
 import { qtyByProduct, saleIdOfPayment } from "@/lib/sale-math";
 import { derivedSearchFields } from "@/lib/search-fields";
 import { purchaseTotals } from "@/schemas/purchase";
@@ -380,17 +380,24 @@ export async function paymentVoid(
   if (payment.status === "voided")
     return { status: "applied", docs: [wire("payments", payment)] };
 
-  // Money a sale kept on the account belongs to that sale: it goes with the sale, not on its own.
-  const saleId = saleIdOfPayment(p.id);
-  if (saleId) {
-    const sale = await ctx.db
-      .collection<{ _id: string; status?: string }>("sales")
-      .findOne({ _id: saleId, storeId: ctx.storeId } as never, {
+  // Money a sale or purchase kept on the account belongs to it: it goes with that sale or purchase,
+  // not on its own.
+  const ownerId = saleIdOfPayment(p.id);
+  if (ownerId) {
+    const forSale = payment.partyType === "customer";
+    const owner = await ctx.db
+      .collection<{ _id: string; status?: string }>(
+        forSale ? "sales" : "purchases",
+      )
+      .findOne({ _id: ownerId, storeId: ctx.storeId } as never, {
         session: ctx.session,
         projection: { status: 1 },
       });
-    if (sale && sale.status !== "voided")
-      return { status: "rejected", error: "LINKED_TO_SALE" };
+    if (owner && owner.status !== "voided")
+      return {
+        status: "rejected",
+        error: forSale ? "LINKED_TO_SALE" : "LINKED_TO_PURCHASE",
+      };
   }
 
   const party = await liveParty(ctx, payment.partyType, payment.partyId);
@@ -554,7 +561,10 @@ async function returnProblem(
 ): Promise<{ problem: string | null; returned: Map<number, number> }> {
   const prior = await ctx.db
     .collection<{ lines: Array<{ itemIndex: number; qty: number }> }>("returns")
-    .find({ storeId: ctx.storeId, kind, refId }, { session: ctx.session })
+    .find(
+      { storeId: ctx.storeId, kind, refId, status: { $ne: "voided" } } as never,
+      { session: ctx.session },
+    )
     .toArray();
   const returned = new Map<number, number>();
   for (const r of prior)
@@ -759,6 +769,7 @@ export async function purchaseReturnCreate(
       purchaseNo: string;
       supplierId: string | null;
       supplierName: string;
+      status?: string;
       items: Array<{ productId: string; qty: number }>;
     }>("purchases")
     .findOne(
@@ -766,6 +777,8 @@ export async function purchaseReturnCreate(
       { session: ctx.session },
     );
   if (!purchase) return { status: "rejected", error: "NOT_FOUND" };
+  if (purchase.status === "voided")
+    return { status: "rejected", error: "PURCHASE_VOIDED" };
   if (
     p.cashBack === undefined &&
     p.settlement === "credit" &&
@@ -869,5 +882,280 @@ export async function purchaseReturnCreate(
       )),
     );
   }
+  return { status: "applied", docs };
+}
+
+/**
+ * Cancels a return: each stock movement it made is reversed (`<id>:vm<n>`), what it took off a
+ * balance (or kept as credit) goes back (`<id>:vl`), and the return is marked cancelled. Cancelling
+ * twice changes nothing. Everything comes from the server's own records, never from the device.
+ */
+export async function returnVoid(
+  ctx: ServerCtx,
+  p: CommandPayload<"return.void">,
+): Promise<ApplyResult> {
+  const returns = ctx.db.collection<
+    StoredDoc & {
+      kind: "sale" | "purchase";
+      returnNo: string;
+      partyId: string | null;
+      total: number;
+      cashBack?: number;
+      credited?: number;
+      settlement?: "cash" | "credit";
+      status?: string;
+    }
+  >("returns");
+  const ret = await returns.findOne(
+    { _id: p.id, storeId: ctx.storeId },
+    { session: ctx.session },
+  );
+  if (!ret) return { status: "rejected", error: "NOT_FOUND" };
+  if (ret.status === "voided")
+    return { status: "applied", docs: [wire("returns", ret)] };
+
+  const own = await ctx.db
+    .collection<StoredMovement>("stockMovements")
+    .find(
+      {
+        storeId: ctx.storeId,
+        refId: ret._id,
+        refType: ret.kind === "sale" ? "sale_return" : "purchase_return",
+      } as never,
+      { session: ctx.session },
+    )
+    .toArray();
+  const made = own
+    .filter((m) => String(m._id).startsWith(`${ret._id}:m`))
+    .sort((a, b) => String(a._id).localeCompare(String(b._id)));
+  const products = await liveProducts(ctx, [
+    ...new Set(made.map((m) => m.productId)),
+  ]);
+  const undo = made.filter((m) => products.has(m.productId));
+  const deltas = new Map<string, number>();
+  for (const m of undo)
+    deltas.set(m.productId, (deltas.get(m.productId) ?? 0) - m.qtyDelta);
+  const { credited } = returnSplit(ret);
+  const partyKind: PartyKind = ret.kind === "sale" ? "customer" : "supplier";
+  const party =
+    credited > 0 ? await liveParty(ctx, partyKind, ret.partyId) : null;
+
+  let seq = await allocSeq(
+    ctx.db,
+    ctx.session,
+    ctx.storeId,
+    1 + undo.length + deltas.size + (party ? 2 : 0),
+  );
+  const docs: WireChange[] = [];
+  const updated = await returns.findOneAndUpdate(
+    { _id: ret._id, storeId: ctx.storeId },
+    {
+      $inc: { version: 1 },
+      $set: {
+        status: "voided",
+        voidedAt: ctx.opCreatedAt,
+        voidReason: p.reason,
+        voidedBy: ctx.actorUserId,
+        syncSeq: seq++,
+        updatedAt: later(ctx.opCreatedAt, ret.updatedAt),
+      },
+    },
+    { returnDocument: "after", session: ctx.session },
+  );
+  docs.push(wire("returns", updated ?? ret));
+
+  if (undo.length > 0) {
+    const movements: StoredMovement[] = undo.map((m) => ({
+      _id: `${ret._id}:v${String(m._id).slice(ret._id.length + 1)}`,
+      storeId: ctx.storeId,
+      productId: m.productId,
+      type: m.type,
+      qtyDelta: -m.qtyDelta,
+      note: ret.returnNo,
+      refType: "return_void",
+      refId: ret._id,
+      ...stamp(ctx),
+      syncSeq: seq++,
+    }));
+    await ctx.db
+      .collection<StoredMovement>("stockMovements")
+      .insertMany(movements, { session: ctx.session });
+    for (const m of movements) docs.push(wire("stockMovements", m));
+    docs.push(...(await moveProducts(ctx, products, deltas, seq)));
+    seq += deltas.size;
+  }
+  if (party) {
+    docs.push(
+      ...(await adjustParty(
+        ctx,
+        partyKind,
+        party,
+        credited,
+        {
+          type: "return_void",
+          id: ret._id,
+          ledgerId: `${ret._id}:vl`,
+          note: ret.returnNo,
+        },
+        seq,
+      )),
+    );
+  }
+  await writeAudit(ctx, {
+    action: "return.void",
+    entity: "return",
+    entityId: ret._id,
+    oldValue: { status: "active", total: ret.total },
+    newValue: { status: "voided", reason: p.reason },
+  });
+  return { status: "applied", docs };
+}
+
+/**
+ * Cancels a purchase: its goods leave stock again (`<id>:vm<n>`), what it put on the supplier's
+ * account comes off (`<id>:vl`), the extra kept on their account (`<id>:p`) is cancelled, and the
+ * purchase is marked cancelled; the money paid on it counts back on the day it is cancelled. A
+ * purchase with returns is refused until they are cancelled (otherwise the goods would come back
+ * twice). Everything comes from the server's own records.
+ */
+export async function purchaseVoid(
+  ctx: ServerCtx,
+  p: CommandPayload<"purchase.void">,
+): Promise<ApplyResult> {
+  const purchases = ctx.db.collection<
+    StoredDoc & {
+      purchaseNo: string;
+      supplierId: string | null;
+      total: number;
+      due: number;
+      status?: string;
+    }
+  >("purchases");
+  const purchase = await purchases.findOne(
+    { _id: p.purchaseId, storeId: ctx.storeId },
+    { session: ctx.session },
+  );
+  if (!purchase) return { status: "rejected", error: "NOT_FOUND" };
+  if (purchase.status === "voided")
+    return { status: "applied", docs: [wire("purchases", purchase)] };
+
+  const activeReturns = await ctx.db.collection("returns").countDocuments(
+    {
+      storeId: ctx.storeId,
+      kind: "purchase",
+      refId: purchase._id,
+      status: { $ne: "voided" },
+    } as never,
+    { session: ctx.session },
+  );
+  if (activeReturns > 0) return { status: "rejected", error: "HAS_RETURNS" };
+
+  const made = (
+    await ctx.db
+      .collection<StoredMovement>("stockMovements")
+      .find(
+        {
+          storeId: ctx.storeId,
+          refId: purchase._id,
+          refType: "purchase",
+        } as never,
+        { session: ctx.session },
+      )
+      .toArray()
+  )
+    .filter((m) => String(m._id).startsWith(`${purchase._id}:m`))
+    .sort((a, b) => String(a._id).localeCompare(String(b._id)));
+  const products = await liveProducts(ctx, [
+    ...new Set(made.map((m) => m.productId)),
+  ]);
+  const undo = made.filter((m) => products.has(m.productId));
+  const deltas = new Map<string, number>();
+  for (const m of undo)
+    deltas.set(m.productId, (deltas.get(m.productId) ?? 0) - m.qtyDelta);
+  const supplier =
+    purchase.due > 0
+      ? await liveParty(ctx, "supplier", purchase.supplierId)
+      : null;
+
+  let seq = await allocSeq(
+    ctx.db,
+    ctx.session,
+    ctx.storeId,
+    1 + undo.length + deltas.size + (supplier ? 2 : 0),
+  );
+  const docs: WireChange[] = [];
+  const updated = await purchases.findOneAndUpdate(
+    { _id: purchase._id, storeId: ctx.storeId },
+    {
+      $inc: { version: 1 },
+      $set: {
+        status: "voided",
+        voidedAt: ctx.opCreatedAt,
+        voidReason: p.reason,
+        voidedBy: ctx.actorUserId,
+        syncSeq: seq++,
+        updatedAt: later(ctx.opCreatedAt, purchase.updatedAt),
+      },
+    },
+    { returnDocument: "after", session: ctx.session },
+  );
+  docs.push(wire("purchases", updated ?? purchase));
+
+  if (undo.length > 0) {
+    const movements: StoredMovement[] = undo.map((m) => ({
+      _id: `${purchase._id}:v${String(m._id).slice(purchase._id.length + 1)}`,
+      storeId: ctx.storeId,
+      productId: m.productId,
+      type: "purchase",
+      qtyDelta: -m.qtyDelta,
+      note: purchase.purchaseNo,
+      refType: "purchase_void",
+      refId: purchase._id,
+      ...stamp(ctx),
+      syncSeq: seq++,
+    }));
+    await ctx.db
+      .collection<StoredMovement>("stockMovements")
+      .insertMany(movements, { session: ctx.session });
+    for (const m of movements) docs.push(wire("stockMovements", m));
+    docs.push(...(await moveProducts(ctx, products, deltas, seq)));
+    seq += deltas.size;
+  }
+  if (supplier) {
+    docs.push(
+      ...(await adjustParty(
+        ctx,
+        "supplier",
+        supplier,
+        -purchase.due,
+        {
+          type: "purchase_void",
+          id: purchase._id,
+          ledgerId: `${purchase._id}:vl`,
+          note: purchase.purchaseNo,
+        },
+        seq,
+      )),
+    );
+  }
+  // The extra kept on the supplier's account goes with the purchase (the purchase is already
+  // marked cancelled above, so the payment may go).
+  const linked = await ctx.db
+    .collection<{ _id: string; status?: string }>("payments")
+    .findOne({ _id: `${purchase._id}:p`, storeId: ctx.storeId } as never, {
+      session: ctx.session,
+      projection: { status: 1 },
+    });
+  if (linked && linked.status !== "voided") {
+    const result = await paymentVoid(ctx, { id: linked._id, reason: p.reason });
+    if (result.status === "applied") docs.push(...result.docs);
+  }
+  await writeAudit(ctx, {
+    action: "purchase.void",
+    entity: "purchase",
+    entityId: purchase._id,
+    oldValue: { status: "active", total: purchase.total },
+    newValue: { status: "voided", reason: p.reason },
+  });
   return { status: "applied", docs };
 }

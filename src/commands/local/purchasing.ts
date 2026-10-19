@@ -1,7 +1,7 @@
 import type { StoreDB } from "@/db/local/db";
 import { divRound } from "@/lib/money";
 import { lineTotal } from "@/lib/qty";
-import { refundAmounts, resolveSplit } from "@/lib/refund";
+import { refundAmounts, resolveSplit, returnSplit } from "@/lib/refund";
 import { qtyByProduct, saleIdOfPayment } from "@/lib/sale-math";
 import { derivedSearchFields } from "@/lib/search-fields";
 import { purchaseTotals } from "@/schemas/purchase";
@@ -314,13 +314,19 @@ export async function paymentVoid(
   const payment = await db.payments.get(input.id);
   if (!payment) throw new NotFoundError("payment");
   if (payment.status === "voided") throw new AlreadyExistsError("void");
-  // Money a sale kept on the account belongs to that sale: cancel the sale first (it can take the
-  // payment with it), otherwise the books would disagree.
-  const saleId = saleIdOfPayment(payment.id);
-  if (saleId) {
-    const sale = await db.sales.get(saleId);
-    if (sale && sale.status !== "voided")
-      throw new ConflictError("LINKED_TO_SALE");
+  // Money a sale or purchase kept on the account belongs to it: cancel the sale or purchase first
+  // (it takes the payment with it), otherwise the books would disagree.
+  const ownerId = saleIdOfPayment(payment.id);
+  if (ownerId) {
+    if (payment.partyType === "customer") {
+      const sale = await db.sales.get(ownerId);
+      if (sale && sale.status !== "voided")
+        throw new ConflictError("LINKED_TO_SALE");
+    } else {
+      const purchase = await db.purchases.get(ownerId);
+      if (purchase && purchase.status !== "voided")
+        throw new ConflictError("LINKED_TO_PURCHASE");
+    }
   }
   // The balance goes back when the person is still on the books; a deleted one has nothing to fix.
   await adjustParty(
@@ -421,7 +427,7 @@ async function alreadyReturned(
 ) {
   const returned = new Map<number, number>();
   for (const r of await db.returns.where("refId").equals(refId).toArray()) {
-    if (r.kind !== kind) continue;
+    if (r.kind !== kind || r.status === "voided") continue;
     for (const l of r.lines)
       returned.set(l.itemIndex, (returned.get(l.itemIndex) ?? 0) + l.qty);
   }
@@ -595,7 +601,8 @@ export async function purchaseReturnCreate(
 ): Promise<CommandPayload<"purchaseReturn.create">> {
   if (await db.returns.get(input.id)) throw new AlreadyExistsError("return");
   const purchase = await db.purchases.get(input.purchaseId);
-  if (!purchase) throw new NotFoundError("purchase");
+  if (!purchase || purchase.status === "voided")
+    throw new NotFoundError("purchase");
   if (
     input.cashBack === undefined &&
     input.settlement === "credit" &&
@@ -700,5 +707,201 @@ export async function purchaseReturnCreate(
     settlement: split.credited > 0 ? "credit" : "cash",
     returnNo,
     supplierId: purchase.supplierId,
+  };
+}
+
+/** The movements a sale, purchase or return made itself (`<id>:m<n>`), never its reversals. */
+async function ownMovements(db: StoreDB, id: string) {
+  return (
+    await db.stockMovements.where("id").startsWith(`${id}:m`).toArray()
+  ).sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/** Products that still exist (a deleted product's stock is not moved any more). */
+async function liveIds(db: StoreDB, ids: string[]) {
+  const live = new Set<string>();
+  for (const id of new Set(ids)) {
+    const product = await db.products.get(id);
+    if (product && !product.deletedAt) live.add(id);
+  }
+  return live;
+}
+
+/** Reverses movements (each `<id>:m<n>` gets a `<id>:vm<n>`) and moves stock back. */
+async function reverseMovements(
+  db: StoreDB,
+  ctx: LocalContext,
+  id: string,
+  made: Array<{
+    id: string;
+    productId: string;
+    type: string;
+    qtyDelta: number;
+  }>,
+  refType: string,
+  note: string,
+  now: string,
+) {
+  const live = await liveIds(
+    db,
+    made.map((m) => m.productId),
+  );
+  const undo = made.filter((m) => live.has(m.productId));
+  await db.stockMovements.bulkAdd(
+    undo.map((m) => ({
+      id: `${id}:v${m.id.slice(id.length + 1)}`,
+      storeId: ctx.storeId,
+      productId: m.productId,
+      type: m.type as never,
+      qtyDelta: -m.qtyDelta,
+      note,
+      refType,
+      refId: id,
+      createdAt: now,
+      createdBy: ctx.actorUserId,
+      deviceId: ctx.deviceId,
+    })),
+  );
+  const deltas = new Map<string, number>();
+  for (const m of undo)
+    deltas.set(m.productId, (deltas.get(m.productId) ?? 0) - m.qtyDelta);
+  for (const [productId, delta] of deltas) {
+    const product = await db.products.get(productId);
+    if (product)
+      await db.products.update(productId, {
+        stock: product.stock + delta,
+        version: product.version + 1,
+        updatedAt: now,
+      });
+  }
+  return [...deltas].map(([productId, delta]) => ({
+    productId,
+    qty: -delta,
+  }));
+}
+
+/**
+ * Cancels a return made by mistake: its stock movements are reversed, what it took off a balance
+ * (or kept as credit) goes back, and it is marked cancelled. Its cash back counts back on the day it
+ * is cancelled (src/reports/cash.ts).
+ */
+export async function returnVoid(
+  db: StoreDB,
+  ctx: LocalContext,
+  input: CommandInput<"return.void">,
+  now: string,
+): Promise<CommandPayload<"return.void">> {
+  const ret = await db.returns.get(input.id);
+  if (!ret) throw new NotFoundError("return");
+  if (ret.status === "voided") throw new AlreadyExistsError("void");
+
+  const stock = await reverseMovements(
+    db,
+    ctx,
+    ret.id,
+    await ownMovements(db, ret.id),
+    "return_void",
+    ret.returnNo,
+    now,
+  );
+  const { credited } = returnSplit(ret);
+  if (credited > 0 && ret.partyId)
+    await adjustParty(
+      db,
+      ctx,
+      ret.kind === "sale" ? "customer" : "supplier",
+      ret.partyId,
+      credited,
+      {
+        type: "return_void",
+        id: ret.id,
+        ledgerId: `${ret.id}:vl`,
+        note: ret.returnNo,
+      },
+      now,
+    );
+  await db.returns.update(ret.id, {
+    status: "voided",
+    voidedAt: now,
+    voidReason: input.reason,
+    voidedBy: ctx.actorUserId,
+    version: ret.version + 1,
+    updatedAt: now,
+  });
+  return {
+    ...input,
+    kind: ret.kind,
+    partyId: ret.partyId,
+    credited,
+    stock,
+  };
+}
+
+/**
+ * Cancels a purchase entered by mistake: its goods leave stock again, what it put on the supplier's
+ * account comes off, the extra kept on their account is cancelled, and the money paid on it counts
+ * back on the day it is cancelled. Refused while it has returns that are not cancelled.
+ */
+export async function purchaseVoid(
+  db: StoreDB,
+  ctx: LocalContext,
+  input: CommandInput<"purchase.void">,
+  now: string,
+): Promise<CommandPayload<"purchase.void">> {
+  const purchase = await db.purchases.get(input.purchaseId);
+  if (!purchase) throw new NotFoundError("purchase");
+  if (purchase.status === "voided") throw new AlreadyExistsError("void");
+  const returns = await db.returns
+    .where("refId")
+    .equals(purchase.id)
+    .filter((r) => r.kind === "purchase" && r.status !== "voided")
+    .toArray();
+  if (returns.length > 0) throw new ConflictError("HAS_RETURNS");
+
+  const stock = await reverseMovements(
+    db,
+    ctx,
+    purchase.id,
+    await ownMovements(db, purchase.id),
+    "purchase_void",
+    purchase.purchaseNo,
+    now,
+  );
+  if (purchase.due > 0 && purchase.supplierId)
+    await adjustParty(
+      db,
+      ctx,
+      "supplier",
+      purchase.supplierId,
+      -purchase.due,
+      {
+        type: "purchase_void",
+        id: purchase.id,
+        ledgerId: `${purchase.id}:vl`,
+        note: purchase.purchaseNo,
+      },
+      now,
+    );
+  await db.purchases.update(purchase.id, {
+    status: "voided",
+    voidedAt: now,
+    voidReason: input.reason,
+    voidedBy: ctx.actorUserId,
+    version: purchase.version + 1,
+    updatedAt: now,
+  });
+  // The extra kept on the supplier's account goes with it (the purchase is cancelled now).
+  let paymentAmount = 0;
+  const linked = await db.payments.get(`${purchase.id}:p`);
+  if (linked && linked.status !== "voided") {
+    await paymentVoid(db, ctx, { id: linked.id, reason: input.reason }, now);
+    paymentAmount = linked.amount;
+  }
+  return {
+    ...input,
+    supplierId: purchase.supplierId,
+    due: purchase.due,
+    paymentAmount,
+    lines: stock.map((s) => ({ productId: s.productId, qty: s.qty })),
   };
 }

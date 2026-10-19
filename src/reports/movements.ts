@@ -3,16 +3,23 @@
  * the server (the server groups in the database first, the device groups in memory; both give the
  * same rows to `foldMovements`, so they cannot disagree: see src/reports/__tests__/movements.test.ts).
  *
- * In and out follow the sign of each movement, not its type. The one exception: cancelling a sale
- * puts the goods back as a "sale_return" movement (refType "sale_void"); that undoes the sale
- * instead of counting as goods coming in, so it reduces "sold".
+ * In and out follow the sign of each movement, not its type. The exceptions are cancellations:
+ *   - cancelling a sale puts the goods back as a "sale_return" movement (refType "sale_void"); that
+ *     undoes the sale instead of counting as goods coming in, so it reduces "sold";
+ *   - cancelling a purchase or a return (refType "purchase_void" / "return_void") writes the same
+ *     type with the opposite sign; that undoes the original, so it reduces that same type.
  */
+
+/** Movements that undo an earlier one of the same type (a cancelled purchase or return). */
+export const UNDO_REF_TYPES = ["purchase_void", "return_void"];
 
 export interface MovementAgg {
   productId: string;
   type: string;
   /** A cancelled sale putting its goods back. */
   reversal: boolean;
+  /** A cancelled purchase or return: it takes back a movement of its own type. */
+  undo?: boolean;
   /** Sum of the positive changes (milli-units). */
   qtyIn: number;
   /** Sum of the negative changes, as a positive number (milli-units). */
@@ -41,11 +48,13 @@ export function aggregateMovements(
   const groups = new Map<string, MovementAgg>();
   for (const m of movements) {
     const reversal = m.type === "sale_return" && m.refType === "sale_void";
-    const key = `${m.productId}|${m.type}|${reversal ? 1 : 0}`;
+    const undo = UNDO_REF_TYPES.includes(m.refType ?? "");
+    const key = `${m.productId}|${m.type}|${reversal ? 1 : 0}|${undo ? 1 : 0}`;
     const group = groups.get(key) ?? {
       productId: m.productId,
       type: m.type,
       reversal,
+      undo,
       qtyIn: 0,
       qtyOut: 0,
     };
@@ -70,6 +79,11 @@ export function foldMovements(rows: MovementAgg[]): MovementCard[] {
       card.out.sale = (card.out.sale ?? 0) - row.qtyIn;
       if (row.qtyOut)
         card.out[row.type] = (card.out[row.type] ?? 0) + row.qtyOut;
+    } else if (row.undo) {
+      // Taking back goods that came in (a cancelled purchase) lowers that "in"; putting back goods
+      // that went out (a cancelled purchase return) lowers that "out".
+      if (row.qtyOut) card.in[row.type] = (card.in[row.type] ?? 0) - row.qtyOut;
+      if (row.qtyIn) card.out[row.type] = (card.out[row.type] ?? 0) - row.qtyIn;
     } else {
       if (row.qtyIn) card.in[row.type] = (card.in[row.type] ?? 0) + row.qtyIn;
       if (row.qtyOut)

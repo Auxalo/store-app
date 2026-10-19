@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
+import { refusalCode } from "@/components/returns/void-reason";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,33 +28,47 @@ export function CancelPaymentDialog({
   payment,
   onClose,
 }: {
-  payment: { id: string; amount: number } | null;
+  payment: { id: string; amount: number; partyType?: string } | null;
   onClose: () => void;
 }) {
   const t = useTranslations("payments");
   const tc = useTranslations("common");
+  const ts = useTranslations("sync.reasons");
   const f = useFormat();
   const run = useCommand();
   const [reason, setReason] = useState("");
 
-  // Money a sale kept on the account belongs to that sale: while the sale stands, it is cancelled
-  // from the sale (which can take this money with it), not from here.
-  const saleId = payment ? saleIdOfPayment(payment.id) : null;
-  const sale = useRecord("sales", saleId);
+  // Money a sale or purchase kept on the account belongs to it: while that sale or purchase
+  // stands, it is cancelled from there (which takes this money with it), not from here.
+  const ownerId = payment ? saleIdOfPayment(payment.id) : null;
+  const sale = useRecord("sales", ownerId);
+  const purchase = useRecord("purchases", ownerId);
   const saleRecord = sale.record as
     | { id: string; invoiceNo?: string; status?: string }
     | undefined;
+  const purchaseRecord = purchase.record as
+    | { id: string; purchaseNo?: string; status?: string }
+    | undefined;
   const linkedSale =
     saleRecord && saleRecord.status !== "voided" ? saleRecord : null;
-  const checking = !!saleId && sale.status === "loading";
+  const linkedPurchase =
+    purchaseRecord && purchaseRecord.status !== "voided"
+      ? purchaseRecord
+      : null;
+  const checking =
+    !!ownerId && (sale.status === "loading" || purchase.status === "loading");
+  const blocked = !!linkedSale || !!linkedPurchase;
 
   async function cancel() {
-    if (!payment || !reason.trim() || linkedSale || checking) return;
+    if (!payment || !reason.trim() || blocked || checking) return;
     try {
       await run("payment.void", { id: payment.id, reason: reason.trim() });
       setReason("");
-    } catch {
-      toast.error(tc("somethingWrong"));
+    } catch (error) {
+      const code = refusalCode(error);
+      toast.error(
+        ts.has(code as never) ? ts(code as never) : tc("somethingWrong"),
+      );
     }
   }
 
@@ -89,6 +104,20 @@ export function CancelPaymentDialog({
             </Link>
           </p>
         ) : null}
+        {linkedPurchase ? (
+          <p
+            className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-sm"
+            data-testid="payment-linked-purchase"
+          >
+            {t("linkedToPurchase", { no: linkedPurchase.purchaseNo ?? "" })}{" "}
+            <Link
+              href={`/purchases/view?id=${linkedPurchase.id}`}
+              className="font-medium text-primary underline"
+            >
+              {t("openPurchase")}
+            </Link>
+          </p>
+        ) : null}
         <Input
           value={reason}
           maxLength={200}
@@ -100,7 +129,7 @@ export function CancelPaymentDialog({
         <AlertDialogFooter>
           <AlertDialogCancel>{tc("cancel")}</AlertDialogCancel>
           <AlertDialogAction
-            disabled={!reason.trim() || !!linkedSale || checking}
+            disabled={!reason.trim() || blocked || checking}
             onClick={() => void cancel()}
             data-testid="payment-void-confirm"
           >

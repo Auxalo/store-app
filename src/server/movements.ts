@@ -4,6 +4,7 @@ import {
   foldMovements,
   type MovementAgg,
   type MovementSummary,
+  UNDO_REF_TYPES,
 } from "@/reports/movements";
 
 const MAX_TIME_MS = 8_000;
@@ -19,7 +20,12 @@ export async function serverMovementSummary(
   const grouped = await db
     .collection("stockMovements")
     .aggregate<{
-      _id: { productId: string; type: string; reversal: boolean };
+      _id: {
+        productId: string;
+        type: string;
+        reversal: boolean;
+        undo: boolean;
+      };
       qtyIn: number;
       qtyOut: number;
     }>(
@@ -36,6 +42,7 @@ export async function serverMovementSummary(
                   { $eq: ["$refType", "sale_void"] },
                 ],
               },
+              undo: { $in: ["$refType", UNDO_REF_TYPES] },
             },
             qtyIn: {
               $sum: { $cond: [{ $gt: ["$qtyDelta", 0] }, "$qtyDelta", 0] },
@@ -59,6 +66,7 @@ export async function serverMovementSummary(
     productId: g._id.productId,
     type: g._id.type,
     reversal: g._id.reversal === true,
+    undo: g._id.undo === true,
     qtyIn: g.qtyIn,
     qtyOut: g.qtyOut,
   }));

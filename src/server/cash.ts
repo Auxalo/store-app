@@ -68,6 +68,24 @@ export async function serverFlowInputs(
     createdAt: 1,
     updatedAt: 1,
   } as const;
+  const purchaseFields = {
+    paid: 1,
+    paymentMethod: 1,
+    status: 1,
+    createdAt: 1,
+    voidedAt: 1,
+  } as const;
+  const returnFields = {
+    kind: 1,
+    refId: 1,
+    total: 1,
+    cashBack: 1,
+    credited: 1,
+    settlement: 1,
+    status: 1,
+    createdAt: 1,
+    voidedAt: 1,
+  } as const;
 
   const [
     salesMade,
@@ -76,8 +94,10 @@ export async function serverFlowInputs(
     paymentsVoided,
     expensesMade,
     expensesVoided,
-    purchases,
-    returns,
+    purchasesMade,
+    purchasesVoided,
+    returnsMade,
+    returnsVoided,
   ] = await Promise.all([
     find<CashSale>("sales", made, saleFields),
     find<CashSale>(
@@ -97,21 +117,21 @@ export async function serverFlowInputs(
       { storeId, status: "voided", updatedAt: { $gte: start, $lt: end } },
       expenseFields,
     ),
-    find<CashPurchase>("purchases", made, {
-      paid: 1,
-      paymentMethod: 1,
-      createdAt: 1,
-    }),
-    find<CashReturn & { refId: string }>("returns", made, {
-      kind: 1,
-      refId: 1,
-      total: 1,
-      cashBack: 1,
-      credited: 1,
-      settlement: 1,
-      createdAt: 1,
-    }),
+    find<CashPurchase>("purchases", made, purchaseFields),
+    find<CashPurchase>(
+      "purchases",
+      { storeId, status: "voided", voidedAt: { $gte: start, $lt: end } },
+      purchaseFields,
+    ),
+    find<CashReturn & { refId: string }>("returns", made, returnFields),
+    find<CashReturn & { refId: string }>(
+      "returns",
+      { storeId, status: "voided", voidedAt: { $gte: start, $lt: end } },
+      returnFields,
+    ),
   ]);
+  const purchases = merge(purchasesMade, purchasesVoided);
+  const returns = merge(returnsMade, returnsVoided);
 
   // A refund moves money the way its bill was paid, so look the bills up.
   const methodsOf = async (collection: string, kind: "sale" | "purchase") => {

@@ -199,8 +199,24 @@ export function PurchasesScreen() {
                   </span>
                 </span>
                 <span className="flex shrink-0 flex-col items-end gap-1">
-                  <span className="font-semibold">{f.money(p.total)}</span>
-                  {p.due > 0 ? (
+                  <span
+                    className={cn(
+                      "font-semibold",
+                      p.status === "voided" &&
+                        "line-through text-muted-foreground",
+                    )}
+                  >
+                    {f.money(p.total)}
+                  </span>
+                  {p.status === "voided" ? (
+                    <Badge
+                      variant="destructive"
+                      data-testid="purchase-row-voided"
+                    >
+                      {t("purchases.voided")}
+                    </Badge>
+                  ) : null}
+                  {p.due > 0 && p.status !== "voided" ? (
                     <Badge variant="secondary">
                       {t("purchases.dueAtPurchase")} {f.money(p.due)}
                     </Badge>

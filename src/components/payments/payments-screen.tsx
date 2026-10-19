@@ -26,8 +26,9 @@ import { useFormat } from "@/i18n/use-format";
 import { cn } from "@/lib/utils";
 import { usePreferences } from "@/stores/preferences";
 import { CancelPaymentDialog } from "./cancel-payment-dialog";
+import { ReturnCredits } from "./return-credits";
 
-type Filter = "all" | "customer" | "supplier";
+type Filter = "all" | "customer" | "supplier" | "credits";
 const SORTS = ["newest", "oldest", "amount"] as const;
 
 /** Every payment received from a customer or made to a supplier. */
@@ -46,7 +47,13 @@ export function PaymentsScreen() {
   } | null>(null);
 
   // Paying a supplier is for people who manage purchases; others only see money from customers.
-  const type = can(role, "purchase.manage") ? filter : "customer";
+  const showCredits = filter === "credits" && can(role, "sale.void");
+  const type =
+    filter === "credits"
+      ? "all"
+      : can(role, "purchase.manage")
+        ? filter
+        : "customer";
   const dates =
     period === "custom"
       ? {
@@ -102,8 +109,21 @@ export function PaymentsScreen() {
             <TabsTrigger value="supplier">
               {t("payments.filterOut")}
             </TabsTrigger>
+            {can(role, "sale.void") ? (
+              <TabsTrigger value="credits" data-testid="tab-credits">
+                {t("payments.filterCredits")}
+              </TabsTrigger>
+            ) : null}
           </TabsList>
         </Tabs>
+      ) : null}
+      {showCredits ? (
+        <>
+          <p className="text-xs text-muted-foreground">
+            {t("payments.creditsHint")}
+          </p>
+          <ReturnCredits kind="all" from={dates.from} to={dates.to} />
+        </>
       ) : null}
       <p className="text-xs text-muted-foreground">{t("payments.hint")}</p>
       <div className="flex gap-2">

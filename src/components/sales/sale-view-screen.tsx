@@ -9,6 +9,7 @@ import { useProfile } from "@/auth/use-auth";
 import { Receipt } from "@/components/pos/receipt";
 import { ShareReceiptButton } from "@/components/pos/share-receipt-button";
 import { ReturnDialog } from "@/components/returns/return-dialog";
+import { ReturnList } from "@/components/returns/return-list";
 import { VoidSaleDialog } from "@/components/sales/void-sale-dialog";
 import { BackLink } from "@/components/shared/back-link";
 import { ListError } from "@/components/shared/load-more";
@@ -16,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRecord } from "@/data/hooks";
-import type { Sale, SaleItem } from "@/db/local/types";
+import type { ReturnDoc, Sale, SaleItem } from "@/db/local/types";
 import { useFormat } from "@/i18n/use-format";
 import { isFullyReturned, returnSplit } from "@/lib/refund";
 
@@ -53,8 +54,12 @@ export function SaleViewScreen() {
     []) as SaleItem[];
 
   // Everything has come back already: the return and cancel actions have nothing left to do.
-  const saleReturns = (loaded.extra.returns ?? []).filter(
+  const allReturns = (loaded.extra.returns ?? []).filter(
     (r) => r.kind === "sale",
+  ) as unknown as ReturnDoc[];
+  // A cancelled return never happened, as far as what is left of the sale goes.
+  const saleReturns = allReturns.filter(
+    (r) => r.status !== "voided",
   ) as unknown as ReturnRecord[];
   const returnedTotal = saleReturns.reduce((sum, r) => sum + r.total, 0);
   const fullyReturned =
@@ -182,6 +187,12 @@ export function SaleViewScreen() {
       >
         <Receipt sale={sale} items={items} storeName={storeName ?? ""} />
       </div>
+
+      <ReturnList
+        returns={allReturns}
+        title={t("returns.saleKind")}
+        testId="sale-return-list"
+      />
 
       <ReturnDialog
         kind="sale"

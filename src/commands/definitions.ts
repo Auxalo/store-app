@@ -40,10 +40,17 @@ import {
   stockAdjustInput,
   stockAdjustPayload,
 } from "@/schemas/product";
-import { purchaseCreateInput, purchaseCreatePayload } from "@/schemas/purchase";
+import {
+  purchaseCreateInput,
+  purchaseCreatePayload,
+  purchaseVoidInput,
+  purchaseVoidPayload,
+} from "@/schemas/purchase";
 import {
   purchaseReturnInput,
   purchaseReturnPayload,
+  returnVoidInput,
+  returnVoidPayload,
   saleReturnInput,
   saleReturnPayload,
 } from "@/schemas/return";
@@ -198,11 +205,13 @@ export const COMMANDS = {
     entityIds: (p: {
       saleId: string;
       customerId: string | null;
+      voidPayment?: boolean;
       lines: Array<{ productId: string }>;
     }) => [
       p.saleId,
       ...new Set(p.lines.map((l) => l.productId)),
       ...(p.customerId ? [p.customerId] : []),
+      ...(p.voidPayment ? [`${p.saleId}:p`] : []),
     ],
   },
   "supplier.create": {
@@ -239,6 +248,23 @@ export const COMMANDS = {
       p.id,
       ...new Set(p.lines.map((l) => l.productId)),
       ...(p.supplierId ? [p.supplierId] : []),
+    ],
+  },
+  // A purchase entered by mistake: goods out, supplier's account back, its payments cancelled.
+  "purchase.void": {
+    collection: "purchases",
+    permission: "purchase.manage",
+    input: purchaseVoidInput,
+    payload: purchaseVoidPayload,
+    entityIds: (p: {
+      purchaseId: string;
+      supplierId?: string | null;
+      lines: Array<{ productId: string }>;
+    }) => [
+      p.purchaseId,
+      ...new Set(p.lines.map((l) => l.productId)),
+      ...(p.supplierId ? [p.supplierId] : []),
+      `${p.purchaseId}:p`,
     ],
   },
   // Money in from a customer (a due being collected) and money out to a supplier.
@@ -325,6 +351,22 @@ export const COMMANDS = {
       p.id,
       ...new Set(p.lines.map((l) => l.productId)),
       ...(p.supplierId ? [p.supplierId] : []),
+    ],
+  },
+  // A return made by mistake (sale or purchase): goods and balances go back as they were.
+  "return.void": {
+    collection: "returns",
+    permission: "sale.void",
+    input: returnVoidInput,
+    payload: returnVoidPayload,
+    entityIds: (p: {
+      id: string;
+      partyId?: string | null;
+      stock: Array<{ productId: string }>;
+    }) => [
+      p.id,
+      ...new Set(p.stock.map((l) => l.productId)),
+      ...(p.partyId ? [p.partyId] : []),
     ],
   },
   "setting.set": {

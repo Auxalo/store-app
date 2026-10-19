@@ -84,3 +84,24 @@ export const purchaseCreateInput =
 export const purchaseCreatePayload = purchaseBase
   .extend({ purchaseNo: z.string().min(1).max(40) })
   .superRefine(needsSupplierForDue);
+
+/**
+ * Cancels a purchase entered by mistake: its goods leave stock, what it put on the supplier's
+ * account comes off, and the money paid on it (and any extra kept on the supplier's account) is
+ * cancelled too. It stays on record, marked cancelled. A purchase with returns cannot be cancelled
+ * until those returns are cancelled.
+ */
+export const purchaseVoidInput = z.object({
+  purchaseId: idSchema,
+  reason: z.string().trim().max(200).default(""),
+});
+/** The device adds what the purchase had moved, so a cancellation not yet synced shows on screen. */
+export const purchaseVoidPayload = purchaseVoidInput.extend({
+  supplierId: idSchema.nullable().optional(),
+  due: z.number().int().min(0).optional(),
+  /** The extra kept on the supplier's account, cancelled with the purchase (0 when none). */
+  paymentAmount: z.number().int().min(0).optional(),
+  lines: z
+    .array(z.object({ productId: idSchema, qty: z.number().int().min(1) }))
+    .default([]),
+});

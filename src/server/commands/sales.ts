@@ -461,9 +461,15 @@ export async function saleVoid(
   // customer's due is not owed any more: cancelling the sale reverses only what is left.
   const earlierReturns = await ctx.db
     .collection<EarlierReturn>("returns")
-    .find({ storeId: ctx.storeId, kind: "sale", refId: sale._id } as never, {
-      session: ctx.session,
-    })
+    .find(
+      {
+        storeId: ctx.storeId,
+        kind: "sale",
+        refId: sale._id,
+        status: { $ne: "voided" },
+      } as never,
+      { session: ctx.session },
+    )
     .toArray();
   // Once anything has come back, the rest also comes back as a return (it keeps stock, dues and
   // cash right and every figure in the reports adding up); a cancellation would reverse it twice.

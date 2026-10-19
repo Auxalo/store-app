@@ -89,6 +89,10 @@ function overlay(doc: Doc, op: OutboxOp): Doc {
       return overlaySale(doc, op, 1);
     case "sale.void":
       return overlaySale(doc, op, -1);
+    case "return.void":
+      return overlayReturnVoid(doc, op);
+    case "purchase.void":
+      return overlayPurchaseVoid(doc, op);
     default:
       return doc; // creates: the server already has the record
   }
@@ -217,6 +221,72 @@ function overlayReturn(doc: Doc, op: OutboxOp, kind: "sale" | "purchase"): Doc {
         balance: (doc.balance as number) - credited,
         ...bump,
       };
+  }
+  return doc;
+}
+
+/** A cancelled return: its stock change and its credit are undone, and it is marked cancelled. */
+function overlayReturnVoid(doc: Doc, op: OutboxOp): Doc {
+  const p = op.payload as {
+    id: string;
+    reason?: string;
+    partyId?: string | null;
+    credited?: number;
+    stock?: Array<{ productId: string; qty: number }>;
+  };
+  const bump = { version: doc.version + 1, updatedAt: op.createdAt };
+  if (doc.id === p.id)
+    return {
+      ...doc,
+      status: "voided",
+      voidedAt: op.createdAt,
+      voidReason: p.reason,
+      ...bump,
+    };
+  const change = (p.stock ?? [])
+    .filter((s) => s.productId === doc.id)
+    .reduce((sum, s) => sum + s.qty, 0);
+  if (change !== 0)
+    return { ...doc, stock: (doc.stock as number) - change, ...bump };
+  if (p.partyId && p.partyId === doc.id && (p.credited ?? 0) > 0)
+    return {
+      ...doc,
+      balance: (doc.balance as number) + (p.credited ?? 0),
+      ...bump,
+    };
+  return doc;
+}
+
+/** A cancelled purchase: goods out, the supplier's account back, its kept-on-account payment cancelled. */
+function overlayPurchaseVoid(doc: Doc, op: OutboxOp): Doc {
+  const p = op.payload as {
+    purchaseId: string;
+    reason?: string;
+    supplierId?: string | null;
+    due?: number;
+    paymentAmount?: number;
+    lines?: Array<{ productId: string; qty: number }>;
+  };
+  const bump = { version: doc.version + 1, updatedAt: op.createdAt };
+  if (doc.id === p.purchaseId)
+    return {
+      ...doc,
+      status: "voided",
+      voidedAt: op.createdAt,
+      voidReason: p.reason,
+      ...bump,
+    };
+  if (doc.id === `${p.purchaseId}:p` && (p.paymentAmount ?? 0) > 0)
+    return { ...doc, status: "voided", voidedAt: op.createdAt, ...bump };
+  const qty = qtyByProduct(p.lines ?? []).get(doc.id);
+  if (qty !== undefined)
+    return { ...doc, stock: (doc.stock as number) - qty, ...bump };
+  if (p.supplierId && p.supplierId === doc.id) {
+    // The purchase's due comes off; the cancelled extra payment puts back what it had taken off.
+    const change = -(p.due ?? 0) + (p.paymentAmount ?? 0);
+    return change !== 0
+      ? { ...doc, balance: (doc.balance as number) + change, ...bump }
+      : doc;
   }
   return doc;
 }

@@ -12,6 +12,8 @@ import {
   paymentVoid,
   purchaseCreate,
   purchaseReturnCreate,
+  purchaseVoid,
+  returnVoid,
   saleReturnCreate,
   supplierCreate,
   supplierDelete,
@@ -196,6 +198,8 @@ export const localCommands: { [T in CommandType]: LocalHandler<T> } = {
     saleReturnCreate(db, ctx, input, now),
   "purchaseReturn.create": (db, ctx, input, now) =>
     purchaseReturnCreate(db, ctx, input, now),
+  "return.void": (db, ctx, input, now) => returnVoid(db, ctx, input, now),
+  "purchase.void": (db, ctx, input, now) => purchaseVoid(db, ctx, input, now),
 
   "setting.set": async (db, ctx, input, now) => {
     const existing = await db.settings.get(input.key);

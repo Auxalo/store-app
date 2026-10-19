@@ -38,7 +38,9 @@ export interface CashExpense {
 export interface CashPurchase {
   paid: number;
   paymentMethod: string;
+  status?: string;
   createdAt: string;
+  voidedAt?: string | null;
 }
 export interface CashReturn {
   kind: "sale" | "purchase";
@@ -47,6 +49,8 @@ export interface CashReturn {
   credited?: number;
   settlement?: "cash" | "credit";
   createdAt: string;
+  status?: string;
+  voidedAt?: string | null;
   /** How the bill it came from was paid: a refund moves money the same way (missing means cash). */
   method?: string;
 }
@@ -160,15 +164,22 @@ function flowFor(
     if (e.status === "voided" && on(e.updatedAt)) expenses -= e.amount;
   }
   let purchases = 0;
-  for (const p of input.purchases)
-    if (isWanted(p.paymentMethod) && on(p.createdAt)) purchases += p.paid;
+  for (const p of input.purchases) {
+    if (!isWanted(p.paymentMethod)) continue;
+    if (on(p.createdAt)) purchases += p.paid;
+    if (p.status === "voided" && on(p.voidedAt)) purchases -= p.paid;
+  }
   let customerRefunds = 0;
   let supplierRefunds = 0;
   for (const r of input.returns) {
-    if (!on(r.createdAt) || !isWanted(r.method ?? "cash")) continue;
-    const cash = returnSplit(r).cashBack;
-    if (r.kind === "sale") customerRefunds += cash;
-    else supplierRefunds += cash;
+    if (!isWanted(r.method ?? "cash")) continue;
+    const cash =
+      (on(r.createdAt) ? 1 : 0) -
+      (r.status === "voided" && on(r.voidedAt) ? 1 : 0);
+    if (cash === 0) continue;
+    const amount = cash * returnSplit(r).cashBack;
+    if (r.kind === "sale") customerRefunds += amount;
+    else supplierRefunds += amount;
   }
 
   const totalIn = sales + customerPayments + supplierRefunds;

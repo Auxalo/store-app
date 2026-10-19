@@ -65,8 +65,12 @@ test("a refund clears the due first, cancel is gone after a return, and every sc
   await page.getByTestId("sale-row").first().click();
   await page.getByTestId("return-items").click();
   await page.getByTestId("return-lines").getByLabel("ফেরতের পরিমাণ").fill("4");
-  // The refund clears what they owe; no cash leaves the till.
+  // They owe money, so the screen asks how to settle (nothing is taken off a due by itself).
   await expect(page.getByTestId("party-balance-now")).toContainText("৳২০০");
+  await expect(page.getByTestId("settle-ask")).toBeVisible();
+  await expect(page.getByTestId("confirm-return")).toBeDisabled();
+  // Taken off what they owe: no cash leaves the till.
+  await page.getByTestId("settle-due").click();
   await expect(page.getByTestId("split-off")).toContainText("৳২০০");
   await expect(page.getByTestId("split-cash")).toContainText("৳০");
   await page.getByTestId("confirm-return").click();
@@ -235,6 +239,7 @@ test("a purchase return clears what the shop owes first, and Reports count it", 
   await page.getByTestId("return-goods").click();
   await page.getByTestId("return-lines").getByLabel("ফেরতের পরিমাণ").fill("4");
   await expect(page.getByTestId("party-balance-now")).toContainText("৳৪০০");
+  await page.getByTestId("settle-due").click();
   await expect(page.getByTestId("split-off")).toContainText("৳১৬০");
   await expect(page.getByTestId("split-cash")).toContainText("৳০");
   await page.getByTestId("confirm-return").click();

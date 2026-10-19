@@ -35,8 +35,10 @@ export async function loadFlowInputs(
     paymentsVoided,
     expensesMade,
     expensesVoided,
-    purchases,
-    returns,
+    purchasesMade,
+    purchasesVoided,
+    returnsMade,
+    returnsVoided,
   ] = await Promise.all([
     db.sales.where("createdAt").between(start, end, true, false).toArray(),
     db.sales
@@ -53,9 +55,20 @@ export async function loadFlowInputs(
       .filter((e) => inRange(e.updatedAt))
       .toArray(),
     db.purchases.where("createdAt").between(start, end, true, false).toArray(),
+    db.purchases
+      .filter((p) => p.status === "voided" && inRange(p.voidedAt))
+      .toArray(),
     db.returns.where("createdAt").between(start, end, true, false).toArray(),
+    db.returns
+      .filter((r) => r.status === "voided" && inRange(r.voidedAt))
+      .toArray(),
   ]);
 
+  const unique = <T extends { id: string }>(...lists: T[][]) => [
+    ...new Map(lists.flat().map((x) => [x.id, x])).values(),
+  ];
+  const purchases = unique(purchasesMade, purchasesVoided);
+  const returns = unique(returnsMade, returnsVoided);
   // A refund moves money the way its bill was paid, so look the bills up.
   const idsOf = (kind: "sale" | "purchase") => [
     ...new Set(returns.filter((r) => r.kind === kind).map((r) => r.refId)),
@@ -68,9 +81,6 @@ export async function loadFlowInputs(
     bills: Array<{ id: string; paymentMethod: string } | undefined>,
   ) => new Map(bills.flatMap((b) => (b ? [[b.id, b.paymentMethod]] : [])));
 
-  const unique = <T extends { id: string }>(...lists: T[][]) => [
-    ...new Map(lists.flat().map((x) => [x.id, x])).values(),
-  ];
   return {
     sales: unique(salesMade, salesVoided),
     payments: unique(paymentsMade, paymentsVoided),

@@ -238,7 +238,12 @@ async function addReturnedTotals(db: Db, viewer: Viewer, items: WireDoc[]) {
   const returns = await db
     .collection<{ refId: string; total: number }>(COLLECTION.returns)
     .find(
-      { storeId: viewer.storeId, kind: "sale", refId: { $in: ids } },
+      {
+        storeId: viewer.storeId,
+        kind: "sale",
+        refId: { $in: ids },
+        status: { $ne: "voided" },
+      },
       { projection: { refId: 1, total: 1 } },
     )
     .maxTimeMS(MAX_TIME_MS)
@@ -268,7 +273,10 @@ export async function totalsOf<R extends Resource>(
   });
   const groups: Partial<Record<Resource, Document>> = {
     sales: { sold: active("total"), due: active("due"), paid: active("paid") },
-    purchases: { total: { $sum: "$total" }, due: { $sum: "$due" } },
+    purchases: {
+      total: { $sum: { $cond: [{ $ne: ["$status", "voided"] }, "$total", 0] } },
+      due: { $sum: { $cond: [{ $ne: ["$status", "voided"] }, "$due", 0] } },
+    },
     customers: {
       owed: { $sum: { $cond: [{ $gt: ["$balance", 0] }, "$balance", 0] } },
       advance: {
@@ -293,12 +301,34 @@ export async function totalsOf<R extends Resource>(
     },
     // Money back to customers and goods back to suppliers go opposite ways: never one sum.
     returns: {
-      total: { $sum: "$total" },
+      total: { $sum: { $cond: [{ $ne: ["$status", "voided"] }, "$total", 0] } },
       saleTotal: {
-        $sum: { $cond: [{ $eq: ["$kind", "sale"] }, "$total", 0] },
+        $sum: {
+          $cond: [
+            {
+              $and: [
+                { $eq: ["$kind", "sale"] },
+                { $ne: ["$status", "voided"] },
+              ],
+            },
+            "$total",
+            0,
+          ],
+        },
       },
       purchaseTotal: {
-        $sum: { $cond: [{ $eq: ["$kind", "purchase"] }, "$total", 0] },
+        $sum: {
+          $cond: [
+            {
+              $and: [
+                { $eq: ["$kind", "purchase"] },
+                { $ne: ["$status", "voided"] },
+              ],
+            },
+            "$total",
+            0,
+          ],
+        },
       },
     },
   };

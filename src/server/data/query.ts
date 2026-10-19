@@ -149,6 +149,13 @@ export function buildFilter(
       break;
     case "returns":
       if (p.kind !== "all") clauses.push({ kind: p.kind });
+      if (p.creditOnly)
+        clauses.push({
+          $or: [
+            { credited: { $gt: 0 } },
+            { credited: { $exists: false }, settlement: "credit" },
+          ],
+        });
       clauses.push(
         createdAtRange(p.from as string, p.to as string, context.timeZone),
       );
