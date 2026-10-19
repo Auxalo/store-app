@@ -10,6 +10,7 @@ import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
 import { CancelPaymentDialog } from "@/components/payments/cancel-payment-dialog";
 import { MoneyField } from "@/components/pos/money-field";
+import { VoidReturnById } from "@/components/returns/void-return-by-id";
 import { ListError } from "@/components/shared/load-more";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +38,9 @@ const LINKS: Record<string, string> = {
   sale: "/sales/view?id=",
   sale_void: "/sales/view?id=",
   purchase: "/purchases/view?id=",
+  purchase_void: "/purchases/view?id=",
 };
+const RETURN_TYPES = ["sale_return", "purchase_return"];
 
 /** One customer or supplier: what they owe (or are owed), their full statement, and payments. */
 export function PartyDetailScreen({ kind }: { kind: PartyKind }) {
@@ -50,6 +53,7 @@ export function PartyDetailScreen({ kind }: { kind: PartyKind }) {
     id: string;
     amount: number;
   } | null>(null);
+  const [cancellingReturn, setCancellingReturn] = useState<string | null>(null);
 
   const loaded = useRecord(kind === "customer" ? "customers" : "suppliers", id);
   const party = loaded.record as Party | undefined;
@@ -95,7 +99,11 @@ export function PartyDetailScreen({ kind }: { kind: PartyKind }) {
 
   // A payment that has a cancellation entry after it is already cancelled.
   const cancelled = new Set(
-    entries.filter((e) => e.refType === "payment_void").map((e) => e.refId),
+    entries
+      .filter(
+        (e) => e.refType === "payment_void" || e.refType === "return_void",
+      )
+      .map((e) => e.refId),
   );
   const canCancel = can(role, "sale.void");
 
@@ -104,6 +112,10 @@ export function PartyDetailScreen({ kind }: { kind: PartyKind }) {
       <CancelPaymentDialog
         payment={cancelling}
         onClose={() => setCancelling(null)}
+      />
+      <VoidReturnById
+        id={cancellingReturn}
+        onClose={() => setCancellingReturn(null)}
       />
       <Link
         href={`/${kind}s`}
@@ -164,10 +176,14 @@ export function PartyDetailScreen({ kind }: { kind: PartyKind }) {
             <ul className="divide-y" data-testid="statement">
               {rows.map(({ entry, after }) => {
                 const href = LINKS[entry.refType];
+                const isReturn = RETURN_TYPES.includes(entry.refType);
                 const wasCancelled =
-                  entry.refType === "payment" && cancelled.has(entry.refId);
+                  (entry.refType === "payment" || isReturn) &&
+                  cancelled.has(entry.refId);
                 const cancellable =
                   entry.refType === "payment" && !wasCancelled && canCancel;
+                const returnCancellable =
+                  isReturn && !wasCancelled && canCancel;
                 const label = t(
                   `party.entryTypes.${entry.refType}` as never,
                   {} as never,
@@ -226,6 +242,18 @@ export function PartyDetailScreen({ kind }: { kind: PartyKind }) {
                         >
                           <Ban aria-hidden />
                           {t("payments.voidConfirm")}
+                        </Button>
+                      ) : null}
+                      {returnCancellable ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="mt-1 h-8 text-destructive"
+                          onClick={() => setCancellingReturn(entry.refId)}
+                          data-testid="cancel-return"
+                        >
+                          <Ban aria-hidden />
+                          {t("returns.cancelReturn")}
                         </Button>
                       ) : null}
                     </div>

@@ -7,6 +7,14 @@ import { dayKey } from "@/reports/compute";
 import { EXPENSE_CATEGORIES } from "@/schemas/expense";
 import { PAYMENT_METHODS } from "@/schemas/sale";
 
+/** What a return took off a balance (older returns say only "credit" for all of it). */
+const credited = (doc: Record<string, unknown>) =>
+  typeof doc.credited === "number"
+    ? doc.credited
+    : doc.settlement === "credit"
+      ? Number(doc.total ?? 0)
+      : 0;
+
 /**
  * How every list in the app is searched, filtered and sorted, written ONCE.
  *
@@ -99,6 +107,8 @@ export const listParamsSchemas = {
   }),
   returns: z.object({
     kind: z.enum(["all", "sale", "purchase"]).default("all"),
+    /** Only returns that took something off a balance (or kept it as credit). */
+    creditOnly: z.boolean().default(false),
     from: day,
     to: day,
     sort: z.enum(["newest", "oldest", "total"]).default("newest"),
@@ -245,6 +255,7 @@ export function matches<R extends Resource>(
     }
     case "returns": {
       if (p.kind !== "all" && doc.kind !== p.kind) return false;
+      if (p.creditOnly && credited(doc) <= 0) return false;
       return inDays(
         createdDay(doc, timeZone),
         p.from as string,
@@ -376,8 +387,8 @@ export function referenceTotals(
       out.paid = sum("paid", standing);
       break;
     case "purchases":
-      out.total = sum("total");
-      out.due = sum("due");
+      out.total = sum("total", (d) => d.status !== "voided");
+      out.due = sum("due", (d) => d.status !== "voided");
       break;
     case "customers":
     case "suppliers":
@@ -392,9 +403,15 @@ export function referenceTotals(
       break;
     case "returns":
       // Money back to customers and goods back to suppliers go opposite ways: never one sum.
-      out.total = sum("total");
-      out.saleTotal = sum("total", (d) => d.kind === "sale");
-      out.purchaseTotal = sum("total", (d) => d.kind === "purchase");
+      out.total = sum("total", (d) => d.status !== "voided");
+      out.saleTotal = sum(
+        "total",
+        (d) => d.kind === "sale" && d.status !== "voided",
+      );
+      out.purchaseTotal = sum(
+        "total",
+        (d) => d.kind === "purchase" && d.status !== "voided",
+      );
       break;
   }
   return out;

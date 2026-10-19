@@ -146,6 +146,31 @@ export function defaultSplit(
   return { cashBack: refund - credited, credited };
 }
 
+/** How a refund is settled, as the person chose it on the return screen. */
+export type SettleMode = "cash" | "due" | "advance";
+
+/**
+ * The split for the way the person chose:
+ *   - cash: handed back in cash (only the part paid with store credit goes back as credit);
+ *   - due: taken off what they owe (as much as they owe), the rest in cash;
+ *   - advance: all of it kept on their account (store credit / advance with the supplier).
+ * Nothing is taken off a due unless "due" was chosen.
+ */
+export function splitFor(
+  refund: number,
+  balance: number,
+  mode: SettleMode,
+  options: { hasParty: boolean; creditShare?: number },
+): Split {
+  if (!options.hasParty) return { cashBack: refund, credited: 0 };
+  const share = Math.min(options.creditShare ?? 0, refund);
+  if (mode === "advance") return { cashBack: 0, credited: refund };
+  const offDue =
+    mode === "due" ? Math.min(refund - share, Math.max(0, balance)) : 0;
+  const credited = share + offDue;
+  return { cashBack: refund - credited, credited };
+}
+
 /**
  * The split a return is saved with. A new return says how much goes back in cash; an older one only
  * said "cash" or "credit", which means all of it one way or the other. Without a person on the

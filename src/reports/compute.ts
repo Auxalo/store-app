@@ -285,6 +285,8 @@ export function summarize(input: ReportInput): Summary {
   let credited = 0;
   let purchaseReturns = 0;
   for (const ret of input.returns) {
+    // A cancelled return never happened, as far as the figures go.
+    if (ret.status === "voided") continue;
     const day = dayKey(ret.createdAt, tz);
     if (!inRange(day)) continue;
     if (ret.kind === "purchase") {
@@ -336,7 +338,7 @@ export function summarize(input: ReportInput): Summary {
   let purchasesTotal = 0;
   let purchasesDue = 0;
   for (const p of input.purchases) {
-    if (p.deletedAt || !inRange(p.date)) continue;
+    if (p.deletedAt || p.status === "voided" || !inRange(p.date)) continue;
     purchasesCount += 1;
     purchasesTotal += p.total;
     purchasesDue += p.due;

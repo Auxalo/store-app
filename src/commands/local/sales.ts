@@ -315,7 +315,7 @@ export async function saleVoid(
   const earlierReturns = await db.returns
     .where("refId")
     .equals(sale.id)
-    .filter((r) => r.kind === "sale")
+    .filter((r) => r.kind === "sale" && r.status !== "voided")
     .toArray();
   if (earlierReturns.length > 0) throw new ConflictError("HAS_RETURNS");
   const left = ordered.map((item) => ({

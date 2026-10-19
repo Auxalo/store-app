@@ -90,3 +90,23 @@ export const returnTotal = (
       sum + (l.amount ?? lineTotal(l.unitPrice ?? l.unitCost ?? 0, l.qty)),
     0,
   );
+
+/**
+ * Cancels a return made by mistake: the goods go back to where they were, and whatever the return
+ * took off a balance (or kept as credit) is put back. Its cash back counts back on the day it is
+ * cancelled. The return stays on record, marked cancelled.
+ */
+export const returnVoidInput = z.object({
+  id: idSchema,
+  reason: text(200).default(""),
+});
+/** The device adds what the return had moved, so a cancellation not yet synced shows on screen. */
+export const returnVoidPayload = returnVoidInput.extend({
+  kind: z.enum(["sale", "purchase"]).optional(),
+  partyId: idSchema.nullable().optional(),
+  credited: money.optional(),
+  /** Stock change the return made per product, undone here (signed milli-units). */
+  stock: z
+    .array(z.object({ productId: idSchema, qty: z.number().int() }))
+    .default([]),
+});

@@ -1,6 +1,6 @@
 "use client";
 
-import { Undo2 } from "lucide-react";
+import { Ban, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -8,14 +8,17 @@ import { useState } from "react";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
 import { ReturnDialog } from "@/components/returns/return-dialog";
+import { ReturnList } from "@/components/returns/return-list";
 import { BackLink } from "@/components/shared/back-link";
 import { ListError } from "@/components/shared/load-more";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRecord } from "@/data/hooks";
 import type { Purchase, PurchaseItem, ReturnDoc } from "@/db/local/types";
 import { useFormat } from "@/i18n/use-format";
+import { VoidPurchaseDialog } from "./void-purchase-dialog";
 
 function Row({
   label,
@@ -38,6 +41,7 @@ export function PurchaseViewScreen() {
   const { role } = useProfile();
   const id = useSearchParams().get("id") ?? "";
   const [returning, setReturning] = useState(false);
+  const [voiding, setVoiding] = useState(false);
 
   const allowed = can(role, "purchase.manage");
   const loaded = useRecord("purchases", allowed ? id : null);
@@ -62,13 +66,26 @@ export function PurchaseViewScreen() {
   const items = ((loaded.record as unknown as { items?: PurchaseItem[] })
     .items ?? []) as PurchaseItem[];
   const returns = (loaded.extra.returns ?? []) as unknown as ReturnDoc[];
+  const voided = p.status === "voided";
+  const activeReturns = returns.filter((r) => r.status !== "voided").length;
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
       <BackLink href="/purchases" label={t("nav.purchases")} />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="truncate text-xl font-semibold">{p.purchaseNo}</h2>
+          <h2 className="truncate text-xl font-semibold">
+            {p.purchaseNo}
+            {voided ? (
+              <Badge
+                variant="destructive"
+                className="ms-2 align-middle"
+                data-testid="purchase-voided"
+              >
+                {t("purchases.voided")}
+              </Badge>
+            ) : null}
+          </h2>
           <p className="text-sm text-muted-foreground">
             {f.date(`${p.date}T12:00:00Z`)}
             {p.supplierId ? (
@@ -85,15 +102,39 @@ export function PurchaseViewScreen() {
             {p.invoiceRef ? ` · ${p.invoiceRef}` : ""}
           </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => setReturning(true)}
-          data-testid="return-goods"
-        >
-          <Undo2 aria-hidden />
-          {t("purchases.returnGoods")}
-        </Button>
+        {voided ? null : (
+          <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+            <Button
+              variant="outline"
+              onClick={() => setReturning(true)}
+              data-testid="return-goods"
+            >
+              <Undo2 aria-hidden />
+              {t("purchases.returnGoods")}
+            </Button>
+            <Button
+              variant="outline"
+              className="text-destructive"
+              onClick={() => setVoiding(true)}
+              data-testid="void-purchase"
+            >
+              <Ban aria-hidden />
+              {t("purchases.voidPurchase")}
+            </Button>
+          </div>
+        )}
       </div>
+      {voided ? (
+        <p
+          className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm"
+          data-testid="purchase-voided-note"
+        >
+          {t("purchases.voidedNote", {
+            date: p.voidedAt ? f.dateTime(p.voidedAt) : "",
+          })}
+          {p.voidReason ? ` · ${p.voidReason}` : ""}
+        </p>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -136,30 +177,18 @@ export function PurchaseViewScreen() {
         </CardContent>
       </Card>
 
-      {returns.length > 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              {t("returns.purchaseKind")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="divide-y" data-testid="purchase-returns">
-              {returns.map((r) => (
-                <li
-                  key={r.id}
-                  className="flex items-center justify-between py-2 text-sm"
-                >
-                  <span>
-                    {r.returnNo} · {f.dateTime(r.createdAt)}
-                  </span>
-                  <span className="font-semibold">{f.money(r.total)}</span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      ) : null}
+      <ReturnList
+        returns={returns}
+        title={t("returns.purchaseKind")}
+        testId="purchase-return-list"
+      />
+
+      <VoidPurchaseDialog
+        purchase={p}
+        activeReturns={activeReturns}
+        open={voiding}
+        onClose={() => setVoiding(false)}
+      />
 
       <ReturnDialog
         kind="purchase"

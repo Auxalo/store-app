@@ -133,7 +133,18 @@ export function ReturnsScreen() {
                   </span>
                 </span>
                 <span className="flex shrink-0 flex-col items-end gap-1">
-                  <span className="font-semibold">{f.money(r.total)}</span>
+                  <span
+                    className={cn(
+                      "font-semibold",
+                      r.status === "voided" &&
+                        "line-through text-muted-foreground",
+                    )}
+                  >
+                    {f.money(r.total)}
+                  </span>
+                  {r.status === "voided" ? (
+                    <Badge variant="destructive">{t("returns.voided")}</Badge>
+                  ) : null}
                   <Badge variant="secondary">
                     {r.kind === "sale"
                       ? t("returns.saleKind")

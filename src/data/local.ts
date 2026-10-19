@@ -138,7 +138,7 @@ async function addReturnedTotals(db: StoreDB, items: Doc[]) {
   const returns = await db.returns.where("refId").anyOf(ids).toArray();
   const byId = new Map<string, number>();
   for (const r of returns)
-    if (r.kind === "sale")
+    if (r.kind === "sale" && r.status !== "voided")
       byId.set(r.refId, (byId.get(r.refId) ?? 0) + Number(r.total ?? 0));
   for (const item of items as Array<Record<string, unknown>>)
     item.returnedTotal = byId.get(String(item.id)) ?? 0;

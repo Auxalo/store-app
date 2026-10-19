@@ -12,7 +12,14 @@ import { Input } from "@/components/ui/input";
 import { useCommand, useRecord } from "@/data/hooks";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
-import { creditShare, defaultSplit, lineNets, refundFor } from "@/lib/refund";
+import {
+  creditShare,
+  lineNets,
+  refundFor,
+  type SettleMode,
+  splitFor,
+} from "@/lib/refund";
+import { cn } from "@/lib/utils";
 import { returnTotal } from "@/schemas/return";
 
 interface Candidate {
@@ -65,7 +72,7 @@ export function ReturnDialog({
     const items = parent.items ?? [];
     const returned = new Map<number, number>();
     for (const r of loaded.extra.returns ?? []) {
-      if (r.kind !== kind) continue;
+      if (r.kind !== kind || r.status === "voided") continue;
       for (const l of (r.lines ?? []) as Array<{
         itemIndex: number;
         qty: number;
@@ -102,7 +109,7 @@ export function ReturnDialog({
     }));
     // What this sale paid with store credit, and how much of the sale has been refunded already.
     const refundedBefore = (loaded.extra.returns ?? [])
-      .filter((r) => r.kind === kind)
+      .filter((r) => r.kind === kind && r.status !== "voided")
       .reduce((sum, r) => sum + Number(r.total ?? 0), 0);
     return {
       partyId,
@@ -114,8 +121,9 @@ export function ReturnDialog({
   }, [kind, loaded.record, loaded.extra]);
 
   const [qtys, setQtys] = useState<Record<number, number>>({});
-  // The rest of the refund, after what they owe is cleared, is cash unless kept as their credit.
-  const [keepAsCredit, setKeepAsCredit] = useState(false);
+  // How the refund is settled. Nothing comes off a due unless the person says so: while they owe
+  // something the screen asks (no choice made), otherwise it starts as cash.
+  const [mode, setMode] = useState<SettleMode | null>(null);
   const [restock, setRestock] = useState(true);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
@@ -143,9 +151,10 @@ export function ReturnDialog({
     kind === "sale" && data
       ? creditShare(data.creditUsed, data.saleTotal, data.refundedBefore, total)
       : 0;
-  const split = defaultSplit(total, balance, {
+  const chosenMode: SettleMode | null =
+    mode ?? (hasParty && balance > 0 ? null : "cash");
+  const split = splitFor(total, balance, chosenMode ?? "cash", {
     hasParty,
-    keepAsCredit: keepAsCredit && hasParty,
     creditShare: share,
   });
   // Of what is credited: first what they owe, and the rest stays as their store credit.
@@ -154,7 +163,8 @@ export function ReturnDialog({
     Math.max(0, balance),
   );
   const keptAsCredit = split.credited - offDue;
-  const canSave = chosen.length > 0 && !saving;
+  const needsChoice = hasParty && chosenMode === null;
+  const canSave = chosen.length > 0 && !saving && !needsChoice;
   const nothingLeft = data && candidates.every((c) => c.remaining <= 0);
   const name = (c: Candidate) => c.productName;
 
@@ -194,6 +204,7 @@ export function ReturnDialog({
         });
       setQtys({});
       setNotes("");
+      setMode(null);
       onClose();
     } catch {
       toast.error(t("common.somethingWrong"));
@@ -330,21 +341,64 @@ export function ReturnDialog({
                 </li>
               </ul>
               {hasParty ? (
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="keep-credit"
-                    checked={keepAsCredit}
-                    onCheckedChange={(v) => setKeepAsCredit(v === true)}
-                    data-testid="keep-credit"
-                  />
-                  <FieldLabel htmlFor="keep-credit">
-                    {t(
-                      kind === "sale"
-                        ? "returns.keepAsCredit"
-                        : "returns.keepAsCreditSupplier",
-                    )}
-                  </FieldLabel>
+                <div
+                  className="grid gap-1.5 sm:grid-cols-3"
+                  aria-label={t("returns.settlement")}
+                  data-testid="settle-choice"
+                >
+                  {(
+                    [
+                      [
+                        "cash",
+                        kind === "sale"
+                          ? "returns.modeCash"
+                          : "returns.modeCashSupplier",
+                      ],
+                      [
+                        "due",
+                        kind === "sale"
+                          ? "returns.modeDue"
+                          : "returns.modeDueSupplier",
+                      ],
+                      [
+                        "advance",
+                        kind === "sale"
+                          ? "returns.modeAdvance"
+                          : "returns.modeAdvanceSupplier",
+                      ],
+                    ] as const
+                  )
+                    .filter(([m]) => m !== "due" || balance > 0)
+                    .map(([m, label]) => (
+                      <button
+                        key={m}
+                        type="button"
+                        aria-pressed={chosenMode === m}
+                        onClick={() => setMode(m)}
+                        className={cn(
+                          "rounded-lg border px-2 py-2 text-start text-sm",
+                          chosenMode === m
+                            ? "border-primary bg-primary/10 font-medium text-primary"
+                            : "hover:bg-muted/50",
+                        )}
+                        data-testid={`settle-${m}`}
+                      >
+                        {t(label as never)}
+                      </button>
+                    ))}
                 </div>
+              ) : null}
+              {needsChoice ? (
+                <p
+                  className="text-xs text-amber-700 dark:text-amber-400"
+                  data-testid="settle-ask"
+                >
+                  {t(
+                    kind === "sale"
+                      ? "returns.chooseSettle"
+                      : "returns.chooseSettleSupplier",
+                  )}
+                </p>
               ) : null}
             </Field>
 

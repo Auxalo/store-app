@@ -130,7 +130,8 @@ test("cancelling a sale that kept money on the account asks about that money; th
   await expect(page.getByTestId("void-linked-payment")).toContainText("৳১৫০");
   await expect(page.getByTestId("void-payment-check")).toBeChecked();
   await page.getByTestId("void-sale-confirm").click();
-  await expect(page.getByText("বাতিল").first()).toBeVisible();
+  // Saved: the sale is cancelled, so its cancel button is gone.
+  await expect(page.getByTestId("void-sale")).toHaveCount(0);
 
   // Both are cancelled: the payment shows as cancelled and the customer owes nothing.
   await page.goto("/payments");
@@ -168,7 +169,8 @@ test("cancelling the sale alone keeps the money on the account, which can then b
   await page.getByTestId("void-sale").click();
   await page.getByTestId("void-payment-check").click(); // keep the money on the account
   await page.getByTestId("void-sale-confirm").click();
-  await expect(page.getByText("বাতিল").first()).toBeVisible();
+  // Saved: the sale is cancelled, so its cancel button is gone.
+  await expect(page.getByTestId("void-sale")).toHaveCount(0);
 
   // The customer still has ৳150 advance...
   await page.goto("/customers");

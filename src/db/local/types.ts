@@ -196,6 +196,11 @@ export interface Purchase {
   paymentMethod: PaymentMethod;
   notes: string;
   itemCount: number;
+  /** Missing means active (purchases made before cancelling existed). */
+  status?: "active" | "voided";
+  voidedAt?: string;
+  voidReason?: string;
+  voidedBy?: string;
   createdAt: string;
   updatedAt: string;
   createdBy: string;
@@ -316,6 +321,11 @@ export interface ReturnDoc {
   settlement: "cash" | "credit";
   restock: boolean;
   notes: string;
+  /** Missing means active (returns made before cancelling existed). */
+  status?: "active" | "voided";
+  voidedAt?: string;
+  voidReason?: string;
+  voidedBy?: string;
   createdAt: string;
   updatedAt: string;
   createdBy: string;

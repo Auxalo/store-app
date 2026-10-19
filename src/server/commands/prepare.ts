@@ -240,6 +240,47 @@ export const preparePayload: {
   "expense.create": passthrough,
   "expense.void": passthrough,
   "payment.void": passthrough,
+  "return.void": async (ctx, input) => {
+    const ret = await find(ctx, "returns", input.id);
+    if (!ret) throw new PrepareRejection("NOT_FOUND");
+    const kind = ret.kind as "sale" | "purchase";
+    const lines =
+      (ret.lines as Array<{ productId: string; qty: number }>) ?? [];
+    const credited =
+      typeof ret.credited === "number"
+        ? ret.credited
+        : ret.settlement === "credit"
+          ? Number(ret.total ?? 0)
+          : 0;
+    return {
+      ...input,
+      kind,
+      partyId: (ret.partyId as string | null) ?? null,
+      credited,
+      // What the return did to stock, which the cancellation undoes.
+      stock:
+        kind === "purchase"
+          ? lines.map((l) => ({ productId: l.productId, qty: -l.qty }))
+          : ret.restock === false
+            ? []
+            : lines.map((l) => ({ productId: l.productId, qty: l.qty })),
+    };
+  },
+  "purchase.void": async (ctx, input) => {
+    const purchase = await find(ctx, "purchases", input.purchaseId);
+    if (!purchase) throw new PrepareRejection("NOT_FOUND");
+    const linked = await find(ctx, "payments", `${input.purchaseId}:p`);
+    const items =
+      (purchase.items as Array<{ productId: string; qty: number }>) ?? [];
+    return {
+      ...input,
+      supplierId: (purchase.supplierId as string | null) ?? null,
+      due: Number(purchase.due ?? 0),
+      paymentAmount:
+        linked && linked.status !== "voided" ? Number(linked.amount ?? 0) : 0,
+      lines: items.map((i) => ({ productId: i.productId, qty: i.qty })),
+    };
+  },
 
   "saleReturn.create": async (ctx, input) => {
     const sale = await find(ctx, "sales", input.saleId);

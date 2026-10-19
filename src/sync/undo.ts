@@ -26,6 +26,8 @@ const HAS_EFFECTS = new Set([
   "payment.pay",
   "payment.void",
   "party.openingBalance",
+  "return.void",
+  "purchase.void",
 ]);
 
 export async function undoLocalEffects(
@@ -34,7 +36,11 @@ export async function undoLocalEffects(
 ): Promise<void> {
   if (!HAS_EFFECTS.has(op.type)) return;
   const root = op.entityId;
-  const isVoid = op.type === "sale.void" || op.type === "payment.void";
+  const isVoid =
+    op.type === "sale.void" ||
+    op.type === "payment.void" ||
+    op.type === "return.void" ||
+    op.type === "purchase.void";
   const mine = (id: string) =>
     isVoid
       ? id.startsWith(`${root}:v`)
@@ -47,10 +53,13 @@ export async function undoLocalEffects(
   const ledger = (
     await db.ledgerEntries.where("id").startsWith(`${root}:`).toArray()
   ).filter((l) => mine(l.id));
-  // A sale cancelled together with its kept-on-account payment also wrote that payment's reversal.
+  // A sale cancelled together with its kept-on-account payment also wrote that payment's reversal
+  // (a cancelled purchase always takes it along).
   const withPayment =
-    op.type === "sale.void" &&
-    (op.payload as { voidPayment?: boolean }).voidPayment === true;
+    (op.type === "sale.void" &&
+      (op.payload as { voidPayment?: boolean }).voidPayment === true) ||
+    (op.type === "purchase.void" &&
+      ((op.payload as { paymentAmount?: number }).paymentAmount ?? 0) > 0);
   if (withPayment) {
     const reversal = await db.ledgerEntries.get(`${root}:p:vl`);
     if (reversal) ledger.push(reversal);
@@ -105,6 +114,38 @@ export async function undoLocalEffects(
         voidedAt: undefined,
         voidedBy: undefined,
       });
+  }
+
+  // A cancelled return or purchase that was not cancelled after all.
+  if (op.type === "return.void") {
+    const ret = await db.returns.get(root);
+    if (ret?.status === "voided")
+      await db.returns.update(root, {
+        status: "active",
+        voidedAt: undefined,
+        voidReason: undefined,
+        voidedBy: undefined,
+      });
+  }
+  if (op.type === "purchase.void") {
+    const purchase = await db.purchases.get(root);
+    if (purchase?.status === "voided")
+      await db.purchases.update(root, {
+        status: "active",
+        voidedAt: undefined,
+        voidReason: undefined,
+        voidedBy: undefined,
+      });
+    if (withPayment) {
+      const payment = await db.payments.get(`${root}:p`);
+      if (payment?.status === "voided")
+        await db.payments.update(payment.id, {
+          status: "active",
+          voidReason: undefined,
+          voidedAt: undefined,
+          voidedBy: undefined,
+        });
+    }
   }
 
   // A cancellation that did not happen: the sale is as it was.

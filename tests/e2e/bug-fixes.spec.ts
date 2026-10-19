@@ -39,6 +39,8 @@ test("reports count money received and current dues, and lists say what a due me
   await page.getByTestId("sale-row").click();
   await page.getByTestId("return-items").click();
   await page.getByTestId("return-lines").getByLabel("ফেরতের পরিমাণ").fill("2");
+  // They still owe ৳50: take it off what they owe, the rest back in cash.
+  await page.getByTestId("settle-due").click();
   await page.getByTestId("confirm-return").click();
   await expect(page.getByTestId("return-lines")).toBeHidden();
 

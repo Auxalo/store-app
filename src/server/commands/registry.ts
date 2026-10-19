@@ -18,6 +18,8 @@ import {
   paymentVoid,
   purchaseCreate,
   purchaseReturnCreate,
+  purchaseVoid,
+  returnVoid,
   saleReturnCreate,
 } from "./purchasing";
 import { saleCreate, saleVoid } from "./sales";
@@ -114,6 +116,8 @@ export const serverCommands: { [T in CommandType]: ServerHandler<T> } = {
   "payment.void": (ctx, payload) => paymentVoid(ctx, payload),
   "saleReturn.create": (ctx, payload) => saleReturnCreate(ctx, payload),
   "purchaseReturn.create": (ctx, payload) => purchaseReturnCreate(ctx, payload),
+  "return.void": (ctx, payload) => returnVoid(ctx, payload),
+  "purchase.void": (ctx, payload) => purchaseVoid(ctx, payload),
 
   // Settings are tiny key/value records: the most recent action wins.
   "setting.set": async (ctx, { key, value }): Promise<ApplyResult> => {
