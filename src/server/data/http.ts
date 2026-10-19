@@ -12,6 +12,9 @@ import { HttpError } from "../http";
 import { storeTimeZone, type Viewer } from "./service";
 
 /** What a person needs to open each list; the rest are open to everyone signed in (as in the menu). */
+/** List filters that are yes/no (they arrive as text in the address). */
+const BOOLEAN_PARAMS = new Set(["dueOnly", "creditOnly"]);
+
 const PERMISSION: Partial<Record<Resource, Permission>> = {
   suppliers: "purchase.manage",
   purchases: "purchase.manage",
@@ -35,7 +38,9 @@ export function paramsFromSearch<R extends Resource>(
   const input: Record<string, unknown> = {};
   for (const [key, value] of search) {
     if (key === "limit" || key === "cursor") continue;
-    input[key] = key === "dueOnly" ? value === "true" || value === "1" : value;
+    input[key] = BOOLEAN_PARAMS.has(key)
+      ? value === "true" || value === "1"
+      : value;
   }
   return parseListParams(resource, input);
 }
