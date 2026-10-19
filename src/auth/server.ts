@@ -20,7 +20,7 @@ async function createAuth() {
   if (process.env.SKIP_RUNTIME_INDEXES !== "1") await ensureUserIndexes(db);
 
   return betterAuth({
-    appName: "Heshabe",
+    appName: "Trade Hishab",
     // A person's name and username are changed by the owner (staff screen) and by nobody else:
     // the sign-in service's own "update my profile" is switched off, or anyone could take
     // another person's name on the lock screen and in the audit log.

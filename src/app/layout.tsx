@@ -16,13 +16,13 @@ const bengali = Noto_Sans_Bengali({
 });
 
 export const metadata: Metadata = {
-  title: { default: "Heshabe", template: "%s · Heshabe" },
+  title: { default: "Trade Hishab", template: "%s · Trade Hishab" },
   description:
     "Offline-first store management: sales, stock, purchases and accounts.",
-  applicationName: "Heshabe",
+  applicationName: "Trade Hishab",
   appleWebApp: {
     capable: true,
-    title: "Heshabe",
+    title: "Trade Hishab",
     statusBarStyle: "default",
   },
   formatDetection: { telephone: false },
