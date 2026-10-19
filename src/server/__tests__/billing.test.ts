@@ -102,7 +102,7 @@ describe("how a new shop starts", () => {
     const b = initialBilling(DEFAULT_PLATFORM_BILLING, NOW);
     expect(b.mode).toBe("paid");
     expect(b.paidOnce).toBe(false);
-    expect(b.paidUntil?.toISOString()).toBe("2026-10-19T17:59:59.999Z"); // 5 Oct + 14 days
+    expect(b.paidUntil?.toISOString()).toBe("2026-11-04T17:59:59.999Z"); // 5 Oct + 30 days
     expect(billingStateOf(b, NOW).state).toBe("trial");
   });
 
@@ -321,7 +321,7 @@ describe("the operator changes a shop's billing", () => {
       { mode: "paid" },
       NOW,
     );
-    expect(on?.paidUntil?.toISOString()).toBe("2026-10-19T17:59:59.999Z");
+    expect(on?.paidUntil?.toISOString()).toBe("2026-11-04T17:59:59.999Z");
     expect(billingStateOf(on, NOW).state).toBe("trial");
 
     const dated = await setShopBilling(
