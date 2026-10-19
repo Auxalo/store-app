@@ -35,10 +35,10 @@ function build(subject: string, bn: Line[], en: Line[]) {
 
 export function resetPasswordMail(name: string, url: string) {
   return build(
-    "পাসওয়ার্ড বদলান / Reset your password - Heshabe",
+    "পাসওয়ার্ড বদলান / Reset your password - Trade Hishab",
     [
       {
-        text: `${name}, আপনার হিসাবি অ্যাকাউন্টের পাসওয়ার্ড বদলানোর অনুরোধ এসেছে।`,
+        text: `${name}, আপনার ট্রেড হিসাব অ্যাকাউন্টের পাসওয়ার্ড বদলানোর অনুরোধ এসেছে।`,
       },
       { text: "নতুন পাসওয়ার্ড দিতে এই লিংকে যান (১ ঘণ্টা চালু থাকবে):", link: url },
       {
@@ -47,7 +47,7 @@ export function resetPasswordMail(name: string, url: string) {
     ],
     [
       {
-        text: `${name}, someone asked to reset the password of your Heshabe account.`,
+        text: `${name}, someone asked to reset the password of your Trade Hishab account.`,
       },
       {
         text: "Set a new password with this link (valid for 1 hour):",
@@ -67,7 +67,7 @@ export function welcomeMail(
   loginUrl: string,
 ) {
   return build(
-    "স্বাগতম / Welcome to Heshabe",
+    "স্বাগতম / Welcome to Trade Hishab",
     [
       { text: `স্বাগতম ${name}! "${storeName}" দোকান তৈরি হয়েছে।` },
       { text: `সাইন ইনের ইউজারনেম: ${username}`, link: loginUrl },
