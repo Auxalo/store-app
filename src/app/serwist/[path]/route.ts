@@ -43,6 +43,14 @@ export const { dynamic, dynamicParams, revalidate, generateStaticParams, GET } =
     globIgnores: ["**/*.map", "static/chunks/**/*.hot-update.*"],
     // Files under .next/static are served from /_next/static
     modifyURLPrefix: { "static/": "/_next/static/" },
-    additionalPrecacheEntries: pageRoutes().map((url) => ({ url, revision })),
+    // The pages, plus the brand logo and the app icons (so the installed app and its sidebar show
+    // the right logo offline too, and a new logo reaches phones with the next deployment).
+    additionalPrecacheEntries: [
+      ...pageRoutes(),
+      "/logo.png",
+      "/pwa-icons/icon-192.png",
+      "/pwa-icons/icon-512.png",
+      "/pwa-icons/maskable-512.png",
+    ].map((url) => ({ url, revision })),
     useNativeEsbuild: true,
   });
