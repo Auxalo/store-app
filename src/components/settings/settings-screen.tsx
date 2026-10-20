@@ -6,6 +6,7 @@ import {
   Download,
   KeyRound,
   PackagePlus,
+  Printer,
   ScrollText,
   Smartphone,
 } from "lucide-react";
@@ -25,19 +26,12 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useDataMode } from "@/data/mode-store";
 import { getLocalDb } from "@/db/local/db";
 import { useSetting } from "@/hooks/use-setting";
 import { download, toCsv } from "@/lib/export";
 import { parseDecimal } from "@/lib/numerals";
-import { type ReceiptPaper, usePreferences } from "@/stores/preferences";
+import { usePreferences } from "@/stores/preferences";
 import { AuditToggleCard } from "./audit-toggle";
 
 export type StoreProfile = {
@@ -52,7 +46,13 @@ export function SettingsScreen() {
   const t = useTranslations();
   const { role, storeName } = useProfile();
   const paper = usePreferences((s) => s.receiptPaper);
-  const setPaper = usePreferences((s) => s.setReceiptPaper);
+  const printerPrefs = usePreferences((s) => s.printer);
+  const printerName =
+    printerPrefs.via === "system"
+      ? t("printer.viaSystem")
+      : printerPrefs.via
+        ? printerPrefs.name || t(`printer.via_${printerPrefs.via}` as never)
+        : "";
 
   const profile = useSetting<StoreProfile>("store.profile", EMPTY_PROFILE);
   const footer = useSetting<string>("receipt.footer", "");
@@ -292,22 +292,28 @@ export function SettingsScreen() {
                 {t("common.save")}
               </Button>
             </form>
-            <Field>
-              <FieldLabel>{t("settings.paper")}</FieldLabel>
-              <Select
-                value={paper}
-                onValueChange={(v) => setPaper(v as ReceiptPaper)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="58mm">{t("settings.paper58")}</SelectItem>
-                  <SelectItem value="80mm">{t("settings.paper80")}</SelectItem>
-                  <SelectItem value="a4">{t("settings.paperA4")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
+            <Link
+              href="/settings/printer"
+              className="flex items-center gap-3 rounded-xl border bg-card p-3 hover:bg-muted/50"
+              data-testid="printer-link"
+            >
+              <Printer className="size-5 text-muted-foreground" aria-hidden />
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium">{t("printer.title")}</span>
+                <span className="block text-xs text-muted-foreground">
+                  {printerName
+                    ? t("printer.current", {
+                        paper: t(`printer.kind_${paper}` as never),
+                        name: printerName,
+                      })
+                    : t("printer.notSet")}
+                </span>
+              </span>
+              <ChevronRight
+                className="size-4 text-muted-foreground rtl:rotate-180"
+                aria-hidden
+              />
+            </Link>
           </FieldGroup>
         </CardContent>
       </Card>

@@ -1,12 +1,13 @@
 "use client";
 
-import { Plus, Printer } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useProfile } from "@/auth/use-auth";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Button } from "@/components/ui/button";
 import { useRecord } from "@/data/hooks";
 import type { Sale, SaleItem } from "@/db/local/types";
+import { PrintButton } from "./print-button";
 import { Receipt } from "./receipt";
 import { ShareReceiptButton } from "./share-receipt-button";
 
@@ -51,10 +52,12 @@ export function ReceiptDialog({
               items={data.items}
               storeName={storeName ?? ""}
             />
-            <Button variant="outline" onClick={() => window.print()}>
-              <Printer aria-hidden />
-              {t("printReceipt")}
-            </Button>
+            <PrintButton
+              sale={data.sale}
+              items={data.items}
+              storeName={storeName ?? ""}
+              autoPrint
+            />
             <Button onClick={onClose} autoFocus>
               <Plus aria-hidden />
               {t("newSale")}

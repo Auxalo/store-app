@@ -343,7 +343,6 @@ export function ReturnDialog({
               {hasParty ? (
                 <div
                   className="grid gap-1.5 sm:grid-cols-3"
-                  aria-label={t("returns.settlement")}
                   data-testid="settle-choice"
                 >
                   {(

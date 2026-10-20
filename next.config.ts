@@ -52,7 +52,8 @@ const nextConfig: NextConfig = {
           { key: "Content-Security-Policy", value: csp },
           {
             key: "Permissions-Policy",
-            value: "camera=(self), microphone=(), geolocation=(), payment=()",
+            value:
+              "camera=(self), microphone=(), geolocation=(), payment=(), serial=(self), bluetooth=(self)",
           },
           ...(isDev
             ? []

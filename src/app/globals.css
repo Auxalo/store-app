@@ -168,5 +168,9 @@ html {
     padding: 0;
     background: #fff;
     color: #000;
+    /* Thermal paper prints black or nothing: no greys, no colour. */
+    filter: grayscale(1) contrast(1.4);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }

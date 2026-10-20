@@ -1,11 +1,12 @@
 "use client";
 
-import { Ban, Printer, Undo2 } from "lucide-react";
+import { Ban, Undo2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
+import { PrintButton } from "@/components/pos/print-button";
 import { Receipt } from "@/components/pos/receipt";
 import { ShareReceiptButton } from "@/components/pos/share-receipt-button";
 import { ReturnDialog } from "@/components/returns/return-dialog";
@@ -77,10 +78,7 @@ export function SaleViewScreen() {
     <div className="mx-auto flex w-full max-w-md flex-col gap-3">
       <BackLink href="/sales" label={t("nav.sales")} />
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" onClick={() => window.print()}>
-          <Printer aria-hidden />
-          {t("pos.printReceipt")}
-        </Button>
+        <PrintButton sale={sale} items={items} storeName={storeName ?? ""} />
         <ShareReceiptButton
           sale={sale}
           items={items}

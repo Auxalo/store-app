@@ -12,7 +12,7 @@ import type { Sale, SaleItem } from "@/db/local/types";
 import { useSetting } from "@/hooks/use-setting";
 import { useFormat } from "@/i18n/use-format";
 import { normalizePhone } from "@/lib/phone";
-import { saleStanding } from "./receipt";
+import { saleStanding } from "@/lib/sale-math";
 
 const NO_PROFILE: StoreProfile = { name: "", address: "", phone: "" };
 
