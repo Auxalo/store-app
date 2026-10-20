@@ -1,4 +1,23 @@
+import type { Sale } from "@/db/local/types";
 import { lineTotal } from "./qty";
+
+/**
+ * Where the customer stands around this bill: what they owed before it (`before`, never negative)
+ * and their balance after it (`after`: negative is an advance). Older sales only know the due before.
+ */
+export function saleStanding(sale: Sale): { before: number; after: number } {
+  const hasBalance = sale.balanceBefore !== undefined;
+  const before = hasBalance
+    ? Math.max(0, sale.balanceBefore ?? 0)
+    : (sale.previousDue ?? 0);
+  const after = hasBalance
+    ? (sale.balanceBefore ?? 0) +
+      sale.due +
+      (sale.creditUsed ?? 0) -
+      (sale.toAccount ?? 0)
+    : before + sale.due;
+  return { before, after };
+}
 
 export interface SaleLineAmounts {
   /** Milli-units. */

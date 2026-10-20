@@ -5,6 +5,7 @@ import type { StoreProfile } from "@/components/settings/settings-screen";
 import type { Sale, SaleItem } from "@/db/local/types";
 import { useSetting } from "@/hooks/use-setting";
 import { useFormat } from "@/i18n/use-format";
+import { saleStanding } from "@/lib/sale-math";
 import { cn } from "@/lib/utils";
 import { type ReceiptPaper, usePreferences } from "@/stores/preferences";
 
@@ -153,24 +154,6 @@ export function Receipt({ sale, items, storeName }: ReceiptProps) {
       <p className="mt-3 text-center">{footer || t("thanks")}</p>
     </div>
   );
-}
-
-/**
- * Where the customer stands around this bill: what they owed before it (`before`, never negative)
- * and their balance after it (`after`: negative is an advance). Older sales only know the due before.
- */
-export function saleStanding(sale: Sale): { before: number; after: number } {
-  const hasBalance = sale.balanceBefore !== undefined;
-  const before = hasBalance
-    ? Math.max(0, sale.balanceBefore ?? 0)
-    : (sale.previousDue ?? 0);
-  const after = hasBalance
-    ? (sale.balanceBefore ?? 0) +
-      sale.due +
-      (sale.creditUsed ?? 0) -
-      (sale.toAccount ?? 0)
-    : before + sale.due;
-  return { before, after };
 }
 
 /** The customer's account after this bill (জের, সর্বমোট জের, জমা). */
