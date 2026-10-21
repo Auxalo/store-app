@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Ban, HandCoins, Phone } from "lucide-react";
+import { ArrowLeft, Ban, HandCoins, Phone, Printer } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -33,6 +33,10 @@ import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
 import { cn } from "@/lib/utils";
 import { PAYMENT_METHODS, type PaymentMethod } from "@/schemas/sale";
+import {
+  PaymentSlipDialog,
+  type PaymentSlipRequest,
+} from "./payment-slip-dialog";
 
 const LINKS: Record<string, string> = {
   sale: "/sales/view?id=",
@@ -54,6 +58,7 @@ export function PartyDetailScreen({ kind }: { kind: PartyKind }) {
     amount: number;
   } | null>(null);
   const [cancellingReturn, setCancellingReturn] = useState<string | null>(null);
+  const [slip, setSlip] = useState<PaymentSlipRequest | null>(null);
 
   const loaded = useRecord(kind === "customer" ? "customers" : "suppliers", id);
   const party = loaded.record as Party | undefined;
@@ -106,6 +111,10 @@ export function PartyDetailScreen({ kind }: { kind: PartyKind }) {
       .map((e) => e.refId),
   );
   const canCancel = can(role, "sale.void");
+  // The newest payment that still stands: its slip shows where the customer stands right now.
+  const lastPayment = rows.find(
+    ({ entry }) => entry.refType === "payment" && !cancelled.has(entry.refId),
+  );
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
@@ -117,6 +126,7 @@ export function PartyDetailScreen({ kind }: { kind: PartyKind }) {
         id={cancellingReturn}
         onClose={() => setCancellingReturn(null)}
       />
+      <PaymentSlipDialog slip={slip} onClose={() => setSlip(null)} />
       <Link
         href={`/${kind}s`}
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -160,6 +170,26 @@ export function PartyDetailScreen({ kind }: { kind: PartyKind }) {
             <HandCoins aria-hidden />
             {kind === "customer" ? t("party.collect") : t("party.pay")}
           </Button>
+          {kind === "customer" && lastPayment ? (
+            <Button
+              variant="outline"
+              onClick={() =>
+                setSlip({
+                  paymentId: lastPayment.entry.refId,
+                  before: slipBefore(
+                    lastPayment.after,
+                    lastPayment.entry,
+                    balance,
+                  ),
+                  after: balance,
+                })
+              }
+              data-testid="last-payment-slip"
+            >
+              <Printer aria-hidden />
+              {t("party.lastSlip")}
+            </Button>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -244,6 +274,26 @@ export function PartyDetailScreen({ kind }: { kind: PartyKind }) {
                           {t("payments.voidConfirm")}
                         </Button>
                       ) : null}
+                      {kind === "customer" &&
+                      entry.refType === "payment" &&
+                      !wasCancelled ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="mt-1 h-8"
+                          onClick={() =>
+                            setSlip({
+                              paymentId: entry.refId,
+                              before: after - entry.amountDelta,
+                              after,
+                            })
+                          }
+                          data-testid="payment-slip"
+                        >
+                          <Printer aria-hidden />
+                          {t("party.slip")}
+                        </Button>
+                      ) : null}
                       {returnCancellable ? (
                         <Button
                           variant="ghost"
@@ -284,11 +334,24 @@ export function PartyDetailScreen({ kind }: { kind: PartyKind }) {
         partyId={id}
         partyName={party.name}
         due={party.balance > 0 ? party.balance : 0}
+        balance={party.balance}
         open={paying}
         onClose={() => setPaying(false)}
+        onSaved={setSlip}
       />
     </div>
   );
+}
+
+/** What the customer owed before a payment, shown on the slip only when it adds up with what they owe now. */
+function slipBefore(
+  balanceAfterPayment: number,
+  entry: LedgerEntry,
+  balanceNow: number,
+): number | null {
+  return balanceAfterPayment === balanceNow
+    ? balanceAfterPayment - entry.amountDelta
+    : null;
 }
 
 function PaymentDialog({
@@ -296,16 +359,22 @@ function PaymentDialog({
   partyId,
   partyName,
   due,
+  balance,
   open,
   onClose,
+  onSaved,
 }: {
   kind: PartyKind;
   partyId: string;
   partyName: string;
   /** What is owed right now (0 when nothing is): offered as a one-tap amount. */
   due: number;
+  /** The real balance (a customer holding an advance is below 0). */
+  balance: number;
   open: boolean;
   onClose: () => void;
+  /** Called with the slip for the payment just taken (customers only). */
+  onSaved: (slip: PaymentSlipRequest) => void;
 }) {
   const t = useTranslations();
   const f = useFormat();
@@ -319,13 +388,21 @@ function PaymentDialog({
     if (!amount) return;
     setSaving(true);
     try {
+      const id = newId();
       await run(kind === "customer" ? "payment.collect" : "payment.pay", {
-        id: newId(),
+        id,
         partyId,
         amount,
         method,
         note,
       });
+      if (kind === "customer")
+        onSaved({
+          paymentId: id,
+          before: balance,
+          after: balance - amount,
+          fresh: true,
+        });
       setAmount(null);
       setNote("");
       onClose();

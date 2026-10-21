@@ -3,7 +3,7 @@
 import { Loader2, Printer } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Button } from "@/components/ui/button";
@@ -17,25 +17,23 @@ import { ShareReceiptButton } from "./share-receipt-button";
 
 /**
  * The one Print button. It prints the way this device was set up (Settings → Printer), in one tap.
- * If it cannot, it says why in plain words and offers: try again, share the receipt, or the normal
- * print window. The sale itself is never affected.
+ * If it cannot, it says why in plain words and offers: try again, a backup (share the receipt, when
+ * given) or the normal print window. The thing being printed is never affected.
  */
-export function PrintButton({
-  sale,
-  items,
-  storeName,
+export function PrintAction({
+  run,
+  fallback,
   className,
   autoPrint = false,
 }: {
-  sale: Sale;
-  items: SaleItem[];
-  storeName: string;
+  run: () => Promise<PrintResult>;
+  /** An extra way out when printing fails, e.g. sharing the receipt. */
+  fallback?: ReactNode;
   className?: string;
   /** Print as soon as this appears, when the device is set to print by itself. */
   autoPrint?: boolean;
 }) {
   const t = useTranslations("printer");
-  const { print } = usePrintReceipt();
   const wantsAuto = usePreferences((s) => s.printer.autoPrint);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<PrintResult | null>(null);
@@ -44,13 +42,13 @@ export function PrintButton({
   async function go() {
     setBusy(true);
     setProblem(null);
-    const result = await print(sale, items);
+    const result = await run();
     setBusy(false);
     if (result.ok) toast.success(t("printed"));
     else setProblem(result);
   }
 
-  // Printing by itself, once, when the receipt first appears.
+  // Printing by itself, once, when this first appears.
   if (autoPrint && wantsAuto && !autoDone) {
     setAutoDone(true);
     queueMicrotask(() => void go());
@@ -102,12 +100,7 @@ export function PrintButton({
                 {t("retry")}
               </Button>
             )}
-            <ShareReceiptButton
-              sale={sale}
-              items={items}
-              storeName={storeName}
-              className="w-full"
-            />
+            {fallback}
             <Button
               variant="outline"
               onClick={() => {
@@ -122,5 +115,37 @@ export function PrintButton({
         </div>
       </ResponsiveDialog>
     </>
+  );
+}
+
+/** Print button for a sale receipt. */
+export function PrintButton({
+  sale,
+  items,
+  storeName,
+  className,
+  autoPrint = false,
+}: {
+  sale: Sale;
+  items: SaleItem[];
+  storeName: string;
+  className?: string;
+  autoPrint?: boolean;
+}) {
+  const { print } = usePrintReceipt();
+  return (
+    <PrintAction
+      className={className}
+      autoPrint={autoPrint}
+      run={() => print(sale, items)}
+      fallback={
+        <ShareReceiptButton
+          sale={sale}
+          items={items}
+          storeName={storeName}
+          className="w-full"
+        />
+      }
+    />
   );
 }

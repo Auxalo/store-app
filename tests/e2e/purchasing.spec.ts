@@ -137,9 +137,11 @@ test("collect a customer's due after a credit sale", async ({
   await page.getByTestId("payment-amount").fill("60");
   await page.getByTestId("save-payment").click();
   await expect(page.getByTestId("party-balance-total")).toHaveText("৳৪০");
+  await page.getByTestId("slip-close").click();
   await page.getByTestId("record-payment").click();
   await page.getByTestId("payment-amount").fill("40");
   await page.getByTestId("save-payment").click();
+  await page.getByTestId("slip-close").click();
   await expect(page.getByText("সব মেটানো")).toBeVisible();
   await expect(page.getByTestId("statement-row")).toHaveCount(3); // sale, two payments
 
