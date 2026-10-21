@@ -611,7 +611,11 @@
     "received": "গ্রহণ করা হয়েছে",
     "change": "ফেরত (খুচরা)",
     "cancelled": "বাতিল",
-    "method": "পরিশোধের মাধ্যম"
+    "method": "পরিশোধের মাধ্যম",
+    "paymentTitle": "পেমেন্ট রসিদ",
+    "paymentReceived": "জমা পেয়েছি",
+    "dueNow": "এখন বাকি",
+    "allSettled": "কোনো বাকি নেই"
   },
   "customers": {
     "add": "ক্রেতা যোগ করুন",
@@ -689,7 +693,12 @@
       "name": "ক থেকে হ",
       "balance": "বেশি বাকি আগে",
       "newest": "নতুন আগে"
-    }
+    },
+    "slip": "রসিদ",
+    "slipTitle": "পেমেন্ট রসিদ",
+    "lastSlip": "শেষ পেমেন্টের রসিদ",
+    "slipClose": "বন্ধ করুন",
+    "slipUnavailable": "এই পেমেন্টের রসিদ এই ডিভাইসে পাওয়া যায়নি।"
   },
   "purchases": {
     "voided": "বাতিল",

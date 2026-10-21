@@ -7,6 +7,8 @@
 export interface ReceiptModel {
   /** Centered at the top. The first line is the shop's name, drawn large. */
   header: string[];
+  /** A heading under the shop's details, e.g. "Payment receipt". */
+  title?: string;
   /** "CANCELLED" box, when the sale was cancelled. */
   cancelled?: string;
   /** Invoice, date, customer: one line each. */
@@ -137,6 +139,12 @@ export function layoutReceipt(
       y += Math.round(s * 1.35);
     }
   });
+  if (model.title) {
+    for (const l of lineFit(model.title, true, size + 2)) {
+      text(l, { align: "center", bold: true, size: size + 2 });
+      y += Math.round((size + 2) * 1.35);
+    }
+  }
   if (model.cancelled) {
     text(`*** ${model.cancelled} ***`, { align: "center", bold: true });
     y += lineH;
@@ -156,7 +164,7 @@ export function layoutReceipt(
     }
     pair(item.detail, item.amount, false);
   }
-  rule();
+  if (model.items.length > 0) rule();
   for (const row of model.totals) pair(row.label, row.value, !!row.bold);
   if (model.standing.length > 0) {
     rule();

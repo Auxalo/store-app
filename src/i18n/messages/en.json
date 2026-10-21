@@ -611,7 +611,11 @@
     "received": "Received",
     "change": "Change",
     "cancelled": "CANCELLED",
-    "method": "Paid by"
+    "method": "Paid by",
+    "paymentTitle": "Payment receipt",
+    "paymentReceived": "Payment received",
+    "dueNow": "Due now",
+    "allSettled": "All settled"
   },
   "customers": {
     "add": "Add customer",
@@ -689,7 +693,12 @@
       "name": "A to Z",
       "balance": "Biggest balance first",
       "newest": "Newest first"
-    }
+    },
+    "slip": "Receipt",
+    "slipTitle": "Payment receipt",
+    "lastSlip": "Last payment receipt",
+    "slipClose": "Close",
+    "slipUnavailable": "This payment receipt is not available on this device."
   },
   "purchases": {
     "voided": "Cancelled",

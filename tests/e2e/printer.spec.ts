@@ -213,3 +213,75 @@ test("auto-print sends the receipt right after the sale, without pressing Print"
   await expect(page.getByText("প্রিন্টারে পাঠানো হয়েছে")).toBeVisible();
   expect((await written(page)).length).toBeGreaterThan(2000);
 });
+
+test("a customer's payment slip: this payment and what is still due, then an advance; it prints in one tap", async ({
+  page,
+}, testInfo) => {
+  await fakePrinter(page);
+  await signUp(page, `prn7${Date.now()}${testInfo.project.name}`);
+  await createProduct(page, {
+    name: "ফ্রেশ দুধ",
+    price: "50",
+    cost: "40",
+    stock: "10",
+  });
+  await page.goto("/settings/printer");
+  await page.getByTestId("kind-58mm").click();
+  await page.getByTestId("way-serial").click();
+
+  // A credit sale of ৳50 to a new customer: ৳50 is owed.
+  await page.goto("/pos");
+  await tapProduct(page, "ফ্রেশ দুধ");
+  await openCart(page);
+  const cart = page.getByTestId("cart-panel");
+  await cart.getByTestId("received-input").fill("0");
+  await cart.getByTestId("customer-button").click();
+  await page.getByRole("button", { name: "নতুন ক্রেতা" }).click();
+  await page.getByLabel("নাম", { exact: true }).fill("রহিম");
+  await page.getByRole("button", { name: "সংরক্ষণ" }).click();
+  await cart.getByTestId("complete-sale").click();
+  await page.getByRole("button", { name: "নতুন বিক্রি" }).click();
+
+  // No payment yet, so no "last payment" slip.
+  await page.goto("/customers");
+  await page.getByTestId("party-row").filter({ hasText: "রহিম" }).click();
+  await expect(page.getByTestId("last-payment-slip")).toHaveCount(0);
+
+  // The customer pays ৳20: the slip opens with the payment and ৳30 still due.
+  await page.getByTestId("record-payment").click();
+  await page.getByTestId("payment-amount").fill("20");
+  await page.getByTestId("save-payment").click();
+  const paper = page.getByTestId("slip-paper");
+  await expect(paper).toContainText("পেমেন্ট রসিদ");
+  await expect(paper).toContainText("রহিম");
+  await expect(paper).toContainText("৳২০.০০");
+  const standing = page.getByTestId("slip-standing");
+  await expect(standing).toContainText("আগের জের");
+  await expect(standing).toContainText("এখন বাকি");
+  await expect(standing).toContainText("৳৩০.০০");
+
+  // One tap sends it to the printer as a 58 mm picture.
+  await page.getByTestId("print-receipt").click();
+  await expect(page.getByText("প্রিন্টারে পাঠানো হয়েছে")).toBeVisible();
+  const bytes = await written(page);
+  expect(rasterHeader(bytes)?.rowBytes).toBe(48);
+  expect(bytes.length).toBeGreaterThan(1500);
+  await page.getByTestId("slip-close").click();
+
+  // Later, the customer pays ৳100 (৳70 more than owed): the slip for the last payment shows an advance.
+  await page.getByTestId("record-payment").click();
+  await page.getByTestId("payment-amount").fill("100");
+  await page.getByTestId("save-payment").click();
+  await expect(page.getByTestId("slip-standing")).toContainText("জমা");
+  await expect(page.getByTestId("slip-standing")).toContainText("৳৭০.০০");
+  await page.getByTestId("slip-close").click();
+
+  // Any earlier payment can be printed again from the statement, and the card has a last-payment button.
+  await expect(page.getByTestId("payment-slip")).toHaveCount(2);
+  await page.getByTestId("payment-slip").last().click();
+  await expect(page.getByTestId("slip-paper")).toContainText("৳২০.০০");
+  await page.getByTestId("slip-close").click();
+  await page.getByTestId("last-payment-slip").click();
+  await expect(page.getByTestId("slip-paper")).toContainText("৳১০০.০০");
+  await expect(page.getByTestId("slip-standing")).toContainText("৳৭০.০০");
+});
