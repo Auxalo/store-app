@@ -46,6 +46,21 @@ export function lineAmount(line: SaleLineAmounts): number {
 }
 
 /**
+ * What lowering a line's price below its list price takes off, in poisha. A raised price is not a
+ * discount (0). The invoice shows the item at its list price and this cut as part of the discount.
+ */
+export function priceCut(line: {
+  qty: number;
+  listPrice: number;
+  unitPrice: number;
+}): number {
+  return Math.max(
+    0,
+    lineTotal(line.listPrice, line.qty) - lineTotal(line.unitPrice, line.qty),
+  );
+}
+
+/**
  * The single source of truth for sale totals. The cashier's screen, the local database and the
  * server all call this, so they can never disagree about what a sale came to.
  */

@@ -23,8 +23,7 @@ import {
 import { useRecord } from "@/data/hooks";
 import { useFormat } from "@/i18n/use-format";
 import { keepInView } from "@/lib/focus";
-import { lineTotal } from "@/lib/qty";
-import { computeTotals, lineAmount } from "@/lib/sale-math";
+import { computeTotals, priceCut as cutOf, lineAmount } from "@/lib/sale-math";
 import { cn } from "@/lib/utils";
 import { PAYMENT_METHODS, type PaymentMethod } from "@/schemas/sale";
 import { useCart } from "@/stores/cart";
@@ -86,16 +85,8 @@ export function CartPanel({
 
   const canOverridePrice = can(role, "sale.priceOverride");
   // What the cashier took off by lowering prices (a raised price is not a discount): it is shown in
-  // the Discount field together with any discount typed there, but the sale's total is unchanged.
-  const priceCut = cart.lines.reduce(
-    (sum, l) =>
-      sum +
-      Math.max(
-        0,
-        lineTotal(l.listPrice, l.qty) - lineTotal(l.unitPrice, l.qty),
-      ),
-    0,
-  );
+  // the Discount field together with any discount typed there, and it is what the invoice shows too.
+  const priceCut = cart.lines.reduce((sum, l) => sum + cutOf(l), 0);
   const shownDiscount = cart.discount + priceCut;
   // Change is what was handed over beyond what is to be paid (the total less store credit used).
   const extra = cart.tendered !== null ? Math.max(0, cart.tendered - toPay) : 0;
