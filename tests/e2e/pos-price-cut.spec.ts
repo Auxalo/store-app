@@ -58,6 +58,65 @@ test("lowering a price shows the cut in the Discount field (a raised price is no
   const receipt = page.locator("#print-receipt");
   await expect(receipt).toBeVisible();
   await expect(receipt).toContainText("৳১৮০.০০");
+  // The invoice shows the item at its list price and the cut as the discount.
+  await expect(receipt).toContainText("৳১০০");
+  await expect(receipt).toContainText("৳২০০.০০"); // subtotal at list price
+  await expect(receipt).toContainText("− ৳২০.০০"); // the discount
+});
+
+test("the invoice shows list prices and one total discount for many items; a raised price stays", async ({
+  page,
+}, testInfo) => {
+  await signUp(page, `cuts${Date.now()}${testInfo.project.name}`);
+  await createProduct(page, {
+    name: "ফ্রেশ দুধ",
+    price: "90",
+    cost: "60",
+    stock: "20",
+  });
+  await createProduct(page, {
+    name: "চিনি",
+    price: "50",
+    cost: "40",
+    stock: "20",
+  });
+  await createProduct(page, {
+    name: "সাবান",
+    price: "30",
+    cost: "20",
+    stock: "20",
+  });
+  await page.goto("/pos");
+  await tapProduct(page, "ফ্রেশ দুধ");
+  await tapProduct(page, "ফ্রেশ দুধ");
+  await tapProduct(page, "চিনি");
+  await tapProduct(page, "সাবান");
+  await openCart(page);
+  const cart = page.getByTestId("cart-panel");
+  const prices = cart.getByRole("textbox", { name: "একক দাম" });
+  await expect(prices).toHaveCount(3);
+
+  // Milk ৳90 → ৳80 (two pieces: ৳20 off), sugar ৳50 → ৳40 (৳10 off), soap ৳30 → ৳35 (raised).
+  await prices.nth(0).fill("80");
+  await prices.nth(1).fill("40");
+  await prices.nth(2).fill("35");
+  // The Discount field adds the cuts up: ৳30. The total is what is charged: 160 + 40 + 35.
+  await expect(cart.getByTestId("discount-input")).toHaveValue("30");
+  await expect(cart.getByTestId("cart-total")).toHaveText("৳২৩৫");
+
+  await cart.getByTestId("complete-sale").click();
+  const receipt = page.locator("#print-receipt");
+  await expect(receipt).toBeVisible();
+  // Milk and sugar are at their list prices, soap at the raised price.
+  await expect(receipt).toContainText("৳৯০");
+  await expect(receipt).toContainText("৳৫০");
+  await expect(receipt).toContainText("৳৩৫");
+  await expect(receipt).not.toContainText("৳৮০");
+  await expect(receipt).not.toContainText("৳৪০");
+  // Subtotal 180 + 50 + 35 = 265, one discount of 30, total 235.
+  await expect(receipt).toContainText("৳২৬৫.০০");
+  await expect(receipt).toContainText("− ৳৩০.০০");
+  await expect(receipt).toContainText("৳২৩৫.০০");
 });
 
 test("on a phone the cart sheet stays on the screen while a price box is tapped", async ({

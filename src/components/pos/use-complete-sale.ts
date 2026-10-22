@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { isOffline } from "@/data/errors";
 import { useCommand } from "@/data/hooks";
 import { newId } from "@/lib/ids";
-import { computeTotals } from "@/lib/sale-math";
+import { computeTotals, priceCut } from "@/lib/sale-math";
 import { cartTotals, useCart } from "@/stores/cart";
 
 /**
@@ -43,11 +43,22 @@ export function useCompleteSale(onSold: (saleId: string) => void) {
     if (due > 0 && !state.customerId) return;
     if (state.discount > cartTotals(state).subtotal) return;
 
+    // A lowered price goes on the invoice as the item at its list price, with the cut added to the
+    // discount (so many items add up to one discount). The total is the same either way; a raised
+    // price stays as the price.
+    let cut = 0;
+    const lines = state.lines.map(({ key: _key, stock: _stock, ...line }) => {
+      const lowered = priceCut(line);
+      if (lowered === 0) return line;
+      cut += lowered;
+      return { ...line, unitPrice: line.listPrice };
+    });
+
     const input = {
       customerId: state.customerId,
       customerName: state.customerName,
-      lines: state.lines.map(({ key: _key, stock: _stock, ...line }) => line),
-      discount: state.discount,
+      lines,
+      discount: state.discount + cut,
       // "Exactly the total" means what is left after store credit has paid its part.
       tendered: state.tendered ?? total - creditUsed,
       creditUsed,
