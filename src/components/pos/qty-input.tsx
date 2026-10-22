@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { keepInView } from "@/lib/focus";
 import { parseQty, roundToUnit } from "@/lib/qty";
 import { unitDecimals } from "@/lib/units";
 import { type CartLine, useCart } from "@/stores/cart";
@@ -43,6 +44,7 @@ export function QtyInput({ line }: { line: CartLine }) {
         onFocus={(e) => {
           setEditing(true);
           e.target.select();
+          keepInView(e);
         }}
         onBlur={() => setEditing(false)}
         onChange={(e) => {

@@ -9,6 +9,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import type { z } from "zod";
 import { authClient } from "@/auth/client";
+import { MessengerIcon } from "@/components/shared/developer-links";
 import { ValidationError } from "@/components/shared/field-text";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Button } from "@/components/ui/button";
@@ -134,6 +135,15 @@ export default function SignupPage() {
             <MessageCircle className="size-4" aria-hidden />
             {td("whatsapp")}: {DEVELOPER.whatsapp}
           </a>
+          <a
+            href={DEVELOPER.messengerUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-primary hover:underline"
+          >
+            <MessengerIcon className="size-4" />
+            {td("messenger")}: {DEVELOPER.messengerPage}
+          </a>
           <Button variant="outline" onClick={() => setClosedOpen(false)}>
             {t("signupClosedClose")}
           </Button>
@@ -232,6 +242,16 @@ export default function SignupPage() {
           className="font-medium text-primary underline-offset-4 hover:underline"
         >
           WhatsApp {DEVELOPER.whatsapp}
+        </a>
+        {" · "}
+        <a
+          href={DEVELOPER.messengerUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-primary underline-offset-4 hover:underline"
+          data-testid="signup-messenger"
+        >
+          Messenger
         </a>
       </p>
 

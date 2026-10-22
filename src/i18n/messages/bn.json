@@ -466,7 +466,8 @@
     "unitPrice": "একক দাম",
     "dueAmount": "বাকিতে: {value}",
     "receiptUnavailable": "বিক্রি সংরক্ষিত হয়েছে, কিন্তু রসিদ দেখানো যায়নি। বিক্রয় পাতায় এটি পাবেন।",
-    "codeNotFound": "এই কোড বা নামে কোনো পণ্য নেই।"
+    "codeNotFound": "এই কোড বা নামে কোনো পণ্য নেই।",
+    "discountIncludesCut": "দাম কমানোর {value} সহ"
   },
   "sales": {
     "searchPlaceholder": "ইনভয়েস নম্বর, ক্রেতার নাম বা মোবাইল",
@@ -1249,7 +1250,8 @@
   "developer": {
     "label": "ডেভেলপার",
     "website": "ওয়েবসাইট",
-    "whatsapp": "হোয়াটসঅ্যাপ"
+    "whatsapp": "হোয়াটসঅ্যাপ",
+    "messenger": "মেসেঞ্জার"
   },
   "setup": {
     "title": "আপনার দোকান সাজিয়ে নিন",

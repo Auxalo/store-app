@@ -131,7 +131,7 @@ function build(options: {
 <tr><td style="padding:0 24px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="border-top:1px solid #e5e7eb;font-size:0;line-height:0;height:1px">&nbsp;</td></tr></table></td></tr>
 <tr><td style="padding:20px 24px 8px">${blockHtml(options.en)}</td></tr>
 <tr><td style="background:#f8faf8;border-top:1px solid #e5e7eb;padding:16px 24px;font-size:12.5px;line-height:1.7;color:${MUTED}">
-সাহায্য লাগলে হোয়াটসঅ্যাপ করুন / Need help? WhatsApp: <a href="${DEVELOPER.whatsappUrl}" style="color:${BRAND};font-weight:700;text-decoration:none">${escapeHtml(DEVELOPER.name)} · ${escapeHtml(DEVELOPER.whatsapp)}</a>
+সাহায্য লাগলে / Need help? <a href="${DEVELOPER.whatsappUrl}" style="color:${BRAND};font-weight:700;text-decoration:none">WhatsApp ${escapeHtml(DEVELOPER.whatsapp)}</a> · <a href="${DEVELOPER.messengerUrl}" style="color:#0084FF;font-weight:700;text-decoration:none">Messenger</a>
 </td></tr>
 </table>
 <div style="max-width:520px;padding:14px 8px 0;font-size:11.5px;color:#9ca3af;text-align:center">Trade Hishab · ট্রেড হিসাব</div>
@@ -147,7 +147,7 @@ function build(options: {
     blockText(options.en),
     "",
     "---",
-    `সাহায্য লাগলে হোয়াটসঅ্যাপ করুন / Need help? WhatsApp ${DEVELOPER.name}: ${DEVELOPER.whatsapp}`,
+    `সাহায্য লাগলে / Need help? WhatsApp ${DEVELOPER.whatsapp} · Messenger ${DEVELOPER.messengerUrl}`,
   ].join("\n");
   return { subject: options.subject, text, html };
 }

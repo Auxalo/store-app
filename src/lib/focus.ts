@@ -8,3 +8,18 @@ export function refocusOnComputer(input: HTMLElement | null | undefined) {
   if (typeof window.matchMedia !== "function") return;
   if (window.matchMedia("(pointer: fine)").matches) input.focus();
 }
+
+/**
+ * On a phone or tablet, once the on-screen keyboard is up, bring the box that was tapped to the
+ * middle of what is left of the screen (a box low in a list could otherwise stay under the keyboard).
+ * A computer has no such keyboard, so nothing moves there.
+ */
+export function keepInView(event: { currentTarget: HTMLElement }) {
+  const box = event.currentTarget;
+  if (typeof window.matchMedia !== "function") return;
+  if (window.matchMedia("(pointer: fine)").matches) return;
+  window.setTimeout(
+    () => box.scrollIntoView?.({ block: "center", behavior: "smooth" }),
+    350,
+  );
+}

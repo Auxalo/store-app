@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/select";
 import { useRecord } from "@/data/hooks";
 import { useFormat } from "@/i18n/use-format";
+import { keepInView } from "@/lib/focus";
+import { lineTotal } from "@/lib/qty";
 import { computeTotals, lineAmount } from "@/lib/sale-math";
 import { cn } from "@/lib/utils";
 import { PAYMENT_METHODS, type PaymentMethod } from "@/schemas/sale";
@@ -83,6 +85,18 @@ export function CartPanel({
       .reduce((sum, l) => sum + l.qty, 0);
 
   const canOverridePrice = can(role, "sale.priceOverride");
+  // What the cashier took off by lowering prices (a raised price is not a discount): it is shown in
+  // the Discount field together with any discount typed there, but the sale's total is unchanged.
+  const priceCut = cart.lines.reduce(
+    (sum, l) =>
+      sum +
+      Math.max(
+        0,
+        lineTotal(l.listPrice, l.qty) - lineTotal(l.unitPrice, l.qty),
+      ),
+    0,
+  );
+  const shownDiscount = cart.discount + priceCut;
   // Change is what was handed over beyond what is to be paid (the total less store credit used).
   const extra = cart.tendered !== null ? Math.max(0, cart.tendered - toPay) : 0;
   // A known customer's extra may stay on their account: it comes off what they owe first, and the
@@ -193,6 +207,7 @@ export function CartPanel({
                         onValue={(v) =>
                           v !== null && cart.setUnitPrice(line.key, v)
                         }
+                        onFocus={keepInView}
                         className="h-8 w-20 px-1.5 text-end text-sm"
                       />
                     ) : (
@@ -266,12 +281,23 @@ export function CartPanel({
             <span>{t("pos.discount")} (৳)</span>
             <MoneyField
               aria-label={t("pos.discount")}
-              value={cart.discount === 0 ? null : cart.discount}
-              onValue={(v) => cart.setDiscount(v ?? 0)}
+              value={shownDiscount === 0 ? null : shownDiscount}
+              onValue={(v) =>
+                cart.setDiscount(Math.max(0, (v ?? 0) - priceCut))
+              }
+              onFocus={keepInView}
               className="h-9 text-sm md:h-8"
               aria-invalid={discountTooBig}
               data-testid="discount-input"
             />
+            {priceCut > 0 ? (
+              <span
+                className="text-[11px] leading-tight text-amber-600"
+                data-testid="discount-price-cut"
+              >
+                {t("pos.discountIncludesCut", { value: f.money(priceCut) })}
+              </span>
+            ) : null}
           </div>
           <div className="flex flex-col gap-1 text-xs text-muted-foreground">
             <span>{t("pos.paymentMethod")}</span>
@@ -303,6 +329,7 @@ export function CartPanel({
               aria-label={t("pos.received")}
               value={cart.tendered}
               onValue={(v) => cart.setTendered(v)}
+              onFocus={keepInView}
               placeholder={String(toPay / 100)}
               className="h-9 text-sm md:h-8"
               data-testid="received-input"
@@ -362,11 +389,15 @@ export function CartPanel({
         ) : null}
 
         <dl className="space-y-0.5 text-sm">
-          {totals.discount > 0 ? (
-            <Row label={t("pos.subtotal")}>{f.money(totals.subtotal)}</Row>
+          {totals.discount + priceCut > 0 ? (
+            <Row label={t("pos.subtotal")}>
+              {f.money(totals.subtotal + priceCut)}
+            </Row>
           ) : null}
-          {totals.discount > 0 ? (
-            <Row label={t("pos.discount")}>−{f.money(totals.discount)}</Row>
+          {totals.discount + priceCut > 0 ? (
+            <Row label={t("pos.discount")}>
+              −{f.money(totals.discount + priceCut)}
+            </Row>
           ) : null}
           <div className="flex items-center justify-between text-lg font-semibold">
             <dt>{t("pos.total")}</dt>
