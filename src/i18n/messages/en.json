@@ -466,7 +466,8 @@
     "unitPrice": "Unit price",
     "dueAmount": "On credit: {value}",
     "receiptUnavailable": "The sale is saved, but its receipt could not be shown. You can find it under Sales.",
-    "codeNotFound": "No product with this code or name."
+    "codeNotFound": "No product with this code or name.",
+    "discountIncludesCut": "Includes {value} from lowered prices"
   },
   "sales": {
     "searchPlaceholder": "Invoice number, customer name or mobile",
@@ -1249,7 +1250,8 @@
   "developer": {
     "label": "Developer",
     "website": "Website",
-    "whatsapp": "WhatsApp"
+    "whatsapp": "WhatsApp",
+    "messenger": "Messenger"
   },
   "setup": {
     "title": "Set up your shop",

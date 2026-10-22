@@ -109,7 +109,13 @@ export function PosScreen() {
               <span data-testid="bar-total">{f.money(sale.totals.total)}</span>
             </Button>
           </div>
-          <Drawer open={cartOpen} onOpenChange={setCartOpen}>
+          {/* repositionInputs off: the sheet's own "move above the keyboard" logic pushed the whole cart
+              off the screen when a price box was tapped; the browser already scrolls the tapped box into view. */}
+          <Drawer
+            open={cartOpen}
+            onOpenChange={setCartOpen}
+            repositionInputs={false}
+          >
             {/* The drawer's own limit is 80vh and a plain max-h does not beat it, so the Sell button
                 was cut off on shorter phones: name the variant to replace it. */}
             <DrawerContent className="data-[vaul-drawer-direction=bottom]:max-h-[94dvh]">
@@ -117,7 +123,11 @@ export function PosScreen() {
                 <DrawerTitle>{t("pos.cart")}</DrawerTitle>
                 <DrawerDescription>{t("pos.cart")}</DrawerDescription>
               </DrawerHeader>
-              <div className="h-[calc(92dvh-2.5rem)] overflow-y-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+              {/* data-vaul-no-drag: a finger on a box or the list must scroll or type, never drag the sheet. */}
+              <div
+                data-vaul-no-drag
+                className="h-[calc(92dvh-2.5rem)] min-h-0 overflow-y-auto overscroll-contain p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+              >
                 {cartPanel}
               </div>
             </DrawerContent>

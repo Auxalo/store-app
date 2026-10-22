@@ -128,6 +128,16 @@ export default function ForgotPasswordPage() {
           >
             WhatsApp {DEVELOPER.whatsapp}
           </a>
+          {" · "}
+          <a
+            href={DEVELOPER.messengerUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-primary underline-offset-4 hover:underline"
+            data-testid="forgot-messenger"
+          >
+            Messenger
+          </a>
         </p>
       </div>
 

@@ -19,6 +19,20 @@ function WhatsAppIcon({ className }: { className?: string }) {
   );
 }
 
+/** Messenger's mark (lucide has no brand icons). */
+export function MessengerIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      aria-hidden
+    >
+      <path d="M12 2C6.48 2 2 6.14 2 11.25c0 2.9 1.44 5.48 3.7 7.17V22l3.4-1.87c.9.25 1.87.39 2.9.39 5.52 0 10-4.14 10-9.27S17.52 2 12 2zm1.03 12.48-2.55-2.72-4.98 2.72 5.48-5.82 2.61 2.72 4.92-2.72-5.48 5.82z" />
+    </svg>
+  );
+}
+
 /** Who built the app and how to reach them: name, then the website and WhatsApp as icon links. */
 export function DeveloperLinks({
   className,
@@ -63,6 +77,16 @@ export function DeveloperLinks({
         >
           <WhatsAppIcon className="size-3.5 text-[#25D366]" />
           {t("whatsapp")}
+        </a>
+        <a
+          href={DEVELOPER.messengerUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={link}
+          data-testid="developer-messenger"
+        >
+          <MessengerIcon className="size-3.5 text-[#0084FF]" />
+          {t("messenger")}
         </a>
       </div>
     </div>

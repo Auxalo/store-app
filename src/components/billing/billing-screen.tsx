@@ -17,6 +17,7 @@ import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
 import { useBillingStatus } from "@/billing/client";
 import type { BillingView, PayMethod, PaymentView } from "@/billing/plans";
+import { MessengerIcon } from "@/components/shared/developer-links";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -514,6 +515,17 @@ function Help() {
       >
         <MessageCircle className="size-3.5" aria-hidden />
         {t("help", { number: DEVELOPER.whatsapp })}
+      </a>
+      {" · "}
+      <a
+        href={DEVELOPER.messengerUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 hover:text-foreground hover:underline"
+        data-testid="billing-messenger"
+      >
+        <MessengerIcon className="size-3.5 text-[#0084FF]" />
+        Messenger
       </a>
     </p>
   );

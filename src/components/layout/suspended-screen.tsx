@@ -2,6 +2,7 @@
 
 import { Globe, MessageCircle, PauseCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { MessengerIcon } from "@/components/shared/developer-links";
 import { Button } from "@/components/ui/button";
 import { DEVELOPER } from "@/config/developer";
 import { useSignOut } from "./sign-out";
@@ -42,6 +43,15 @@ export function SuspendedScreen() {
         >
           <MessageCircle className="size-4" aria-hidden />
           {td("whatsapp")}: {DEVELOPER.whatsapp}
+        </a>
+        <a
+          href={DEVELOPER.messengerUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center gap-2 text-primary hover:underline"
+        >
+          <MessengerIcon className="size-4" />
+          {td("messenger")}: {DEVELOPER.messengerPage}
         </a>
       </div>
       <p className="max-w-sm text-xs text-muted-foreground">{t("safe")}</p>
