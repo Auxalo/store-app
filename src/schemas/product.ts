@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { UNIT_CODES } from "@/lib/units";
 import { idSchema } from "./common";
+import { unitCodeSchema } from "./unit";
 
 // Messages are i18n keys in the "validation" namespace.
 const money = z
@@ -23,7 +23,7 @@ const shape = {
   sku: text(60),
   barcode: text(60),
   categoryId: idSchema.nullable(),
-  unit: z.enum(UNIT_CODES),
+  unit: unitCodeSchema,
   purchasePrice: money,
   sellingPrice: money,
   lowStockThreshold: qty,

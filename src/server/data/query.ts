@@ -82,6 +82,7 @@ export function buildFilter(
       clauses.push(wordsClause(String(p.q ?? "")));
       if (p.active === "active") clauses.push({ isActive: { $ne: false } });
       if (p.active === "inactive") clauses.push({ isActive: false });
+      if (p.unit) clauses.push({ unit: p.unit });
       if (p.categoryId === "none") clauses.push({ categoryId: null });
       else if (p.categoryId) clauses.push({ categoryId: p.categoryId });
       if (p.stock === "out") clauses.push({ stock: { $lte: 0 } });

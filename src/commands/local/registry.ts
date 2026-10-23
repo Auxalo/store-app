@@ -27,6 +27,7 @@ import {
   saleVoid,
 } from "./sales";
 import { claimSku } from "./sku";
+import { unitSave } from "./units";
 
 export interface LocalContext {
   storeId: string;
@@ -200,6 +201,8 @@ export const localCommands: { [T in CommandType]: LocalHandler<T> } = {
     purchaseReturnCreate(db, ctx, input, now),
   "return.void": (db, ctx, input, now) => returnVoid(db, ctx, input, now),
   "purchase.void": (db, ctx, input, now) => purchaseVoid(db, ctx, input, now),
+
+  "unit.save": (db, ctx, input, now) => unitSave(db, ctx, input, now),
 
   "setting.set": async (db, ctx, input, now) => {
     const existing = await db.settings.get(input.key);

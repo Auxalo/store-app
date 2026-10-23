@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import type { Permission } from "@/auth/permissions";
+import { unitSettingKey } from "@/lib/units";
 import { drawerSetInput, drawerSetPayload } from "@/schemas/cash-drawer";
 import {
   categoryCreateInput,
@@ -69,6 +70,7 @@ import {
   supplierUpdateInput,
   supplierUpdatePayload,
 } from "@/schemas/supplier";
+import { unitSaveInput, unitSavePayload } from "@/schemas/unit";
 
 /** Bump when a payload shape changes incompatibly; the server rejects versions it cannot read. */
 export const OP_SCHEMA_VERSION = 1;
@@ -368,6 +370,13 @@ export const COMMANDS = {
       ...new Set(p.stock.map((l) => l.productId)),
       ...(p.partyId ? [p.partyId] : []),
     ],
+  },
+  "unit.save": {
+    collection: "settings",
+    permission: "product.edit",
+    input: unitSaveInput,
+    payload: unitSavePayload,
+    entityIds: (p: { code: string }) => [unitSettingKey(p.code)],
   },
   "setting.set": {
     collection: "settings",

@@ -25,6 +25,7 @@ import { useOnlineDashboard } from "@/data/dashboard";
 import { useList, useTotals } from "@/data/hooks";
 import { useDataMode } from "@/data/mode-store";
 import { useSetting } from "@/hooks/use-setting";
+import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
 import { SETUP_SETTING } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -40,7 +41,7 @@ import { StoreWorth } from "./store-worth";
 export function DashboardScreen() {
   const t = useTranslations("dashboard");
   const tk = useTranslations("reports.kpi");
-  const tu = useTranslations("units");
+  const tu = useUnits().name;
   const f = useFormat();
   const { role } = useProfile();
   const timeZone = usePreferences((s) => s.timeZone);

@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { computeTotals } from "@/lib/sale-math";
-import { UNIT_CODES } from "@/lib/units";
 import { idSchema } from "./common";
 import { PAYMENT_METHODS } from "./sale";
+import { unitCodeSchema } from "./unit";
 
 const money = z
   .number()
@@ -15,7 +15,7 @@ export const purchaseLineInput = z.object({
   productId: idSchema,
   productName: text(120).min(1),
   productNameBn: text(120).default(""),
-  unit: z.enum(UNIT_CODES),
+  unit: unitCodeSchema,
   /** Milli-units received. */
   qty: z.number().int().min(1).max(1_000_000_000_000),
   /** Poisha paid per 1 unit: more than zero (free stock is added by adjusting stock). */

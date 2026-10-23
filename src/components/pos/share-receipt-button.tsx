@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { Sale, SaleItem } from "@/db/local/types";
 import { useSetting } from "@/hooks/use-setting";
+import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
 import { normalizePhone } from "@/lib/phone";
 import { saleStanding } from "@/lib/sale-math";
@@ -42,7 +43,7 @@ export function ShareReceiptButton({
   className?: string;
 }) {
   const t = useTranslations("receipt");
-  const tu = useTranslations("units");
+  const tu = useUnits().name;
   const tp = useTranslations("payment");
   const f = useFormat();
   const profile = useSetting<StoreProfile>("store.profile", NO_PROFILE).value;

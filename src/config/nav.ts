@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Settings,
   ShoppingCart,
+  SlidersHorizontal,
   Tags,
   Truck,
   Undo2,
@@ -39,6 +40,7 @@ export type NavKey =
   | "reports"
   | "sync"
   | "settings"
+  | "customize"
   | "billing";
 
 export type NavGroupKey =
@@ -171,6 +173,13 @@ export const navItems: readonly NavItem[] = [
     group: "system",
     phase: 6,
   },
+  {
+    key: "customize",
+    href: "/customize",
+    icon: SlidersHorizontal,
+    group: "system",
+    phase: 9,
+  },
   // Shown only when the shop has billing (see app-sidebar.tsx).
   {
     key: "billing",
@@ -201,6 +210,7 @@ const NAV_PERMISSION: Partial<Record<NavKey, Permission>> = {
   expenses: "expense.manage",
   reports: "report.view",
   settings: "settings.manage",
+  customize: "product.edit",
   billing: "billing.manage",
 };
 

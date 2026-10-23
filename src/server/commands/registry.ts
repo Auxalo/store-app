@@ -24,6 +24,7 @@ import {
 } from "./purchasing";
 import { saleCreate, saleVoid } from "./sales";
 import type { ApplyResult, ServerHandler } from "./types";
+import { unitSave } from "./units";
 
 const suppliers: MasterConfig = {
   collection: "suppliers",
@@ -118,6 +119,8 @@ export const serverCommands: { [T in CommandType]: ServerHandler<T> } = {
   "purchaseReturn.create": (ctx, payload) => purchaseReturnCreate(ctx, payload),
   "return.void": (ctx, payload) => returnVoid(ctx, payload),
   "purchase.void": (ctx, payload) => purchaseVoid(ctx, payload),
+
+  "unit.save": (ctx, payload) => unitSave(ctx, payload),
 
   // Settings are tiny key/value records: the most recent action wins.
   "setting.set": async (ctx, { key, value }): Promise<ApplyResult> => {

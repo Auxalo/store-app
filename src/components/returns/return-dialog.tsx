@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { useCommand, useRecord } from "@/data/hooks";
+import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
 import {
@@ -56,6 +57,7 @@ export function ReturnDialog({
   onClose: () => void;
 }) {
   const t = useTranslations();
+  const { name: unitName } = useUnits();
   const f = useFormat();
   const run = useCommand();
 
@@ -243,7 +245,7 @@ export function ReturnDialog({
                       <p className="truncate text-sm font-medium">{name(c)}</p>
                       <p className="text-xs text-muted-foreground">
                         {t("returns.max", {
-                          value: `${f.qty(c.remaining)} ${t(`units.${c.unit}`)}`,
+                          value: `${f.qty(c.remaining)} ${unitName(c.unit)}`,
                         })}{" "}
                         · {f.money(c.amount)}
                       </p>

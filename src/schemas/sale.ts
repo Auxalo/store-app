@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { computeTotals } from "@/lib/sale-math";
-import { UNIT_CODES } from "@/lib/units";
 import { idSchema } from "./common";
+import { unitCodeSchema } from "./unit";
 
 const money = z
   .number()
@@ -25,7 +25,7 @@ export const saleLineInput = z.object({
   productId: idSchema,
   productName: text(120).min(1),
   productNameBn: text(120).default(""),
-  unit: z.enum(UNIT_CODES),
+  unit: unitCodeSchema,
   /** Milli-units. */
   qty: z.number().int().min(1).max(1_000_000_000_000),
   /** What the product was listed at when added; a different unitPrice is a price override. */

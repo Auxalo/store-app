@@ -24,7 +24,8 @@
     "billing": "Billing",
     "home": "Home",
     "more": "More",
-    "menu": "Menu"
+    "menu": "Menu",
+    "customize": "Customize"
   },
   "navGroups": {
     "main": "Main",
@@ -348,7 +349,8 @@
       "newest": "Newest first"
     },
     "duplicateSkuGeneric": "This SKU is already used by another product",
-    "duplicateBarcodeGeneric": "This barcode is already used by another product"
+    "duplicateBarcodeGeneric": "This barcode is already used by another product",
+    "newUnit": "+ New unit"
   },
   "inventory": {
     "tabAll": "All stock",
@@ -1499,6 +1501,38 @@
       "phoneFormat": "Enter the number you sent the money from.",
       "amount": "Enter the amount you sent.",
       "other": "Could not send. Check the internet and try again."
+    }
+  },
+  "customize": {
+    "title": "Customize",
+    "subtitle": "Make the app fit your shop. More options will come here.",
+    "unitsCard": "Units",
+    "unitsCardBody": "The units you sell in (kg, dozen, bag ...). Add your own, rename or remove them.",
+    "units": {
+      "title": "Units",
+      "intro": "These are the units you can pick for a product. Rename, change or remove any of them, or add your own.",
+      "add": "Add a unit",
+      "whole": "Whole numbers",
+      "loose": "Fractions allowed",
+      "edit": "Edit",
+      "remove": "Remove",
+      "removedTitle": "Removed units",
+      "restore": "Restore",
+      "dialogAdd": "New unit",
+      "dialogEdit": "Edit unit",
+      "name": "Name",
+      "namePlaceholder": "e.g. bag, hali, yard",
+      "nameRequired": "Write a name.",
+      "nameTaken": "A unit with this name already exists.",
+      "loosePrompt": "Sold in fractions? (like 1.5)",
+      "looseHint": "Tick it for things sold by weight or length. Leave it empty for things counted one by one.",
+      "removeTitle": "Remove “{name}”?",
+      "removeBody": "It disappears from the lists you pick from. Old sales, purchases and stock records keep showing its name.",
+      "removeConfirm": "Remove",
+      "inUseTitle": "Can't remove it yet",
+      "inUseBody": "Some products still use this unit. Change their unit first:",
+      "inUseMore": "and more",
+      "saved": "Saved"
     }
   }
 }

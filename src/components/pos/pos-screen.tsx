@@ -78,7 +78,7 @@ export function PosScreen() {
       className="mx-auto flex w-full max-w-7xl flex-col gap-3 lg:flex-row"
       data-testid="pos"
     >
-      <section className="flex h-[calc(100dvh-13.5rem)] min-h-0 flex-1 flex-col lg:h-[calc(100dvh-8.5rem)]">
+      <section className="flex h-[calc(100dvh-13.5rem)] min-h-0 min-w-0 flex-1 flex-col lg:h-[calc(100dvh-8.5rem)]">
         <ProductPicker searchRef={searchRef} />
         <p className="mt-2 hidden text-xs text-muted-foreground lg:block">
           {t("pos.shortcuts")}

@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { useCommand, useList, useProductLookup, useRecord } from "@/data/hooks";
 import type { Product } from "@/db/local/types";
+import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
 import { lineAmount } from "@/lib/sale-math";
@@ -51,6 +52,7 @@ function todayIn(timeZone: string) {
 
 export function PurchaseFormScreen() {
   const t = useTranslations();
+  const { name: unitName } = useUnits();
   const f = useFormat();
   const router = useRouter();
   const run = useCommand();
@@ -289,7 +291,7 @@ export function PurchaseFormScreen() {
                   }
                 />
                 <span className="text-xs text-muted-foreground">
-                  {t(`units.${l.product.unit}`)}
+                  {unitName(l.product.unit)}
                 </span>
               </div>
               <div className="flex items-center gap-1.5">

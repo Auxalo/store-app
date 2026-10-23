@@ -30,11 +30,11 @@ import { useDataMode } from "@/data/mode-store";
 import { fetchPage } from "@/data/online";
 import { parseListParams } from "@/data/spec";
 import { getLocalDb } from "@/db/local/db";
+import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
 import { normalizePhone } from "@/lib/phone";
 import { normalizeSearch } from "@/lib/search";
-import { UNIT_CODES } from "@/lib/units";
 import {
   type CheckedRow,
   COLUMNS,
@@ -199,12 +199,16 @@ export function SetupTable({ kind, rows, onRows, onSaved }: SetupTableProps) {
   });
   const existing = mode === "online" ? online.data : local;
 
+  const units = useUnits();
   const unitOf = useMemo(
     () =>
       makeUnitLookup(
-        Object.fromEntries(UNIT_CODES.map((u) => [u, t(`units.${u}`)])),
+        Object.fromEntries(
+          units.active.map((u) => [u.code, units.name(u.code)]),
+        ),
+        units.active.map((u) => u.code),
       ),
-    [t],
+    [units],
   );
 
   const checked: CheckedRow[] = useMemo(
@@ -212,9 +216,13 @@ export function SetupTable({ kind, rows, onRows, onSaved }: SetupTableProps) {
       checkRows(
         kind,
         rows.map((r) => r.cells),
-        { existing: existing ?? emptyExisting(), unitOf },
+        {
+          existing: existing ?? emptyExisting(),
+          unitOf,
+          decimalsOf: units.decimals,
+        },
       ),
-    [kind, rows, existing, unitOf],
+    [kind, rows, existing, unitOf, units.decimals],
   );
   const filled = rows
     .map((r, i) => ({ id: r.id, cells: r.cells, row: checked[i] }))
@@ -528,9 +536,9 @@ export function SetupTable({ kind, rows, onRows, onSaved }: SetupTableProps) {
                               <SelectValue placeholder={t("setup.pickUnit")} />
                             </SelectTrigger>
                             <SelectContent>
-                              {UNIT_CODES.map((u) => (
-                                <SelectItem key={u} value={u}>
-                                  {t(`units.${u}`)}
+                              {units.active.map((u) => (
+                                <SelectItem key={u.code} value={u.code}>
+                                  {units.name(u.code)}
                                 </SelectItem>
                               ))}
                             </SelectContent>

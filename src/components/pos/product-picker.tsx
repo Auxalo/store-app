@@ -21,6 +21,7 @@ import { useCategories, useList, useProductLookup } from "@/data/hooks";
 import { useDataMode } from "@/data/mode-store";
 import { stockStatus } from "@/db/local/queries/products";
 import type { Product } from "@/db/local/types";
+import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
 import { refocusOnComputer } from "@/lib/focus";
 import { bnToEn } from "@/lib/numerals";
@@ -41,6 +42,7 @@ export function ProductPicker({
   searchRef: RefObject<HTMLInputElement | null>;
 }) {
   const t = useTranslations();
+  const { name: unitName } = useUnits();
   const f = useFormat();
   const locale = usePreferences((s) => s.locale);
   const addProduct = useCart((s) => s.addProduct);
@@ -128,7 +130,7 @@ export function ProductPicker({
   ];
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
       <div className="relative">
         <Search
           className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
@@ -241,7 +243,7 @@ export function ProductPicker({
                         )}
                       >
                         {t("pos.inStock", {
-                          value: `${f.qty(p.stock)} ${t(`units.${p.unit}`)}`,
+                          value: `${f.qty(p.stock)} ${unitName(p.unit)}`,
                         })}
                       </span>
                     </span>

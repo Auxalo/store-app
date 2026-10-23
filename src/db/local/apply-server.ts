@@ -26,6 +26,16 @@ function overlay(doc: Doc, op: OutboxOp): Doc {
       return { ...doc, deletedAt: op.createdAt, ...bump };
     case "setting.set":
       return { ...doc, value: payload.value, ...bump };
+    case "unit.save":
+      return {
+        ...doc,
+        value: {
+          name: payload.name,
+          decimals: payload.decimals,
+          removed: payload.removed,
+        },
+        ...bump,
+      };
     case "stock.adjust":
       // Stock is the server's sum plus the movements this device has not synced yet.
       return {

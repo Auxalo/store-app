@@ -13,6 +13,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCategories, useList, useTotals } from "@/data/hooks";
 import { useDataMode } from "@/data/mode-store";
 import { stockStatus } from "@/db/local/queries/products";
+import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
 import { download, toCsv } from "@/lib/export";
 import { lineTotal } from "@/lib/qty";
@@ -89,7 +90,7 @@ function Section({
 /** Reports for any date range. Everything is computed on this device, so it works offline. */
 export function ReportsScreen() {
   const t = useTranslations("reports");
-  const tu = useTranslations("units");
+  const tu = useUnits().name;
   const tp = useTranslations("payment");
   const te = useTranslations("expenses.categories");
   const f = useFormat();

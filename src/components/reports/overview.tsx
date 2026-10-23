@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
 import { changeBetween } from "@/reports/compare";
 import type { Summary } from "@/reports/compute";
@@ -50,7 +51,7 @@ export function ReportOverview({
 }) {
   const t = useTranslations("reports");
   const tp = useTranslations("payment");
-  const tu = useTranslations("units");
+  const tu = useUnits().name;
   const f = useFormat();
   const s = summary;
   const vs = (pick: (x: Summary) => number) =>

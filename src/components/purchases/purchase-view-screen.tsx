@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRecord } from "@/data/hooks";
 import type { Purchase, PurchaseItem, ReturnDoc } from "@/db/local/types";
+import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
 import { VoidPurchaseDialog } from "./void-purchase-dialog";
 
@@ -37,6 +38,7 @@ function Row({
 
 export function PurchaseViewScreen() {
   const t = useTranslations();
+  const { name: unitName } = useUnits();
   const f = useFormat();
   const { role } = useProfile();
   const id = useSearchParams().get("id") ?? "";
@@ -150,8 +152,7 @@ export function PurchaseViewScreen() {
                 <div className="min-w-0">
                   <p className="truncate font-medium">{i.productName}</p>
                   <p className="text-xs text-muted-foreground">
-                    {f.qty(i.qty)} {t(`units.${i.unit}`)} ×{" "}
-                    {f.money(i.unitCost)}
+                    {f.qty(i.qty)} {unitName(i.unit)} × {f.money(i.unitCost)}
                   </p>
                 </div>
                 <span className="shrink-0 font-semibold">
