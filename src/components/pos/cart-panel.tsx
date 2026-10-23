@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRecord } from "@/data/hooks";
+import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
 import { keepInView } from "@/lib/focus";
 import { computeTotals, priceCut as cutOf, lineAmount } from "@/lib/sale-math";
@@ -56,6 +57,7 @@ export function CartPanel({
   onCustomerOpenChange: (open: boolean) => void;
 }) {
   const t = useTranslations();
+  const { name: unitName } = useUnits();
   const f = useFormat();
   const { role } = useProfile();
   const cart = useCart();
@@ -226,7 +228,7 @@ export function CartPanel({
                     {line.stock <= 0
                       ? t("pos.noStockHint")
                       : t("pos.stockHint", {
-                          stock: `${f.qty(line.stock)} ${t(`units.${line.unit}` as never)}`,
+                          stock: `${f.qty(line.stock)} ${unitName(line.unit)}`,
                         })}
                   </p>
                 ) : null}

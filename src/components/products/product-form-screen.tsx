@@ -10,6 +10,7 @@ import { z } from "zod";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
 import { peekSku } from "@/commands/local/sku";
+import { UnitDialog } from "@/components/customize/unit-dialog";
 import { BackLink } from "@/components/shared/back-link";
 import { ValidationError } from "@/components/shared/field-text";
 import { Button } from "@/components/ui/button";
@@ -40,14 +41,18 @@ import { useDataMode } from "@/data/mode-store";
 import { getLocalDb } from "@/db/local/db";
 import { getDeviceId } from "@/db/local/meta";
 import type { Product } from "@/db/local/types";
+import { useUnits } from "@/hooks/use-units";
 import { newId } from "@/lib/ids";
 import { parseMoney } from "@/lib/money";
 import { parseQty, roundToUnit } from "@/lib/qty";
-import { UNIT_CODES, unitDecimals } from "@/lib/units";
+import type { Decimals } from "@/lib/units";
 import { cn } from "@/lib/utils";
+import { unitCodeSchema } from "@/schemas/unit";
 import { usePreferences } from "@/stores/preferences";
 
 const NONE = "none";
+/** A choice at the end of the unit list that opens "add a unit" instead of picking one. */
+const NEW_UNIT = "__new_unit__";
 
 /** A price must be entered and be more than zero. */
 const priceText = z
@@ -64,14 +69,17 @@ const qtyText = z
   });
 
 /** Only the name and the two prices are required; everything else is optional. */
-const makeFormSchema = (showsCost: boolean) =>
+const makeFormSchema = (
+  showsCost: boolean,
+  decimalsOf: (code: string) => Decimals,
+) =>
   z
     .object({
       name: z.string().trim().min(1, { error: "required" }).max(120),
       sku: z.string().trim().max(60),
       barcode: z.string().trim().max(60),
       categoryId: z.string(),
-      unit: z.enum(UNIT_CODES),
+      unit: unitCodeSchema,
       // People who cannot see the cost never fill it in, so it is not required of them.
       purchasePrice: showsCost ? priceText : z.string(),
       sellingPrice: priceText,
@@ -81,7 +89,7 @@ const makeFormSchema = (showsCost: boolean) =>
       isActive: z.boolean(),
     })
     .superRefine((v, ctx) => {
-      const decimals = unitDecimals(v.unit);
+      const decimals = decimalsOf(v.unit);
       for (const field of ["lowStockThreshold", "openingStock"] as const) {
         const milli = v[field].trim() === "" ? 0 : parseQty(v[field]);
         if (milli !== null && roundToUnit(milli, decimals) !== milli) {
@@ -138,16 +146,22 @@ function ProductForm({ product }: { product?: Product }) {
   const canSeeCost = can(role, "purchasePrice.view");
 
   const categories = useCategories()?.filter((c) => c.isActive);
+  const units = useUnits();
+  const [addingUnit, setAddingUnit] = useState(false);
+  // A unit just added from this form is picked once it shows up in the list (selecting it a moment
+  // earlier would be undone by the picker, which does not know it yet).
+  const [pendingUnit, setPendingUnit] = useState<string | null>(null);
 
   const {
     register,
     control,
     handleSubmit,
     setError,
+    setValue,
     watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
-    resolver: zodResolver(makeFormSchema(canSeeCost)),
+    resolver: zodResolver(makeFormSchema(canSeeCost, units.decimals)),
     defaultValues: {
       name: product?.name ?? "",
       sku: product?.sku ?? "",
@@ -163,6 +177,12 @@ function ProductForm({ product }: { product?: Product }) {
     },
   });
   const unit = watch("unit");
+  useEffect(() => {
+    if (pendingUnit && units.all.some((u) => u.code === pendingUnit)) {
+      setValue("unit", pendingUnit, { shouldDirty: true });
+      setPendingUnit(null);
+    }
+  }, [pendingUnit, units.all, setValue]);
   const cost = parseMoney(watch("purchasePrice")) ?? 0;
   const price = parseMoney(watch("sellingPrice")) ?? 0;
   const sellsAtLoss = canSeeCost && cost > 0 && price > 0 && price < cost;
@@ -269,7 +289,7 @@ function ProductForm({ product }: { product?: Product }) {
     }
   });
 
-  const unitLabel = t(`units.${unit}`);
+  const unitLabel = units.name(unit);
   const text = (
     name: keyof FormValues,
     label: string,
@@ -350,18 +370,42 @@ function ProductForm({ product }: { product?: Product }) {
             render={({ field }) => (
               <Field>
                 <FieldLabel>{t("products.unit")}</FieldLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger className="w-full">
+                <Select
+                  value={field.value}
+                  onValueChange={(v) =>
+                    v === NEW_UNIT
+                      ? setAddingUnit(true)
+                      : v && field.onChange(v)
+                  }
+                >
+                  <SelectTrigger className="w-full" data-testid="unit-select">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {UNIT_CODES.map((u) => (
-                      <SelectItem key={u} value={u}>
-                        {t(`units.${u}`)}
+                    {(units.active.some((u) => u.code === field.value)
+                      ? units.active
+                      : [
+                          ...units.active,
+                          ...units.all.filter((u) => u.code === field.value),
+                        ]
+                    ).map((u) => (
+                      <SelectItem key={u.code} value={u.code}>
+                        {units.name(u.code)}
                       </SelectItem>
                     ))}
+                    {can(role, "product.edit") ? (
+                      <SelectItem value={NEW_UNIT} data-testid="unit-new">
+                        {t("products.newUnit")}
+                      </SelectItem>
+                    ) : null}
                   </SelectContent>
                 </Select>
+                <UnitDialog
+                  unit={null}
+                  open={addingUnit}
+                  onOpenChange={setAddingUnit}
+                  onSaved={setPendingUnit}
+                />
               </Field>
             )}
           />

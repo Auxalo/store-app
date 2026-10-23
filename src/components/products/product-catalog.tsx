@@ -21,6 +21,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCategories, useList, usePrefetchRecord } from "@/data/hooks";
 import { useDataMode } from "@/data/mode-store";
 import type { Product } from "@/db/local/types";
+import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
 import type { StockFilter } from "@/lib/stock-status";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,7 @@ const SORTS = ["name", "stock", "price", "newest"] as const;
  */
 export function ProductCatalog({ mode }: { mode: "products" | "inventory" }) {
   const t = useTranslations();
+  const { name: unitName } = useUnits();
   const f = useFormat();
   const { role } = useProfile();
   const locale = usePreferences((s) => s.locale);
@@ -292,7 +294,7 @@ export function ProductCatalog({ mode }: { mode: "products" | "inventory" }) {
                           negative ? t("inventory.negativeHint") : undefined
                         }
                       >
-                        {f.qty(p.stock)} {t(`units.${p.unit}`)}
+                        {f.qty(p.stock)} {unitName(p.unit)}
                       </span>
                     </span>
                   </div>

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { lineTotal } from "@/lib/qty";
-import { UNIT_CODES } from "@/lib/units";
 import { idSchema } from "./common";
+import { unitCodeSchema } from "./unit";
 
 const money = z
   .number()
@@ -19,7 +19,7 @@ export const saleReturnLine = z.object({
   productId: idSchema,
   productName: text(120).min(1),
   productNameBn: text(120).default(""),
-  unit: z.enum(UNIT_CODES),
+  unit: unitCodeSchema,
   qty: z.number().int().min(1),
   /** Refund per 1 unit: what the customer paid for it (before any discount). */
   unitPrice: money,
@@ -56,7 +56,7 @@ export const purchaseReturnLine = z.object({
   productId: idSchema,
   productName: text(120).min(1),
   productNameBn: text(120).default(""),
-  unit: z.enum(UNIT_CODES),
+  unit: unitCodeSchema,
   qty: z.number().int().min(1),
   /** Refund per 1 unit: what we paid for it. */
   unitCost: money,

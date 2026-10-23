@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ListResult } from "@/data/hooks";
+import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
 import { normalizeSearch } from "@/lib/search";
 import { cn } from "@/lib/utils";
@@ -56,7 +57,7 @@ export function StockLog({
 }) {
   const t = useTranslations("reports");
   const ti = useTranslations("inventory");
-  const tu = useTranslations("units");
+  const tu = useUnits().name;
   const f = useFormat();
   const [view, setViewState] = useState<View>(readView);
   const setView = (v: View) => {

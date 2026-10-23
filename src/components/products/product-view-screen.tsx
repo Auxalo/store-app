@@ -26,6 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCategories, useCommand, useRecord } from "@/data/hooks";
 import type { Product, StockMovement } from "@/db/local/types";
+import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
 import { cn } from "@/lib/utils";
 import { usePreferences } from "@/stores/preferences";
@@ -49,6 +50,7 @@ function Row({
 
 export function ProductViewScreen() {
   const t = useTranslations();
+  const { name: unitName } = useUnits();
   const f = useFormat();
   const router = useRouter();
   const run = useCommand();
@@ -80,7 +82,7 @@ export function ProductViewScreen() {
     );
   }
 
-  const unit = t(`units.${product.unit}`);
+  const unit = unitName(product.unit);
   const title = product.name;
 
   async function remove() {

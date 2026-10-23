@@ -6,6 +6,7 @@ import { useProfile } from "@/auth/use-auth";
 import type { StoreProfile } from "@/components/settings/settings-screen";
 import type { Sale, SaleItem } from "@/db/local/types";
 import { useSetting } from "@/hooks/use-setting";
+import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
 import { usePreferences } from "@/stores/preferences";
 import { receiptJob } from "./escpos";
@@ -27,7 +28,7 @@ export type PrintResult =
  */
 export function usePrintReceipt() {
   const t = useTranslations("receipt");
-  const tu = useTranslations("units");
+  const tu = useUnits().name;
   const tp = useTranslations("payment");
   const f = useFormat();
   const { storeName } = useProfile();

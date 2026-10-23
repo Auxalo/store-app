@@ -2,8 +2,9 @@
 
 import { type ComponentProps, useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
+import { useUnits } from "@/hooks/use-units";
 import { parseQty, roundToUnit } from "@/lib/qty";
-import { type UnitCode, unitDecimals } from "@/lib/units";
+import type { UnitCode } from "@/lib/units";
 
 interface QtyFieldProps
   extends Omit<ComponentProps<typeof Input>, "value" | "onChange"> {
@@ -28,7 +29,7 @@ export function QtyField({
   max,
   ...props
 }: QtyFieldProps) {
-  const decimals = unitDecimals(unit);
+  const decimals = useUnits().decimals(unit);
   const [text, setText] = useState(String(value / 1000));
   const [editing, setEditing] = useState(false);
 

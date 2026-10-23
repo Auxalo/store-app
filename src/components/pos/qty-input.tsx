@@ -5,16 +5,16 @@ import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useUnits } from "@/hooks/use-units";
 import { keepInView } from "@/lib/focus";
 import { parseQty, roundToUnit } from "@/lib/qty";
-import { unitDecimals } from "@/lib/units";
 import { type CartLine, useCart } from "@/stores/cart";
 
 /** Quantity with − / + buttons and direct typing (kilograms accept decimals, pieces do not). */
 export function QtyInput({ line }: { line: CartLine }) {
   const t = useTranslations("pos");
   const setQty = useCart((s) => s.setQty);
-  const decimals = unitDecimals(line.unit);
+  const decimals = useUnits().decimals(line.unit);
   const smallest = 10 ** (3 - decimals);
   const [text, setText] = useState(String(line.qty / 1000));
   const [editing, setEditing] = useState(false);

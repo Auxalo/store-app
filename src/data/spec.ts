@@ -51,6 +51,8 @@ export const listParamsSchemas = {
     q: text,
     /** A category id, or "none" for products with no category. */
     categoryId: z.string().min(1).max(64).optional(),
+    /** Only products sold in this unit (a unit code). */
+    unit: z.string().min(1).max(64).optional(),
     stock: z.enum(["all", "low", "out"]).default("all"),
     active: z.enum(["active", "inactive", "all"]).default("active"),
     sort: z.enum(["name", "stock", "price", "newest"]).default("name"),
@@ -195,6 +197,7 @@ export function matches<R extends Resource>(
       if (!matchesQuery(resource, doc, str(p.q))) return false;
       if (p.active === "active" && doc.isActive === false) return false;
       if (p.active === "inactive" && doc.isActive !== false) return false;
+      if (p.unit && doc.unit !== p.unit) return false;
       if (p.categoryId === "none" && doc.categoryId) return false;
       if (
         p.categoryId &&

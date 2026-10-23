@@ -3,7 +3,12 @@ import { isHeaderRow, parsePastedTable } from "@/lib/paste-table";
 import { isValidPhone, normalizePhone } from "@/lib/phone";
 import { parseQty, roundToUnit } from "@/lib/qty";
 import { normalizeSearch } from "@/lib/search";
-import { UNIT_CODES, type UnitCode, unitDecimals } from "@/lib/units";
+import {
+  DEFAULT_UNIT_CODES,
+  type Decimals,
+  type UnitCode,
+  unitDecimals,
+} from "@/lib/units";
 
 /**
  * The first-time setup brings in what a shop already has: products with stock, customers who owe
@@ -141,9 +146,13 @@ export const emptyExisting = (): Existing => ({
 });
 
 /** Maps what a person typed for a unit ("kg", "কেজি", "PCS") to a unit code. */
-export function makeUnitLookup(labels: Partial<Record<UnitCode, string>>) {
+export function makeUnitLookup(
+  labels: Partial<Record<UnitCode, string>>,
+  /** The codes that may be typed; the shop's units (default: the built-in ones). */
+  codes: readonly string[] = DEFAULT_UNIT_CODES,
+) {
   const byText = new Map<string, UnitCode>();
-  for (const code of UNIT_CODES) {
+  for (const code of codes) {
     byText.set(normalizeSearch(code), code);
     const label = labels[code];
     if (label) byText.set(normalizeSearch(label), code);
@@ -161,6 +170,7 @@ export const productKey = (name: string, unit: string, price: number) =>
 function checkProduct(
   cells: string[],
   unitOf: (text: string) => UnitCode | null,
+  decimalsOf: (code: string) => Decimals,
   existing: Existing,
   seen: Existing,
 ): CheckedRow<ProductValue> {
@@ -193,7 +203,7 @@ function checkProduct(
       issues[key] = "invalidNumber";
       return 0;
     }
-    if (unit && roundToUnit(value, unitDecimals(unit)) !== value) {
+    if (unit && roundToUnit(value, decimalsOf(unit)) !== value) {
       issues[key] = "tooManyDecimals";
       return 0;
     }
@@ -279,12 +289,23 @@ function checkParty(
 export function checkRows(
   kind: SetupKind,
   rows: string[][],
-  context: { existing: Existing; unitOf: (text: string) => UnitCode | null },
+  context: {
+    existing: Existing;
+    unitOf: (text: string) => UnitCode | null;
+    /** How many decimals a quantity of a unit may have (default: the built-in units). */
+    decimalsOf?: (code: string) => Decimals;
+  },
 ): CheckedRow[] {
   const seen = emptyExisting();
   return rows.map((cells) =>
     kind === "products"
-      ? checkProduct(cells, context.unitOf, context.existing, seen)
+      ? checkProduct(
+          cells,
+          context.unitOf,
+          context.decimalsOf ?? ((code) => unitDecimals(code)),
+          context.existing,
+          seen,
+        )
       : checkParty(cells, kind, context.existing, seen),
   );
 }

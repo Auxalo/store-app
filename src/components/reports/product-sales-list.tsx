@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
 import { normalizeSearch } from "@/lib/search";
 import type { ProductRow } from "@/reports/compute";
@@ -24,7 +25,7 @@ export function ProductSalesList({
   showProfit: boolean;
 }) {
   const t = useTranslations("reports");
-  const tu = useTranslations("units");
+  const tu = useUnits().name;
   const f = useFormat();
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortKey>("revenue");

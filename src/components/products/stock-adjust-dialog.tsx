@@ -22,10 +22,10 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCommand } from "@/data/hooks";
 import type { Product } from "@/db/local/types";
+import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
 import { parseQty, roundToUnit } from "@/lib/qty";
-import { unitDecimals } from "@/lib/units";
 import { MANUAL_MOVEMENT_TYPES } from "@/schemas/product";
 
 type Mode = "set" | "add" | "remove";
@@ -68,8 +68,9 @@ function Form({ product, onClose }: { product: Product; onClose: () => void }) {
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const decimals = unitDecimals(product.unit);
-  const unit = t(`units.${product.unit}`);
+  const units = useUnits();
+  const decimals = units.decimals(product.unit);
+  const unit = units.name(product.unit);
   const amount = text.trim() === "" ? null : parseQty(text);
   const fits = amount !== null && roundToUnit(amount, decimals) === amount;
   const delta =
