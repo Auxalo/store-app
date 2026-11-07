@@ -26,6 +26,12 @@ function overlay(doc: Doc, op: OutboxOp): Doc {
       return { ...doc, deletedAt: op.createdAt, ...bump };
     case "setting.set":
       return { ...doc, value: payload.value, ...bump };
+    case "paymentMethod.save":
+      return {
+        ...doc,
+        value: { name: payload.name, removed: payload.removed },
+        ...bump,
+      };
     case "unit.save":
       return {
         ...doc,

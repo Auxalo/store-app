@@ -143,7 +143,7 @@ export function CashDrawerCard() {
               ) : null}
               <div className="flex items-center gap-2">
                 <MoneyField
-                  aria-label={t("drawerAmount")}
+                  aria-label={t("drawerAmount", { currency: f.symbol })}
                   value={amount}
                   onValue={setAmount}
                   placeholder="0"
@@ -187,7 +187,7 @@ export function CashDrawerCard() {
                       {t("drawerOpening")} {f.money(cash.opening ?? 0)}
                     </span>
                   ) : (
-                    t("drawerNotSet")
+                    t("drawerNotSet", { currency: f.symbol })
                   )}
                   {" · "}
                   {t("drawerIn")} {f.money(cash.flow.totalIn)}
@@ -244,7 +244,7 @@ export function CashDrawerCard() {
                     </p>
                     {cash.entries.length === 0 ? (
                       <p className="text-xs text-muted-foreground">
-                        {t("drawerNotSet")}
+                        {t("drawerNotSet", { currency: f.symbol })}
                       </p>
                     ) : (
                       <ul className="space-y-0.5">

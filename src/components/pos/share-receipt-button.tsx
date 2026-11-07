@@ -9,6 +9,7 @@ import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { Sale, SaleItem } from "@/db/local/types";
+import { usePaymentMethods } from "@/hooks/use-payment-methods";
 import { useSetting } from "@/hooks/use-setting";
 import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
@@ -44,7 +45,7 @@ export function ShareReceiptButton({
 }) {
   const t = useTranslations("receipt");
   const tu = useUnits().name;
-  const tp = useTranslations("payment");
+  const tp = usePaymentMethods().name;
   const f = useFormat();
   const profile = useSetting<StoreProfile>("store.profile", NO_PROFILE).value;
   const footer = useSetting<string>("receipt.footer", "").value;

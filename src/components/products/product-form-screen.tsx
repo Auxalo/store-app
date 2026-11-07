@@ -42,6 +42,7 @@ import { getLocalDb } from "@/db/local/db";
 import { getDeviceId } from "@/db/local/meta";
 import type { Product } from "@/db/local/types";
 import { useUnits } from "@/hooks/use-units";
+import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
 import { parseMoney } from "@/lib/money";
 import { parseQty, roundToUnit } from "@/lib/qty";
@@ -137,6 +138,7 @@ export function ProductFormScreen() {
 
 function ProductForm({ product }: { product?: Product }) {
   const t = useTranslations();
+  const f = useFormat();
   const router = useRouter();
   const run = useCommand();
   const dataMode = useDataMode();
@@ -421,7 +423,7 @@ function ProductForm({ product }: { product?: Product }) {
           {canSeeCost
             ? text(
                 "purchasePrice",
-                `${t("products.purchasePrice")} (৳)`,
+                `${t("products.purchasePrice")} (${f.symbol})`,
                 { inputMode: "decimal" },
                 true,
               )
@@ -429,7 +431,7 @@ function ProductForm({ product }: { product?: Product }) {
           <div className="flex flex-col gap-1">
             {text(
               "sellingPrice",
-              `${t("products.sellingPrice")} (৳)`,
+              `${t("products.sellingPrice")} (${f.symbol})`,
               { inputMode: "decimal" },
               true,
             )}

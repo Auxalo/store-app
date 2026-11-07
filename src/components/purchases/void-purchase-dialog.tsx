@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useCommand, useRecord } from "@/data/hooks";
 import type { Purchase } from "@/db/local/types";
+import { usePaymentMethods } from "@/hooks/use-payment-methods";
 import { useFormat } from "@/i18n/use-format";
 
 /**
@@ -38,7 +39,7 @@ export function VoidPurchaseDialog({
 }) {
   const t = useTranslations("purchases");
   const tc = useTranslations("common");
-  const tp = useTranslations("payment");
+  const tp = usePaymentMethods().name;
   const ts = useTranslations("sync.reasons");
   const f = useFormat();
   const run = useCommand();

@@ -21,22 +21,24 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRecord } from "@/data/hooks";
+import { usePaymentMethods } from "@/hooks/use-payment-methods";
 import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
+import { currencyOf } from "@/lib/currency";
 import { keepInView } from "@/lib/focus";
 import { computeTotals, priceCut as cutOf, lineAmount } from "@/lib/sale-math";
 import { cn } from "@/lib/utils";
-import { PAYMENT_METHODS, type PaymentMethod } from "@/schemas/sale";
+import type { PaymentMethod } from "@/schemas/sale";
 import { useCart } from "@/stores/cart";
 import { CustomerPicker } from "./customer-picker";
 import { MoneyField } from "./money-field";
 import { QtyInput } from "./qty-input";
 import type { useCompleteSale } from "./use-complete-sale";
 
-/** Rounds the total up to the next note a customer would hand over (50, 100, 500, 1000 taka). */
-function suggestions(total: number): number[] {
+/** Rounds the total up to the next note a customer would hand over (the currency's usual notes). */
+function suggestions(total: number, notes: readonly number[]): number[] {
   const out = new Set<number>();
-  for (const step of [5_000, 10_000, 50_000, 100_000]) {
+  for (const step of notes) {
     const amount = Math.ceil(total / step) * step;
     if (amount > total) out.add(amount);
   }
@@ -57,6 +59,7 @@ export function CartPanel({
   onCustomerOpenChange: (open: boolean) => void;
 }) {
   const t = useTranslations();
+  const methods = usePaymentMethods();
   const { name: unitName } = useUnits();
   const f = useFormat();
   const { role } = useProfile();
@@ -271,7 +274,9 @@ export function CartPanel({
 
         <div className="grid grid-cols-2 gap-2">
           <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-            <span>{t("pos.discount")} (৳)</span>
+            <span>
+              {t("pos.discount")} ({f.symbol})
+            </span>
             <MoneyField
               aria-label={t("pos.discount")}
               value={shownDiscount === 0 ? null : shownDiscount}
@@ -305,9 +310,9 @@ export function CartPanel({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {PAYMENT_METHODS.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {t(`payment.${m}`)}
+                {methods.pickable(cart.paymentMethod).map((m) => (
+                  <SelectItem key={m.code} value={m.code}>
+                    {methods.name(m.code)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -317,7 +322,9 @@ export function CartPanel({
 
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="shrink-0">{t("pos.received")} (৳)</span>
+            <span className="shrink-0">
+              {t("pos.received")} ({f.symbol})
+            </span>
             <MoneyField
               aria-label={t("pos.received")}
               value={cart.tendered}
@@ -337,16 +344,18 @@ export function CartPanel({
               >
                 {t("pos.exact")}
               </Button>
-              {suggestions(toPay).map((amount) => (
-                <Button
-                  key={amount}
-                  size="sm"
-                  variant="outline"
-                  onClick={() => cart.setTendered(amount)}
-                >
-                  {f.money(amount)}
-                </Button>
-              ))}
+              {suggestions(toPay, currencyOf(f.currency).notes).map(
+                (amount) => (
+                  <Button
+                    key={amount}
+                    size="sm"
+                    variant="outline"
+                    onClick={() => cart.setTendered(amount)}
+                  >
+                    {f.money(amount)}
+                  </Button>
+                ),
+              )}
             </div>
           ) : null}
         </div>

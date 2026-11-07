@@ -18,8 +18,8 @@ export async function renderReceipt(
   // Make sure the Bangla and Latin faces are ready before measuring anything.
   try {
     await Promise.all([
-      document.fonts.load(`normal 22px ${family}`, "অ৳A1"),
-      document.fonts.load(`bold 22px ${family}`, "অ৳A1"),
+      document.fonts.load(`normal 22px ${family}`, "অ৳$€₹A1"),
+      document.fonts.load(`bold 22px ${family}`, "অ৳$€₹A1"),
     ]);
   } catch {
     /* draw with whatever is there */

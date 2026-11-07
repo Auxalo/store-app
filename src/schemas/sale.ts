@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { computeTotals } from "@/lib/sale-math";
 import { idSchema } from "./common";
+import { paymentMethodCodeSchema } from "./payment-method";
 import { unitCodeSchema } from "./unit";
 
 const money = z
@@ -18,7 +19,8 @@ export const PAYMENT_METHODS = [
   "card",
   "bank",
 ] as const;
-export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+/** The built-in method codes; a shop may add its own, so a method is any code. */
+export type PaymentMethod = string;
 
 /** One line of a sale as entered at the counter. Product details are copied (a snapshot) so the receipt never changes later. */
 export const saleLineInput = z.object({
@@ -58,7 +60,7 @@ const saleBase = z.object({
    * as change: it comes off what they owe, or becomes their advance. Saved as an ordinary payment.
    */
   toAccount: money.default(0),
-  paymentMethod: z.enum(PAYMENT_METHODS).default("cash"),
+  paymentMethod: paymentMethodCodeSchema.default("cash"),
   notes: text(300).default(""),
 });
 

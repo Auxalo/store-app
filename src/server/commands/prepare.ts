@@ -1,5 +1,6 @@
 import type { CommandInput, CommandType } from "@/commands/definitions";
 import { onlineNumber, onlineSku, yearMonth } from "@/lib/doc-number";
+import { methodSettingKey } from "@/lib/payment-methods";
 import { saleRecordIds } from "@/lib/sale-math";
 import { unitSettingKey } from "@/lib/units";
 import { storeTimeZone } from "../data/service";
@@ -323,6 +324,16 @@ export const preparePayload: {
       supplierId: (purchase.supplierId as string | null) ?? null,
       returnNo: await documentNumber(ctx, "PR"),
     };
+  },
+
+  "paymentMethod.save": async (ctx, input) => {
+    const existing = await ctx.db
+      .collection<{ _id: string; version?: number }>("settings")
+      .findOne(
+        { _id: `${ctx.storeId}:${methodSettingKey(input.code)}` },
+        { session: ctx.session },
+      );
+    return { ...input, baseVersion: existing?.version ?? 0 };
   },
 
   "unit.save": async (ctx, input) => {

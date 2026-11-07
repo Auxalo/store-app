@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { usePaymentMethods } from "@/hooks/use-payment-methods";
 import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
 import { changeBetween } from "@/reports/compare";
@@ -50,7 +51,7 @@ export function ReportOverview({
   productName: (p: { name: string }) => string;
 }) {
   const t = useTranslations("reports");
-  const tp = useTranslations("payment");
+  const tp = usePaymentMethods().name;
   const tu = useUnits().name;
   const f = useFormat();
   const s = summary;
@@ -145,7 +146,11 @@ export function ReportOverview({
             sub={
               margin === null
                 ? undefined
-                : t("kpi.marginPlain", { n: f.integer(margin) })
+                : t("kpi.marginPlain", {
+                    n: f.integer(margin),
+                    currency: f.symbol,
+                    currencyName: f.currencyName,
+                  })
             }
             change={vs((x) => x.profit)}
             changeLabel={label}

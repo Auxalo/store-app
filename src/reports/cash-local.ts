@@ -4,6 +4,7 @@ import {
   type CashEntryRow,
   type CashInputs,
   type CashReport,
+  DRAWER_HISTORY_DAYS,
   type MoneyFlow,
   moneyFlow,
   returnsWithMethod,
@@ -11,7 +12,6 @@ import {
 import { type DayRange, rangeBounds } from "./compute";
 
 /** How many earlier days the drawer card remembers openings for. */
-export const DRAWER_HISTORY_DAYS = 14;
 
 const addDays = (day: string, delta: number) => {
   const [y, m, d] = day.split("-").map(Number);

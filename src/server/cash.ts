@@ -9,13 +9,14 @@ import {
   type CashReport,
   type CashReturn,
   type CashSale,
+  DRAWER_HISTORY_DAYS,
   type MoneyFlow,
   moneyFlow,
   returnsWithMethod,
 } from "@/reports/cash";
 import { type DayRange, rangeBounds } from "@/reports/compute";
 
-const HISTORY_DAYS = 14;
+const HISTORY_DAYS = DRAWER_HISTORY_DAYS;
 const MAX_TIME_MS = 8_000;
 
 const addDays = (day: string, delta: number) => {

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { computeTotals } from "@/lib/sale-math";
 import { idSchema } from "./common";
-import { PAYMENT_METHODS } from "./sale";
+import { paymentMethodCodeSchema } from "./payment-method";
 import { unitCodeSchema } from "./unit";
 
 const money = z
@@ -60,7 +60,7 @@ const purchaseBase = z.object({
    * becomes an advance with them) instead of being handed back. Saved as an ordinary payment.
    */
   toAccount: money.default(0),
-  paymentMethod: z.enum(PAYMENT_METHODS).default("cash"),
+  paymentMethod: paymentMethodCodeSchema.default("cash"),
   notes: text(300).default(""),
   /** Set each product's purchase price to what it cost this time. */
   updateCosts: z.boolean().default(true),

@@ -9,6 +9,7 @@ import type { StoreProfile } from "@/components/settings/settings-screen";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Button } from "@/components/ui/button";
 import { useRecord } from "@/data/hooks";
+import { usePaymentMethods } from "@/hooks/use-payment-methods";
 import { useSetting } from "@/hooks/use-setting";
 import { useFormat } from "@/i18n/use-format";
 import { buildPaymentSlipModel } from "@/lib/print/slip-model";
@@ -38,7 +39,7 @@ export function PaymentSlipDialog({
   onClose: () => void;
 }) {
   const t = useTranslations("receipt");
-  const tp = useTranslations("payment");
+  const tp = usePaymentMethods().name;
   const tc = useTranslations("party");
   const f = useFormat();
   const { storeName } = useProfile();

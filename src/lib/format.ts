@@ -1,4 +1,5 @@
 import { DEFAULT_TIME_ZONE } from "./constants";
+import { type CurrencyCode, currencyOf } from "./currency";
 import type { Poisha } from "./money";
 
 export type Locale = "en" | "bn";
@@ -9,6 +10,8 @@ export interface FormatOptions {
   /** "auto" follows the language: Bangla digits for Bangla, ASCII for English. */
   numerals?: NumeralSystem;
   timeZone?: string;
+  /** The shop's currency; taka when not given. */
+  currency?: CurrencyCode;
 }
 
 // English uses en-IN so amounts get lakh/crore grouping (1,25,000), which is how
@@ -21,18 +24,29 @@ export function createFormat({
   locale,
   numerals = "auto",
   timeZone = DEFAULT_TIME_ZONE,
+  currency,
 }: FormatOptions) {
+  const cur = currencyOf(currency);
   const nu =
     numerals === "auto" ? (locale === "bn" ? "beng" : "latn") : numerals;
   const tag = `${INTL_LOCALE[locale]}-u-nu-${nu}`;
+  // Numbers group as the currency does: lakh (1,25,000) for taka and rupee, thousands (125,000) for
+  // dollar and euro. Dates keep the language's own locale.
+  const numberTag = cur.lakh ? tag : `en-US-u-nu-${nu}`;
 
-  const integer = new Intl.NumberFormat(tag, { maximumFractionDigits: 0 });
-  const fixed2 = new Intl.NumberFormat(tag, {
+  const integer = new Intl.NumberFormat(numberTag, {
+    maximumFractionDigits: 0,
+  });
+  const fixed2 = new Intl.NumberFormat(numberTag, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  const decimal = new Intl.NumberFormat(tag, { maximumFractionDigits: 3 });
-  const percent = new Intl.NumberFormat(tag, { maximumFractionDigits: 2 });
+  const decimal = new Intl.NumberFormat(numberTag, {
+    maximumFractionDigits: 3,
+  });
+  const percent = new Intl.NumberFormat(numberTag, {
+    maximumFractionDigits: 2,
+  });
   const dateFmt = new Intl.DateTimeFormat(tag, {
     dateStyle: "medium",
     timeZone,
@@ -50,12 +64,17 @@ export function createFormat({
   return {
     locale,
     tag,
+    /** The currency's sign, e.g. "৳" or "€", for labels like "Price (€)". */
+    symbol: cur.symbol as string,
+    /** The currency's name in the current language, e.g. "টাকা" or "Euro". */
+    currencyName: (locale === "bn" ? cur.nameBn : cur.nameEn) as string,
+    currency: cur.code as CurrencyCode,
     /** Plain number, e.g. 1,25,000 / ১,২৫,০০০ */
     number: (n: number) => decimal.format(n),
     integer: (n: number) => integer.format(n),
     percent: (n: number) => `${percent.format(n)}%`,
     /**
-     * Poisha → "৳1,250" or "৳1,250.50". The symbol always leads (Intl puts it after the
+     * Minor units → "৳1,250" or "€1,250.50". The symbol always leads (Intl puts it after the
      * number in bn-BD). `fraction: "always"` forces two decimals, e.g. for receipts.
      */
     money: (amount: Poisha, fraction: "auto" | "always" = "auto") => {
@@ -66,7 +85,7 @@ export function createFormat({
         fraction === "auto" && whole
           ? integer.format(abs / 100)
           : fixed2.format(abs / 100);
-      return `${negative ? "-" : ""}${TAKA}${body}`;
+      return `${negative ? "-" : ""}${cur.symbol}${body}`;
     },
     /** Milli-unit quantity → "1.5" (no trailing zeros). */
     qty: (milli: number) => decimal.format(milli / 1000),

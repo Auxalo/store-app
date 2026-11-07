@@ -13,6 +13,7 @@ import {
 import { findNavItem } from "@/config/nav";
 import { AppSidebar } from "./app-sidebar";
 import { BottomNav } from "./bottom-nav";
+import { CurrencySync } from "./currency-sync";
 import { LanguageSwitch } from "./language-switch";
 import { OnlineBanner } from "./online-banner";
 import { SyncBadge } from "./sync-badge";
@@ -25,6 +26,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <SidebarProvider>
+      <CurrencySync />
       <AppSidebar />
       <SidebarInset className="min-w-0">
         <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b bg-background px-3 md:px-4">

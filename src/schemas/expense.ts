@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { idSchema } from "./common";
-import { PAYMENT_METHODS } from "./sale";
+import { paymentMethodCodeSchema } from "./payment-method";
 
 export const EXPENSE_CATEGORIES = [
   "rent",
@@ -25,7 +25,7 @@ export const expenseCreateInput = z.object({
   description: z.string().trim().max(200).default(""),
   /** yyyy-mm-dd in the store's time zone. */
   date: z.iso.date(),
-  method: z.enum(PAYMENT_METHODS).default("cash"),
+  method: paymentMethodCodeSchema.default("cash"),
   notes: z.string().trim().max(300).default(""),
 });
 export const expenseCreatePayload = expenseCreateInput;

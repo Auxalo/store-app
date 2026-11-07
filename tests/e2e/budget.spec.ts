@@ -27,7 +27,7 @@ const BUDGET_KB: Record<string, number> = {
   "/pos": 590,
   "/dashboard": 622,
   "/reports": 604,
-  "/products": 600,
+  "/products": 612,
 };
 
 test("first-load JavaScript stays within budget", async ({

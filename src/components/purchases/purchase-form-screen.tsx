@@ -24,13 +24,14 @@ import {
 } from "@/components/ui/select";
 import { useCommand, useList, useProductLookup, useRecord } from "@/data/hooks";
 import type { Product } from "@/db/local/types";
+import { usePaymentMethods } from "@/hooks/use-payment-methods";
 import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
 import { lineAmount } from "@/lib/sale-math";
 import { cn } from "@/lib/utils";
 import { purchaseTotals } from "@/schemas/purchase";
-import { PAYMENT_METHODS, type PaymentMethod } from "@/schemas/sale";
+import type { PaymentMethod } from "@/schemas/sale";
 import { usePreferences } from "@/stores/preferences";
 
 interface Line {
@@ -52,6 +53,7 @@ function todayIn(timeZone: string) {
 
 export function PurchaseFormScreen() {
   const t = useTranslations();
+  const methods = usePaymentMethods();
   const { name: unitName } = useUnits();
   const f = useFormat();
   const router = useRouter();
@@ -330,7 +332,9 @@ export function PurchaseFormScreen() {
         <div className="flex flex-col gap-3 rounded-xl border bg-card p-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-              <span>{t("purchases.discount")} (৳)</span>
+              <span>
+                {t("purchases.discount")} ({f.symbol})
+              </span>
               <MoneyField
                 value={discount}
                 onValue={setDiscount}
@@ -350,7 +354,9 @@ export function PurchaseFormScreen() {
               ) : null}
             </div>
             <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-              <span>{t("purchases.paid")} (৳)</span>
+              <span>
+                {t("purchases.paid")} ({f.symbol})
+              </span>
               <MoneyField
                 value={paid}
                 onValue={setPaid}
@@ -403,9 +409,9 @@ export function PurchaseFormScreen() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {PAYMENT_METHODS.map((m) => (
-                <SelectItem key={m} value={m}>
-                  {t(`payment.${m}`)}
+              {methods.pickable(method).map((m) => (
+                <SelectItem key={m.code} value={m.code}>
+                  {methods.name(m.code)}
                 </SelectItem>
               ))}
             </SelectContent>

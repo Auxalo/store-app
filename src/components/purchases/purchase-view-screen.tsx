@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRecord } from "@/data/hooks";
 import type { Purchase, PurchaseItem, ReturnDoc } from "@/db/local/types";
+import { usePaymentMethods } from "@/hooks/use-payment-methods";
 import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
 import { VoidPurchaseDialog } from "./void-purchase-dialog";
@@ -38,6 +39,7 @@ function Row({
 
 export function PurchaseViewScreen() {
   const t = useTranslations();
+  const methods = usePaymentMethods();
   const { name: unitName } = useUnits();
   const f = useFormat();
   const { role } = useProfile();
@@ -168,7 +170,7 @@ export function PurchaseViewScreen() {
             ) : null}
             <Row label={t("purchases.total")}>{f.money(p.total)}</Row>
             <Row label={t("purchases.paid")}>
-              {f.money(p.paid)} · {t(`payment.${p.paymentMethod}`)}
+              {f.money(p.paid)} · {methods.name(p.paymentMethod)}
             </Row>
             {p.due > 0 ? (
               <Row label={t("purchases.dueAtPurchase")}>{f.money(p.due)}</Row>

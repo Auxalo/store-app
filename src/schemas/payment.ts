@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { idSchema } from "./common";
-import { PAYMENT_METHODS } from "./sale";
+import { paymentMethodCodeSchema } from "./payment-method";
 
 /**
  * Money received from a customer (collecting a due) or paid to a supplier. The same shape serves both;
@@ -15,7 +15,7 @@ export const paymentInput = z.object({
     .int({ error: "invalidNumber" })
     .min(1, { error: "invalidNumber" })
     .max(10_000_000_000),
-  method: z.enum(PAYMENT_METHODS).default("cash"),
+  method: paymentMethodCodeSchema.default("cash"),
   note: z.string().trim().max(200).default(""),
 });
 export const paymentPayload = paymentInput;

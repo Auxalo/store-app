@@ -175,6 +175,7 @@ export function SetupTable({ kind, rows, onRows, onSaved }: SetupTableProps) {
         kind === "customers"
           ? "setup.balanceCustomer"
           : "setup.balanceSupplier",
+        { currency: f.symbol },
       );
     if (key === "stock") return t("products.openingStock");
     if (key === "lowStock") return t("products.lowStockThreshold");

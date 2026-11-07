@@ -5,6 +5,7 @@ import { useCallback } from "react";
 import { useProfile } from "@/auth/use-auth";
 import type { StoreProfile } from "@/components/settings/settings-screen";
 import type { Sale, SaleItem } from "@/db/local/types";
+import { usePaymentMethods } from "@/hooks/use-payment-methods";
 import { useSetting } from "@/hooks/use-setting";
 import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
@@ -29,7 +30,7 @@ export type PrintResult =
 export function usePrintReceipt() {
   const t = useTranslations("receipt");
   const tu = useUnits().name;
-  const tp = useTranslations("payment");
+  const tp = usePaymentMethods().name;
   const f = useFormat();
   const { storeName } = useProfile();
   const profile = useSetting<StoreProfile>("store.profile", NO_PROFILE).value;
