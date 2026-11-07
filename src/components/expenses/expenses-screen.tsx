@@ -40,11 +40,12 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCommand, useList, useTotals } from "@/data/hooks";
 import { useDataMode } from "@/data/mode-store";
 import type { Expense } from "@/db/local/types";
+import { usePaymentMethods } from "@/hooks/use-payment-methods";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
 import { cn } from "@/lib/utils";
 import { EXPENSE_CATEGORIES, type ExpenseCategory } from "@/schemas/expense";
-import { PAYMENT_METHODS, type PaymentMethod } from "@/schemas/sale";
+import type { PaymentMethod } from "@/schemas/sale";
 import { usePreferences } from "@/stores/preferences";
 import { useSyncStore } from "@/sync/store";
 
@@ -62,6 +63,7 @@ const todayIn = (timeZone: string) =>
 
 export function ExpensesScreen() {
   const t = useTranslations();
+  const methods = usePaymentMethods();
   const f = useFormat();
   const run = useCommand();
   const { role } = useProfile();
@@ -160,9 +162,9 @@ export function ExpensesScreen() {
             none: NONE,
             options: [
               { value: NONE, label: t("expenses.all") },
-              ...PAYMENT_METHODS.map((m) => ({
-                value: m,
-                label: t(`payment.${m}`),
+              ...methods.all.map((m) => ({
+                value: m.code,
+                label: methods.name(m.code),
               })),
             ],
           },
@@ -271,7 +273,7 @@ export function ExpensesScreen() {
                 <p className="truncate text-xs text-muted-foreground">
                   {f.date(`${e.date}T12:00:00Z`)}
                   {e.description ? ` · ${e.description}` : ""} ·{" "}
-                  {t(`payment.${e.method}`)}
+                  {methods.name(e.method)}
                 </p>
               </div>
               {e.status === "voided" ? (
@@ -344,6 +346,8 @@ export function ExpensesScreen() {
 
 function ExpenseForm({ today, onDone }: { today: string; onDone: () => void }) {
   const t = useTranslations();
+  const methods = usePaymentMethods();
+  const f = useFormat();
   const run = useCommand();
   const [category, setCategory] = useState<ExpenseCategory>("rent");
   const [amount, setAmount] = useState<number | null>(null);
@@ -399,7 +403,7 @@ function ExpenseForm({ today, onDone }: { today: string; onDone: () => void }) {
         </Field>
         <Field>
           <FieldLabel htmlFor="exp-amount">
-            {t("expenses.amount")} (৳)
+            {t("expenses.amount")} ({f.symbol})
           </FieldLabel>
           <MoneyField
             id="exp-amount"
@@ -440,9 +444,9 @@ function ExpenseForm({ today, onDone }: { today: string; onDone: () => void }) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {PAYMENT_METHODS.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {t(`payment.${m}`)}
+                {methods.pickable(method).map((m) => (
+                  <SelectItem key={m.code} value={m.code}>
+                    {methods.name(m.code)}
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import type { StoreProfile } from "@/components/settings/settings-screen";
 import type { Sale, SaleItem } from "@/db/local/types";
+import { usePaymentMethods } from "@/hooks/use-payment-methods";
 import { useSetting } from "@/hooks/use-setting";
 import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
@@ -34,7 +35,7 @@ interface ReceiptProps {
 export function Receipt({ sale, items, storeName }: ReceiptProps) {
   const t = useTranslations("receipt");
   const tu = useUnits().name;
-  const tp = useTranslations("payment");
+  const tp = usePaymentMethods().name;
   const f = useFormat();
   const paper = usePreferences((s) => s.receiptPaper);
   const size = PAPER[paper];

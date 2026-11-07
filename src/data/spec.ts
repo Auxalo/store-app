@@ -5,7 +5,7 @@ import { derivedSearchFields, queryTokens } from "@/lib/search-fields";
 import { stockStatus } from "@/lib/stock-status";
 import { dayKey } from "@/reports/compute";
 import { EXPENSE_CATEGORIES } from "@/schemas/expense";
-import { PAYMENT_METHODS } from "@/schemas/sale";
+import { paymentMethodCodeSchema } from "@/schemas/payment-method";
 
 /** What a return took off a balance (older returns say only "credit" for all of it). */
 const credited = (doc: Record<string, unknown>) =>
@@ -75,7 +75,7 @@ export const listParamsSchemas = {
     from: day,
     to: day,
     status: MONEY_STATUS.default("all"),
-    method: z.enum(PAYMENT_METHODS).optional(),
+    method: paymentMethodCodeSchema.optional(),
     dueOnly: z.boolean().default(false),
     customerId: id,
     sort: z.enum(["newest", "oldest", "total", "due"]).default("newest"),
@@ -94,7 +94,7 @@ export const listParamsSchemas = {
     from: day,
     to: day,
     category: z.enum(EXPENSE_CATEGORIES).optional(),
-    method: z.enum(PAYMENT_METHODS).optional(),
+    method: paymentMethodCodeSchema.optional(),
     status: MONEY_STATUS.default("active"),
     sort: z.enum(["newest", "oldest", "amount"]).default("newest"),
     dir,

@@ -1,5 +1,5 @@
+import { BUILTIN_METHOD_CODES } from "@/lib/payment-methods";
 import { returnSplit } from "@/lib/refund";
-import { PAYMENT_METHODS } from "@/schemas/sale";
 import { type DayRange, dayKey } from "./compute";
 
 /**
@@ -217,11 +217,27 @@ export function moneyFlow(
   timeZone: string,
   input: CashInputs,
 ): MoneyFlow {
+  // The built-in methods always get a figure; so does any other method that appears in the books
+  // (a shop's own, or one it has since hidden).
+  const codes = new Set<string>(BUILTIN_METHOD_CODES);
+  for (const row of input.sales) codes.add(row.paymentMethod);
+  for (const row of input.purchases) codes.add(row.paymentMethod);
+  for (const row of input.payments) codes.add(row.method);
+  for (const row of input.expenses) codes.add(row.method);
+  for (const row of input.returns) if (row.method) codes.add(row.method);
   const methods: Record<string, CashFlow> = {};
-  for (const method of PAYMENT_METHODS)
+  for (const method of codes)
     methods[method] = flowFor(range, timeZone, input, (m) => m === method);
   return { all: flowFor(range, timeZone, input, () => true), methods };
 }
+
+/** How many earlier days the drawer log shows (the card would overflow with more). */
+export const DRAWER_HISTORY_DAYS = 7;
+
+const daysBefore = (day: string, n: number) => {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d - n)).toISOString().slice(0, 10);
+};
 
 /** The day's figure and log from the entries of the last days (any order). */
 export function buildCash(
@@ -237,8 +253,9 @@ export function buildCash(
   const flow = cashFlow(day, timeZone, input);
 
   const days = new Map<string, CashEntryRow[]>();
+  const oldest = daysBefore(day, DRAWER_HISTORY_DAYS);
   for (const e of recentEntries) {
-    if (e.day === day) continue;
+    if (e.day === day || e.day < oldest) continue;
     days.set(e.day, [...(days.get(e.day) ?? []), e]);
   }
   const history = [...days.entries()]

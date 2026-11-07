@@ -5,7 +5,7 @@ import "./globals.css";
 
 // Both are self-hosted at build time, so they are precached and work offline.
 const inter = Inter({
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext"],
   variable: "--font-inter",
   display: "swap",
 });

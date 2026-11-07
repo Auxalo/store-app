@@ -30,7 +30,8 @@ export function StoreWorth({ figures }: { figures: WorthFigures | undefined }) {
   const hidden = usePreferences((s) => s.hideWorth);
   const setHidden = usePreferences((s) => s.setHideWorth);
 
-  const show = (value: number) => (hidden ? "৳ ••••" : f.money(value));
+  const show = (value: number) =>
+    hidden ? `${f.symbol} ••••` : f.money(value);
   const worth = figures
     ? storeWorth({
         stockCost: figures.stockCost,

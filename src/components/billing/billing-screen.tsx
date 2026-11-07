@@ -147,7 +147,7 @@ function StatusCard() {
 
 function PayCard({ view }: { view: BillingView }) {
   const t = useTranslations("billing");
-  const f = useFormat();
+  const f = useFormat("BDT");
   const locale = useLocale();
   const { storeName } = useProfile();
   const client = useQueryClient();
@@ -406,7 +406,7 @@ function PayCard({ view }: { view: BillingView }) {
 
 function History({ payments }: { payments: PaymentView[] }) {
   const t = useTranslations("billing");
-  const f = useFormat();
+  const f = useFormat("BDT");
   return (
     <Card data-testid="billing-history">
       <CardHeader>

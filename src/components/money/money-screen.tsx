@@ -12,12 +12,12 @@ import {
 import { EmptyState } from "@/components/shared/empty-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePaymentMethods } from "@/hooks/use-payment-methods";
 import { useFormat } from "@/i18n/use-format";
 import { cn } from "@/lib/utils";
 import type { CashFlow } from "@/reports/cash";
 import { useMoneyFlow } from "@/reports/use-cash";
 import { presetRange, type RangePreset } from "@/reports/use-summary";
-import { PAYMENT_METHODS } from "@/schemas/sale";
 import { usePreferences } from "@/stores/preferences";
 
 const PRESETS: RangePreset[] = [
@@ -55,7 +55,7 @@ export function MoneyScreen() {
   const flow = useMoneyFlow(range);
 
   const methods = flow
-    ? PAYMENT_METHODS.filter(
+    ? Object.keys(flow.methods).filter(
         (m) => flow.methods[m].totalIn !== 0 || flow.methods[m].totalOut !== 0,
       )
     : [];
@@ -77,7 +77,9 @@ export function MoneyScreen() {
       className="mx-auto flex w-full max-w-4xl flex-col gap-4"
       data-testid="money-screen"
     >
-      <p className="text-sm text-muted-foreground">{t("hint")}</p>
+      <p className="text-sm text-muted-foreground">
+        {t("hint", { currency: f.symbol })}
+      </p>
       <RangePicker value={state} onChange={setState} presets={PRESETS} />
 
       {!flow ? (
@@ -224,7 +226,7 @@ function MethodRow({
   flow: CashFlow;
   biggest: number;
 }) {
-  const tp = useTranslations("payment");
+  const tp = usePaymentMethods().name;
   const t = useTranslations("money");
   const f = useFormat();
   const width = (v: number) =>
@@ -236,7 +238,10 @@ function MethodRow({
     >
       <div className="flex items-center gap-2 text-sm font-medium">
         <span
-          className={cn("size-2.5 rounded-full", METHOD_COLOUR[method])}
+          className={cn(
+            "size-2.5 rounded-full",
+            METHOD_COLOUR[method] ?? "bg-teal-500",
+          )}
           aria-hidden
         />
         {tp(method as never)}

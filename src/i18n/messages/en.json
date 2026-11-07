@@ -388,7 +388,7 @@
     "negativeHint": "Negative stock: more was sold than recorded."
   },
   "money": {
-    "hint": "How much money really came in and went out. Only what was actually handed over counts: a ৳7,000 bill paid ৳5,000 is ৳5,000 in.",
+    "hint": "How much money really came in and went out. Only what was actually handed over counts: a {currency}7,000 bill paid {currency}5,000 is {currency}5,000 in.",
     "in": "In",
     "out": "Out",
     "net": "Net (in − out)",
@@ -639,7 +639,7 @@
     "totalDue": "Total due: {value}",
     "quickAdd": "New customer",
     "none": "None",
-    "opening": "Previous due (they owe you), ৳ (optional)",
+    "opening": "Previous due (they owe you), {currency} (optional)",
     "deleteHasBalance": "“{name}” still has a balance (money owed, or owed back). Settle it first, then remove."
   },
   "suppliers": {
@@ -660,7 +660,7 @@
     "totalOwed": "We owe: {value}",
     "owed": "We owe",
     "advance": "Advance paid",
-    "opening": "Previous payable (you owe them), ৳ (optional)",
+    "opening": "Previous payable (you owe them), {currency} (optional)",
     "deleteHasBalance": "“{name}” still has a balance (money owed, or owed back). Settle it first, then remove."
   },
   "party": {
@@ -1046,14 +1046,14 @@
     "drawerSetPrompt": "Set today's opening cash",
     "drawerSetHint": "Count the cash in the drawer and enter it when the shop opens.",
     "drawerCorrectTitle": "Correct today's opening cash",
-    "drawerAmount": "Opening cash (৳)",
+    "drawerAmount": "Opening cash ({currency})",
     "drawerSave": "Save",
     "drawerCancel": "Cancel",
     "drawerCorrect": "Correct",
     "drawerOnlyOwner": "Only the owner can correct it",
     "drawerSaveFailed": "Could not save the opening cash.",
     "drawerOpening": "Opening",
-    "drawerNotSet": "Opening not set yet, counting from ৳0",
+    "drawerNotSet": "Opening not set yet, counting from {currency}0",
     "drawerIn": "In",
     "moneyInToday": "In today",
     "moneyOutToday": "Out today",
@@ -1234,7 +1234,7 @@
       "keep": "What you really keep",
       "none": "Nothing sold yet",
       "soldQty": "{qty} sold",
-      "marginPlain": "About ৳{n} profit on every ৳100 sold",
+      "marginPlain": "About {currency}{n} profit on every 100 {currencyName} sold",
       "hint": {
         "totalSales": "Money from selling, after returns",
         "numberOfSales": "How many bills you made",
@@ -1278,8 +1278,8 @@
     "productsIntro": "Add the products you sell, with the stock you have now. Name, purchase price and selling price are needed; everything else is optional. Categories are created for you.",
     "customersIntro": "Add customers who owe you money, and how much. Leave the amount empty if they owe nothing.",
     "suppliersIntro": "Add suppliers you owe money to, and how much. Leave the amount empty if you owe nothing.",
-    "balanceCustomer": "Previous due (৳)",
-    "balanceSupplier": "Previous payable (৳)",
+    "balanceCustomer": "Previous due ({currency})",
+    "balanceSupplier": "Previous payable ({currency})",
     "balanceHint": "Use a minus sign (-) for money paid in advance.",
     "openingNote": "Previous balance",
     "addRow": "Add a row",
@@ -1532,6 +1532,41 @@
       "inUseTitle": "Can't remove it yet",
       "inUseBody": "Some products still use this unit. Change their unit first:",
       "inUseMore": "and more",
+      "saved": "Saved"
+    },
+    "currencyCard": "Currency",
+    "currencyCardBody": "The sign your money shows with (৳, $, €, ₹).",
+    "paymentsCard": "Payment methods",
+    "paymentsCardBody": "Choose which methods you take (cash, bank, card, wallets) and add your own.",
+    "currency": {
+      "title": "Currency",
+      "intro": "Pick the currency your shop works in. It changes the sign and name everywhere money is shown: counter, receipts, reports.",
+      "sample": "Looks like",
+      "notConverted": "Only the sign changes. Amounts you already entered are not converted: ৳100 becomes €100, not the euro value of 100 taka.",
+      "ownerOnly": "Only the owner can change the currency.",
+      "saved": "Currency changed"
+    },
+    "payments": {
+      "title": "Payment methods",
+      "intro": "Choose how your customers can pay. Cash, bank and card are always there; switch the wallets you do not use off, and add your own.",
+      "fixedTitle": "Always available",
+      "alwaysOn": "Always on",
+      "walletsTitle": "Mobile wallets",
+      "walletsHint": "Switching one off hides it from the lists you pick from. Old sales keep showing it.",
+      "useIt": "use it",
+      "ownTitle": "Your own methods",
+      "ownEmpty": "None yet. Add one, for example a local wallet or a bank app.",
+      "add": "Add a method",
+      "edit": "Edit",
+      "remove": "Remove",
+      "removedTitle": "Removed methods",
+      "restore": "Restore",
+      "dialogAdd": "New payment method",
+      "dialogEdit": "Edit payment method",
+      "name": "Name",
+      "namePlaceholder": "e.g. Revolut, Wise",
+      "nameRequired": "Write a name.",
+      "nameTaken": "A method with this name already exists.",
       "saved": "Saved"
     }
   }

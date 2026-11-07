@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useList, useTotals } from "@/data/hooks";
+import { usePaymentMethods } from "@/hooks/use-payment-methods";
 import { useFormat } from "@/i18n/use-format";
 import { cn } from "@/lib/utils";
 import { usePreferences } from "@/stores/preferences";
@@ -34,6 +35,7 @@ const SORTS = ["newest", "oldest", "amount"] as const;
 /** Every payment received from a customer or made to a supplier. */
 export function PaymentsScreen() {
   const t = useTranslations();
+  const methods = usePaymentMethods();
   const f = useFormat();
   const { role } = useProfile();
   const [filter, setFilter] = useState<Filter>("all");
@@ -217,7 +219,7 @@ export function PaymentsScreen() {
                       ) : null}
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">
-                      {f.dateTime(p.createdAt)} · {t(`payment.${p.method}`)}
+                      {f.dateTime(p.createdAt)} · {methods.name(p.method)}
                       {p.note ? ` · ${p.note}` : ""}
                     </span>
                   </span>

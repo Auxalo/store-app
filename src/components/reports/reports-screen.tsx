@@ -13,6 +13,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCategories, useList, useTotals } from "@/data/hooks";
 import { useDataMode } from "@/data/mode-store";
 import { stockStatus } from "@/db/local/queries/products";
+import { usePaymentMethods } from "@/hooks/use-payment-methods";
 import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
 import { download, toCsv } from "@/lib/export";
@@ -91,7 +92,7 @@ function Section({
 export function ReportsScreen() {
   const t = useTranslations("reports");
   const tu = useUnits().name;
-  const tp = useTranslations("payment");
+  const tp = usePaymentMethods().name;
   const te = useTranslations("expenses.categories");
   const f = useFormat();
   const { role } = useProfile();

@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import type { Permission } from "@/auth/permissions";
+import { methodSettingKey } from "@/lib/payment-methods";
 import { unitSettingKey } from "@/lib/units";
 import { drawerSetInput, drawerSetPayload } from "@/schemas/cash-drawer";
 import {
@@ -31,6 +32,10 @@ import {
   paymentVoidInput,
   paymentVoidPayload,
 } from "@/schemas/payment";
+import {
+  paymentMethodSaveInput,
+  paymentMethodSavePayload,
+} from "@/schemas/payment-method";
 import {
   productCreateInput,
   productCreatePayload,
@@ -377,6 +382,13 @@ export const COMMANDS = {
     input: unitSaveInput,
     payload: unitSavePayload,
     entityIds: (p: { code: string }) => [unitSettingKey(p.code)],
+  },
+  "paymentMethod.save": {
+    collection: "settings",
+    permission: "product.edit",
+    input: paymentMethodSaveInput,
+    payload: paymentMethodSavePayload,
+    entityIds: (p: { code: string }) => [methodSettingKey(p.code)],
   },
   "setting.set": {
     collection: "settings",

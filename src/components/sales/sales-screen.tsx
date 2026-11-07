@@ -23,9 +23,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useList, usePrefetchRecord, useTotals } from "@/data/hooks";
 import { useDataMode } from "@/data/mode-store";
 import type { ListParamsInput } from "@/data/spec";
+import { usePaymentMethods } from "@/hooks/use-payment-methods";
 import { useFormat } from "@/i18n/use-format";
 import { cn } from "@/lib/utils";
-import { PAYMENT_METHODS } from "@/schemas/sale";
 import { usePreferences } from "@/stores/preferences";
 import { useSyncStore } from "@/sync/store";
 
@@ -34,6 +34,7 @@ const SORTS = ["newest", "oldest", "total", "due"] as const;
 
 export function SalesScreen() {
   const t = useTranslations();
+  const methods = usePaymentMethods();
   const f = useFormat();
   const timeZone = usePreferences((s) => s.timeZone);
   const mode = useDataMode();
@@ -65,10 +66,7 @@ export function SalesScreen() {
     q,
     ...dates,
     status: filters.status as "all" | "active" | "voided",
-    method:
-      filters.method === NONE
-        ? undefined
-        : (filters.method as (typeof PAYMENT_METHODS)[number]),
+    method: filters.method === NONE ? undefined : (filters.method as string),
     dueOnly: filters.dueOnly === true,
     sort,
   };
@@ -101,7 +99,10 @@ export function SalesScreen() {
       none: NONE,
       options: [
         { value: NONE, label: t("sales.anyMethod") },
-        ...PAYMENT_METHODS.map((m) => ({ value: m, label: t(`payment.${m}`) })),
+        ...methods.all.map((m) => ({
+          value: m.code,
+          label: methods.name(m.code),
+        })),
       ],
     },
     { kind: "toggle", key: "dueOnly", label: t("sales.filterDue") },

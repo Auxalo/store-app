@@ -371,6 +371,7 @@ function PartyForm({
   onCancel: () => void;
 }) {
   const t = useTranslations();
+  const f = useFormat();
   const { role } = useProfile();
   const ns = kind === "customer" ? "customers" : "suppliers";
   const fields = FIELDS[kind];
@@ -413,7 +414,7 @@ function PartyForm({
         {asksOpening ? (
           <Field data-invalid={!!errors.openingBalance}>
             <FieldLabel htmlFor="p-openingBalance">
-              {t(`${ns}.opening` as never)}
+              {t(`${ns}.opening` as never, { currency: f.symbol } as never)}
             </FieldLabel>
             <Input
               id="p-openingBalance"

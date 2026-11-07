@@ -9,6 +9,7 @@ import {
   masterDelete,
   masterUpdate,
 } from "./master-data";
+import { paymentMethodSave } from "./payment-methods";
 import { productConfig, productCreate, stockAdjust } from "./products";
 import {
   expenseCreate,
@@ -121,6 +122,7 @@ export const serverCommands: { [T in CommandType]: ServerHandler<T> } = {
   "purchase.void": (ctx, payload) => purchaseVoid(ctx, payload),
 
   "unit.save": (ctx, payload) => unitSave(ctx, payload),
+  "paymentMethod.save": (ctx, payload) => paymentMethodSave(ctx, payload),
 
   // Settings are tiny key/value records: the most recent action wins.
   "setting.set": async (ctx, { key, value }): Promise<ApplyResult> => {

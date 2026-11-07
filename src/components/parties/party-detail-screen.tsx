@@ -29,10 +29,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCommand, useRecord } from "@/data/hooks";
 import type { Party, PartyKind } from "@/db/local/queries/customers";
 import type { LedgerEntry } from "@/db/local/types";
+import { usePaymentMethods } from "@/hooks/use-payment-methods";
 import { useFormat } from "@/i18n/use-format";
 import { newId } from "@/lib/ids";
 import { cn } from "@/lib/utils";
-import { PAYMENT_METHODS, type PaymentMethod } from "@/schemas/sale";
+import type { PaymentMethod } from "@/schemas/sale";
 import {
   PaymentSlipDialog,
   type PaymentSlipRequest,
@@ -377,6 +378,7 @@ function PaymentDialog({
   onSaved: (slip: PaymentSlipRequest) => void;
 }) {
   const t = useTranslations();
+  const methods = usePaymentMethods();
   const f = useFormat();
   const run = useCommand();
   const [amount, setAmount] = useState<number | null>(null);
@@ -429,7 +431,7 @@ function PaymentDialog({
         <FieldGroup>
           <Field>
             <FieldLabel htmlFor="pay-amount">
-              {t("party.amount")} (৳)
+              {t("party.amount")} ({f.symbol})
             </FieldLabel>
             <MoneyField
               id="pay-amount"
@@ -461,9 +463,9 @@ function PaymentDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {PAYMENT_METHODS.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {t(`payment.${m}`)}
+                {methods.pickable(method).map((m) => (
+                  <SelectItem key={m.code} value={m.code}>
+                    {methods.name(m.code)}
                   </SelectItem>
                 ))}
               </SelectContent>

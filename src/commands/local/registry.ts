@@ -4,6 +4,7 @@ import { derivedSearchFields } from "@/lib/search-fields";
 import type { CommandInput, CommandPayload, CommandType } from "../definitions";
 import { AlreadyExistsError, NotFoundError } from "../errors";
 import { drawerSet } from "./drawer";
+import { paymentMethodSave } from "./payment-methods";
 import {
   expenseCreate,
   expenseVoid,
@@ -203,6 +204,8 @@ export const localCommands: { [T in CommandType]: LocalHandler<T> } = {
   "purchase.void": (db, ctx, input, now) => purchaseVoid(db, ctx, input, now),
 
   "unit.save": (db, ctx, input, now) => unitSave(db, ctx, input, now),
+  "paymentMethod.save": (db, ctx, input, now) =>
+    paymentMethodSave(db, ctx, input, now),
 
   "setting.set": async (db, ctx, input, now) => {
     const existing = await db.settings.get(input.key);

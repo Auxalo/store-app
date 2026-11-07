@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { defaultLocale, type Locale } from "@/i18n/config";
 import { DEFAULT_TIME_ZONE } from "@/lib/constants";
+import { type CurrencyCode, DEFAULT_CURRENCY_CODE } from "@/lib/currency";
 import type { NumeralSystem } from "@/lib/format";
 
 export type ReceiptPaper = "58mm" | "80mm" | "a4";
@@ -28,6 +29,9 @@ interface PreferencesState {
   printer: PrinterPrefs;
   /** The dashboard's store-worth amounts are shown as dots until tapped. */
   hideWorth: boolean;
+  /** The shop's currency, copied here from its settings so money shows right at first paint. */
+  currency: CurrencyCode;
+  setCurrency: (currency: CurrencyCode) => void;
   setLocale: (locale: Locale) => void;
   setNumerals: (numerals: NumeralSystem) => void;
   setReceiptPaper: (paper: ReceiptPaper) => void;
@@ -49,6 +53,8 @@ export const usePreferences = create<PreferencesState>()(
       receiptPaper: "80mm",
       printer: { via: null, autoPrint: false },
       hideWorth: false,
+      currency: DEFAULT_CURRENCY_CODE,
+      setCurrency: (currency) => set({ currency }),
       setLocale: (locale) => set({ locale }),
       setNumerals: (numerals) => set({ numerals }),
       setReceiptPaper: (receiptPaper) => set({ receiptPaper }),
