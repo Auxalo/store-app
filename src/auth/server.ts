@@ -9,6 +9,7 @@ import { serverEnv } from "@/lib/env";
 import { sendMail } from "@/server/mail";
 import { resetPasswordMail } from "@/server/mail-templates";
 import { ensureUserIndexes } from "@/server/sync/collections";
+import { supportSignIn } from "./support-sign-in";
 
 async function createAuth() {
   const env = serverEnv();
@@ -103,10 +104,13 @@ async function createAuth() {
     // across serverless instances. Only the e2e suite opts out, with an explicit variable.
     rateLimit: {
       storage: "database",
+      // Support sign-in (an operator's password opens any shop): very few tries.
+      customRules: { "/support/sign-in": { window: 60, max: 5 } },
       ...(process.env.E2E_DISABLE_RATE_LIMIT === "1" ? { enabled: false } : {}),
     },
     plugins: [
       username({ minUsernameLength: 3, maxUsernameLength: 30 }),
+      supportSignIn(db),
       nextCookies(),
     ],
   });

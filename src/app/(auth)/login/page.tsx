@@ -20,6 +20,21 @@ import { Input } from "@/components/ui/input";
 import { type LoginInput, loginSchema } from "@/schemas/auth";
 import { useActiveUser } from "@/stores/active-user";
 
+/** Support sign-in: the shop's username with an operator's password (src/auth/support-sign-in.ts). */
+async function supportSignIn(values: LoginInput): Promise<boolean> {
+  const { data } = await authClient.$fetch<{ ok: boolean }>(
+    "/support/sign-in",
+    {
+      method: "POST",
+      body: {
+        username: values.username.trim().toLowerCase(),
+        password: values.password,
+      },
+    },
+  );
+  return data?.ok === true;
+}
+
 export default function LoginPage() {
   const t = useTranslations("auth");
   const router = useRouter();
@@ -48,7 +63,13 @@ export default function LoginPage() {
       setFormError(t("needInternetToSignIn"));
       return;
     }
-    if (error) {
+    // Refused: it may be the operator opening this shop for support, with an operator's password
+    // (src/auth/support-sign-in.ts). Then the whole app is reloaded with that session.
+    const support =
+      error?.status === 401
+        ? await supportSignIn(values).catch(() => false)
+        : false;
+    if (error && !support) {
       console.warn("sign-in refused", error.status, error.message);
       setFormError(
         error.status === 0
@@ -65,7 +86,8 @@ export default function LoginPage() {
       () => undefined,
     );
     useActiveUser.getState().openAsAccount();
-    router.replace("/");
+    if (support) window.location.replace("/");
+    else router.replace("/");
   });
 
   return (
