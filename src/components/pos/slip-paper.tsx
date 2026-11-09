@@ -1,21 +1,13 @@
 "use client";
 
+import { PAPER } from "@/lib/print/paper";
 import type { ReceiptModel } from "@/lib/print/receipt-layout";
 import { cn } from "@/lib/utils";
-import { type ReceiptPaper, usePreferences } from "@/stores/preferences";
-
-const PAPER: Record<
-  ReceiptPaper,
-  { page: string; width: string; text: string }
-> = {
-  "58mm": { page: "58mm auto", width: "max-w-[58mm]", text: "text-[11px]" },
-  "80mm": { page: "80mm auto", width: "max-w-[80mm]", text: "text-xs" },
-  a4: { page: "A4", width: "max-w-[190mm]", text: "text-sm" },
-};
+import { usePreferences } from "@/stores/preferences";
 
 /**
- * A short slip (payment receipt) on screen and in the normal print window, drawn from the same
- * rows as the thermal print so both say exactly the same thing.
+ * A receipt drawn from its rows (a payment slip, the printer test) on screen and in the normal
+ * print window, from the same rows as the thermal print so both say exactly the same thing.
  */
 export function SlipPaper({ model }: { model: ReceiptModel }) {
   const paper = usePreferences((s) => s.receiptPaper);
@@ -30,7 +22,7 @@ export function SlipPaper({ model }: { model: ReceiptModel }) {
         size.text,
       )}
     >
-      <style media="print">{`@page { size: ${size.page}; margin: 3mm; }`}</style>
+      <style media="print">{size.pageCss}</style>
       <div className="text-center">
         {model.header.map((line, i) => (
           <p key={line} className={i === 0 ? "text-base font-bold" : ""}>
@@ -46,6 +38,22 @@ export function SlipPaper({ model }: { model: ReceiptModel }) {
           <p key={line}>{line}</p>
         ))}
       </div>
+      {model.items.length > 0 ? (
+        <div className="mb-1 space-y-0.5 border-b border-dashed border-black pb-1">
+          {model.items.map((item) => (
+            <div
+              key={`${item.name}|${item.detail}|${item.amount}`}
+              className="flex justify-between gap-2"
+            >
+              <span className="min-w-0">
+                <span className="block">{item.name}</span>
+                <span className="block opacity-70">{item.detail}</span>
+              </span>
+              <span className="whitespace-nowrap">{item.amount}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
       <div className="space-y-0.5">
         {model.totals.map((row) => (
           <Row key={row.label} {...row} />

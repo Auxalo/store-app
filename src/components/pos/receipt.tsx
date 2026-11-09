@@ -7,18 +7,10 @@ import { usePaymentMethods } from "@/hooks/use-payment-methods";
 import { useSetting } from "@/hooks/use-setting";
 import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
+import { PAPER } from "@/lib/print/paper";
 import { saleStanding } from "@/lib/sale-math";
 import { cn } from "@/lib/utils";
-import { type ReceiptPaper, usePreferences } from "@/stores/preferences";
-
-const PAPER: Record<
-  ReceiptPaper,
-  { page: string; width: string; text: string }
-> = {
-  "58mm": { page: "58mm auto", width: "max-w-[58mm]", text: "text-[11px]" },
-  "80mm": { page: "80mm auto", width: "max-w-[80mm]", text: "text-xs" },
-  a4: { page: "A4", width: "max-w-[190mm]", text: "text-sm" },
-};
+import { usePreferences } from "@/stores/preferences";
 
 const NO_PROFILE: StoreProfile = { name: "", address: "", phone: "" };
 
@@ -52,7 +44,7 @@ export function Receipt({ sale, items, storeName }: ReceiptProps) {
         size.text,
       )}
     >
-      <style media="print">{`@page { size: ${size.page}; margin: 3mm; }`}</style>
+      <style media="print">{size.pageCss}</style>
 
       <div className="text-center">
         <p className="text-base font-bold">{profile.name || storeName}</p>

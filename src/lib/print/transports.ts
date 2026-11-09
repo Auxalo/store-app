@@ -1,13 +1,24 @@
 import { chunks } from "./escpos";
 
-/** How the receipt reaches the printer. "system" is the phone's / PC's own print window. */
-export type PrintVia = "serial" | "ble" | "rawbt" | "system";
+/**
+ * How the receipt reaches the printer. "system" is the phone's / PC's own print window; "windows"
+ * is the same window for a printer installed in Windows, made one-tap (windows-setup.ts).
+ */
+export type PrintVia =
+  | "serial"
+  | "ble"
+  | "usb"
+  | "rawbt"
+  | "windows"
+  | "system";
 
 export type PrintFailure =
   | "UNSUPPORTED" // this browser cannot do it
   | "NOT_CHOSEN" // no printer has been chosen on this device yet
   | "CANCELLED" // the person closed the chooser
   | "CONNECT" // could not reach the printer (off, away, Bluetooth off)
+  | "BLOCKED" // the computer's own printing (its printer driver) holds the printer
+  | "NO_OUTPUT" // the chosen USB device cannot take print data (not a printer)
   | "WRITE"; // reached it, but sending failed (out of paper, link dropped)
 
 export class PrintError extends Error {
@@ -19,7 +30,7 @@ export class PrintError extends Error {
   }
 }
 
-// ---- the browser's serial and Bluetooth interfaces (not in TypeScript's own typings) ----
+// ---- the browser's serial, Bluetooth and USB interfaces (not in TypeScript's own typings) ----
 
 interface SerialPortLike {
   open(options: { baudRate: number }): Promise<void>;
@@ -58,11 +69,51 @@ interface BluetoothLike {
   requestDevice(options: unknown): Promise<BluetoothDeviceLike>;
   getDevices?(): Promise<BluetoothDeviceLike[]>;
 }
+interface UsbEndpointLike {
+  endpointNumber: number;
+  direction: "in" | "out";
+  type: "bulk" | "interrupt" | "isochronous";
+}
+interface UsbAlternateLike {
+  alternateSetting: number;
+  interfaceClass: number;
+  endpoints: UsbEndpointLike[];
+}
+interface UsbInterfaceLike {
+  interfaceNumber: number;
+  alternates: UsbAlternateLike[];
+}
+interface UsbConfigurationLike {
+  configurationValue: number;
+  interfaces: UsbInterfaceLike[];
+}
+export interface UsbDeviceLike {
+  vendorId: number;
+  productId: number;
+  serialNumber?: string;
+  productName?: string;
+  manufacturerName?: string;
+  opened: boolean;
+  configuration: UsbConfigurationLike | null;
+  configurations: UsbConfigurationLike[];
+  open(): Promise<void>;
+  close(): Promise<void>;
+  selectConfiguration(value: number): Promise<void>;
+  claimInterface(n: number): Promise<void>;
+  releaseInterface(n: number): Promise<void>;
+  selectAlternateInterface(n: number, alt: number): Promise<void>;
+  transferOut(endpoint: number, data: BufferSource): Promise<unknown>;
+}
+interface UsbLike {
+  requestDevice(options: { filters: unknown[] }): Promise<UsbDeviceLike>;
+  getDevices(): Promise<UsbDeviceLike[]>;
+}
 
 const nav = () =>
   (typeof navigator === "undefined" ? {} : navigator) as {
     serial?: SerialLike;
     bluetooth?: BluetoothLike;
+    usb?: UsbLike;
     userAgent?: string;
   };
 
@@ -85,11 +136,19 @@ export const RAWBT_PLAY_URL =
 /** What this browser can do (decides which choices the setup screen offers). */
 export function printSupport() {
   const ua = nav().userAgent ?? "";
+  const android = /Android/i.test(ua);
   return {
     serial: !!nav().serial,
     ble: !!nav().bluetooth,
-    android: /Android/i.test(ua),
+    usb: !!nav().usb,
+    android,
     ios: /iPhone|iPad|iPod/i.test(ua),
+    /**
+     * A Windows PC. A USB receipt printer there is installed as a Windows printer and its driver
+     * holds it: it is not a COM port, and the browser's USB access is refused. So on Windows the
+     * USB way is Windows' own printing, made one-tap once (see windows-setup.ts).
+     */
+    windows: !android && /Windows/i.test(ua),
   };
 }
 
@@ -229,6 +288,132 @@ async function sendBle(bytes: Uint8Array, id?: string) {
   }
 }
 
+// ---- USB: a receipt printer on a cable (Android with an OTG cable, Mac, Chromebook, Linux) ----
+
+/**
+ * Which devices the chooser lists: anything that says it is a printer (USB class 7), plus the
+ * makers of receipt printers that call themselves "vendor specific" instead (Epson in its default
+ * mode, Star, Bixolon, Citizen and the common Chinese 58/80 mm printers).
+ */
+export const USB_FILTERS: Array<{ classCode?: number; vendorId?: number }> = [
+  { classCode: 7 },
+  ...[
+    0x04b8, // Epson
+    0x0519, // Star
+    0x1504, // Bixolon
+    0x1d90, // Citizen
+    0x2730, // Citizen
+    0x154f, // SNBC
+    0x0dd4, // Custom
+    0x0fe6, // Rongta, Gprinter and others
+    0x0483, // Xprinter and others
+    0x0416, // "POS-58" printers
+    0x1fc9, // HPRT and others
+    0x28e9, // GD32-based printers
+    0x6868, // Gprinter
+  ].map((vendorId) => ({ vendorId })),
+];
+
+/** One name per printer (model and serial number), to find the same one again later. */
+export const usbKey = (d: UsbDeviceLike) =>
+  `${d.vendorId.toString(16)}:${d.productId.toString(16)}:${d.serialNumber ?? ""}`;
+
+/** Where print data goes: a bulk OUT endpoint, on the printer interface when there is one. */
+export function usbOutput(
+  device: UsbDeviceLike,
+): { iface: number; alt: number; endpoint: number } | null {
+  const config = device.configuration ?? device.configurations[0];
+  if (!config) return null;
+  let found: { iface: number; alt: number; endpoint: number } | null = null;
+  for (const iface of config.interfaces) {
+    for (const alt of iface.alternates) {
+      const out = alt.endpoints.find(
+        (e) => e.direction === "out" && e.type === "bulk",
+      );
+      if (!out) continue;
+      const here = {
+        iface: iface.interfaceNumber,
+        alt: alt.alternateSetting,
+        endpoint: out.endpointNumber,
+      };
+      if (alt.interfaceClass === 7) return here;
+      found ??= here;
+    }
+  }
+  return found;
+}
+
+async function openUsb(device: UsbDeviceLike) {
+  try {
+    if (!device.opened) await device.open();
+    if (!device.configuration)
+      await device.selectConfiguration(
+        device.configurations[0]?.configurationValue ?? 1,
+      );
+    const out = usbOutput(device);
+    if (!out) throw new PrintError("NO_OUTPUT");
+    await device.claimInterface(out.iface);
+    if (out.alt !== 0)
+      await device.selectAlternateInterface(out.iface, out.alt);
+    return out;
+  } catch (error) {
+    await device.close().catch(() => undefined);
+    if (error instanceof PrintError) throw error;
+    const name = (error as Error).name;
+    // "Access denied" / "Unable to claim interface": the system's printer driver (Windows) or
+    // another program has the printer.
+    if (name === "SecurityError" || name === "NetworkError")
+      throw new PrintError("BLOCKED", (error as Error).message);
+    throw new PrintError("CONNECT", (error as Error).message);
+  }
+}
+
+async function closeUsb(device: UsbDeviceLike, iface: number) {
+  await device.releaseInterface(iface).catch(() => undefined);
+  await device.close().catch(() => undefined);
+}
+
+/** Opens the browser's USB chooser (needs a tap) and checks the printer can really be used. */
+export async function chooseUsb(): Promise<{ name: string; id: string }> {
+  const usb = nav().usb;
+  if (!usb) throw new PrintError("UNSUPPORTED");
+  let device: UsbDeviceLike;
+  try {
+    device = await usb.requestDevice({ filters: USB_FILTERS });
+  } catch (error) {
+    if ((error as Error).name === "NotFoundError")
+      throw new PrintError("CANCELLED");
+    throw new PrintError("CONNECT", (error as Error).message);
+  }
+  // A problem is told now, at setup, not at the first sale.
+  const out = await openUsb(device);
+  await closeUsb(device, out.iface);
+  const name = [device.manufacturerName, device.productName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  return { name: name || "USB", id: usbKey(device) };
+}
+
+async function sendUsb(bytes: Uint8Array, id?: string) {
+  const usb = nav().usb;
+  if (!usb) throw new PrintError("UNSUPPORTED");
+  // The browser remembers the printers the person allowed, for good (until site data is cleared).
+  const known = await usb.getDevices().catch(() => [] as UsbDeviceLike[]);
+  const device = known.find((d) => usbKey(d) === id) ?? known[0];
+  if (!device) throw new PrintError("NOT_CHOSEN");
+  const out = await openUsb(device);
+  try {
+    // USB waits until the printer takes each part, so no pauses are needed.
+    for (const part of chunks(bytes, 16_384))
+      await device.transferOut(out.endpoint, new Uint8Array(part));
+  } catch (error) {
+    throw new PrintError("WRITE", (error as Error).message);
+  } finally {
+    await closeUsb(device, out.iface);
+  }
+}
+
 // ---- RawBT (Android): hands the job to the free RawBT app, which owns the Bluetooth link ----
 
 function toBase64(bytes: Uint8Array) {
@@ -248,7 +433,7 @@ export interface SavedPrinter {
   via: PrintVia;
   /** Shown to people ("Bluetooth", a Bluetooth device's name ...). */
   name?: string;
-  /** A Bluetooth Low Energy device's id, to find it again. */
+  /** A Bluetooth Low Energy device's id or a USB printer's key, to find it again. */
   id?: string;
 }
 
@@ -259,6 +444,8 @@ export async function sendToPrinter(printer: SavedPrinter, bytes: Uint8Array) {
       return sendSerial(bytes);
     case "ble":
       return sendBle(bytes, printer.id);
+    case "usb":
+      return sendUsb(bytes, printer.id);
     case "rawbt":
       return sendRawBt(bytes);
     default:
