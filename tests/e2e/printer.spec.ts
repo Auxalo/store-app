@@ -285,3 +285,205 @@ test("a customer's payment slip: this payment and what is still due, then an adv
   await expect(page.getByTestId("slip-paper")).toContainText("৳১০০.০০");
   await expect(page.getByTestId("slip-standing")).toContainText("৳৭০.০০");
 });
+
+/** A fake USB receipt printer (Android with an OTG cable): records what the app sends. */
+async function fakeUsbPrinter(page: Page, options: { blocked?: boolean } = {}) {
+  await page.addInitScript((blocked) => {
+    const written: number[][] = [];
+    (window as unknown as { __usbWritten: number[][] }).__usbWritten = written;
+    const config = {
+      configurationValue: 1,
+      interfaces: [
+        {
+          interfaceNumber: 0,
+          alternates: [
+            {
+              alternateSetting: 0,
+              interfaceClass: 7,
+              endpoints: [
+                { endpointNumber: 1, direction: "out", type: "bulk" },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const device = {
+      vendorId: 0x0416,
+      productId: 0x5011,
+      serialNumber: "P1",
+      manufacturerName: "POS",
+      productName: "58 Printer",
+      opened: false,
+      configuration: null as typeof config | null,
+      configurations: [config],
+      async open() {
+        device.opened = true;
+      },
+      async close() {
+        device.opened = false;
+      },
+      async selectConfiguration() {
+        device.configuration = config;
+      },
+      async claimInterface() {
+        if (!blocked) return;
+        const error = new Error("Unable to claim interface.");
+        error.name = "NetworkError";
+        throw error;
+      },
+      async releaseInterface() {},
+      async selectAlternateInterface() {},
+      async transferOut(_endpoint: number, data: Uint8Array) {
+        written.push(Array.from(data));
+        return { status: "ok" };
+      },
+    };
+    Object.defineProperty(navigator, "usb", {
+      configurable: true,
+      value: {
+        requestDevice: async () => device,
+        getDevices: async () => [device],
+      },
+    });
+  }, options.blocked ?? false);
+}
+
+test("the choices grow with their text: nothing spills out of a button, on phone and computer", async ({
+  page,
+}, testInfo) => {
+  await fakePrinter(page);
+  await signUp(page, `prn8${Date.now()}${testInfo.project.name}`);
+  await page.goto("/settings/printer");
+  await page.getByTestId("kind-80mm").click();
+  await expect(page.getByTestId("way-system")).toBeVisible();
+  const spilled = await page.evaluate(() =>
+    [
+      ...document.querySelectorAll(
+        '[data-testid^="way-"], [data-testid^="kind-"]',
+      ),
+    ]
+      .filter(
+        (el) =>
+          el.scrollHeight > el.clientHeight + 1 ||
+          el.scrollWidth > el.clientWidth + 1,
+      )
+      .map((el) => el.getAttribute("data-testid")),
+  );
+  expect(spilled).toEqual([]);
+});
+
+test("on a phone, a USB (OTG) printer is chosen once and Test print sends the receipt over USB", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "a phone");
+  await fakePrinter(page);
+  await fakeUsbPrinter(page);
+  await signUp(page, `prn9${Date.now()}${testInfo.project.name}`);
+  await page.goto("/settings/printer");
+  await page.getByTestId("kind-58mm").click();
+  await page.getByTestId("way-usb").click();
+  await expect(page.getByTestId("printer-status")).toContainText("58 Printer");
+  await page.getByTestId("printer-test").click();
+  await expect(page.getByTestId("printer-message")).toContainText("পাঠানো হয়েছে");
+  const bytes = await page.evaluate(() =>
+    (window as unknown as { __usbWritten: number[][] }).__usbWritten.flat(),
+  );
+  expect(bytes.slice(0, 2)).toEqual([0x1b, 0x40]);
+  expect(rasterHeader(bytes)?.rowBytes).toBe(48);
+  expect(bytes.slice(-4)).toEqual([0x1d, 0x56, 0x42, 0x00]);
+});
+
+test("a USB printer held by the system's own printing is explained at setup, not at the first sale", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "a phone");
+  await fakeUsbPrinter(page, { blocked: true });
+  await signUp(page, `prn10${Date.now()}${testInfo.project.name}`);
+  await page.goto("/settings/printer");
+  await page.getByTestId("kind-58mm").click();
+  await page.getByTestId("way-usb").click();
+  await expect(page.getByTestId("printer-message")).toContainText("ধরে রেখেছে");
+  await expect(page.getByTestId("printer-status")).toContainText(
+    "এখনো কোনো প্রিন্টার বাছা হয়নি",
+  );
+});
+
+test.describe("a Windows PC with a USB receipt printer", () => {
+  test.use({
+    userAgent:
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  });
+
+  test("USB cable comes first and prints through Windows; the one-time setup gives a file and a line to paste", async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop", "a computer");
+    await fakePrinter(page);
+    await signUp(page, `prn11${Date.now()}${testInfo.project.name}`);
+    await page.goto("/settings/printer");
+    await page.getByTestId("kind-80mm").click();
+    const ways = page
+      .getByTestId("printer-ways")
+      .locator('[data-testid^="way-"]');
+    await expect(ways.first()).toHaveAttribute("data-testid", "way-windows");
+    await expect(ways.first()).toContainText("প্রস্তাবিত");
+    // A Windows printer is not reached through the browser's USB access.
+    await expect(page.getByTestId("way-usb")).toHaveCount(0);
+
+    await page.getByTestId("way-windows").click();
+    await expect(page.getByTestId("printer-status")).toContainText(
+      "এই কম্পিউটারের প্রিন্টার",
+    );
+    const guide = page.getByTestId("windows-onetap");
+    await expect(guide).toBeVisible();
+
+    // The setup file: makes the icon that opens this app with no print window, 80 mm already set.
+    const download = page.waitForEvent("download");
+    await page.getByTestId("onetap-download").click();
+    const file = await download;
+    expect(file.suggestedFilename()).toBe("Trade-Hishab-printer-setup.bat");
+    const text = fs.readFileSync(await file.path(), "utf8");
+    expect(text).toContain("--kiosk-printing");
+    expect(text).toMatch(/set "TH_URL=http:\/\/[^"]+\/pos#onetap-80mm"/);
+    expect(text).toContain("\r\n");
+
+    // Or by hand.
+    await guide.getByText("অথবা নিজে হাতে করুন").click();
+    await expect(page.getByTestId("onetap-line")).toContainText(
+      "--kiosk-printing",
+    );
+
+    // Test print uses the print window, with the test receipt on the page for it.
+    await page.getByTestId("printer-test").click();
+    await expect(page.getByTestId("printer-message")).toContainText(
+      "এককালীন সেটআপ",
+    );
+    expect(
+      await page.evaluate(
+        () => (window as unknown as { __prints: number }).__prints,
+      ),
+    ).toBe(1);
+    await expect(page.locator("#print-receipt")).toContainText("TEST-0001");
+    expect(await written(page)).toHaveLength(0);
+  });
+
+  test("the desktop icon's address sets the printer in its new browser profile", async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop", "a computer");
+    await fakePrinter(page);
+    await signUp(page, `prn12${Date.now()}${testInfo.project.name}`);
+    await page.goto("/pos#onetap-58mm");
+    await expect(page).toHaveURL(/\/pos$/);
+    await page.goto("/settings/printer");
+    await expect(page.getByTestId("printer-status")).toContainText("৫৮");
+    await expect(page.getByTestId("printer-status")).toContainText(
+      "এই কম্পিউটারের প্রিন্টার",
+    );
+    await expect(page.getByTestId("way-windows")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+});

@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useProfile } from "@/auth/use-auth";
 import type { StoreProfile } from "@/components/settings/settings-screen";
 import type { Sale, SaleItem } from "@/db/local/types";
@@ -41,8 +41,13 @@ export function usePrintReceipt() {
   /** Sends a finished receipt (any kind) the way this device was set up. */
   const printModel = useCallback(
     async (model: ReceiptModel): Promise<PrintResult> => {
-      // A4 paper and "normal print" use the system's print window, as before.
-      if (paper === "a4" || printer.via === "system") {
+      // A4 paper, "normal print" and a printer installed in Windows use the system's print window
+      // (on Windows it prints with no window once the one-tap setup is done).
+      if (
+        paper === "a4" ||
+        printer.via === "system" ||
+        printer.via === "windows"
+      ) {
         window.print();
         return { ok: true };
       }
@@ -82,55 +87,57 @@ export function usePrintReceipt() {
   );
 
   /** A small sample receipt, to check the printer and the paper width. */
-  const test = useCallback(
-    (): Promise<PrintResult> =>
-      printModel(
-        buildReceiptModel({
-          sale: {
-            id: "test",
-            invoiceNo: "TEST-0001",
-            createdAt: new Date().toISOString(),
-            customerName: "",
-            customerId: null,
-            subtotal: 15000,
+  const testModel = useMemo(
+    () =>
+      buildReceiptModel({
+        sale: {
+          id: "test",
+          invoiceNo: "TEST-0001",
+          createdAt: new Date().toISOString(),
+          customerName: "",
+          customerId: null,
+          subtotal: 15000,
+          discount: 0,
+          total: 15000,
+          paid: 15000,
+          due: 0,
+          paymentMethod: "cash",
+          status: "active",
+        } as unknown as Sale,
+        items: [
+          {
+            id: "t1",
+            productName: t("testItem"),
+            qty: 2000,
+            unit: "pcs",
+            unitPrice: 5000,
             discount: 0,
-            total: 15000,
-            paid: 15000,
-            due: 0,
-            paymentMethod: "cash",
-            status: "active",
-          } as unknown as Sale,
-          items: [
-            {
-              id: "t1",
-              productName: t("testItem"),
-              qty: 2000,
-              unit: "pcs",
-              unitPrice: 5000,
-              discount: 0,
-              lineTotal: 10000,
-            },
-            {
-              id: "t2",
-              productName: "Test 123",
-              qty: 1000,
-              unit: "pcs",
-              unitPrice: 5000,
-              discount: 0,
-              lineTotal: 5000,
-            },
-          ] as unknown as SaleItem[],
-          storeName: storeName ?? "",
-          profile,
-          footer: t("testFooter"),
-          t: (key, values) => t(key as never, values as never),
-          tu: (unit) => tu(unit as never),
-          tp: (method) => tp(method as never),
-          f,
-        }),
-      ),
-    [printModel, storeName, profile, t, tu, tp, f],
+            lineTotal: 10000,
+          },
+          {
+            id: "t2",
+            productName: "Test 123",
+            qty: 1000,
+            unit: "pcs",
+            unitPrice: 5000,
+            discount: 0,
+            lineTotal: 5000,
+          },
+        ] as unknown as SaleItem[],
+        storeName: storeName ?? "",
+        profile,
+        footer: t("testFooter"),
+        t: (key, values) => t(key as never, values as never),
+        tu: (unit) => tu(unit as never),
+        tp: (method) => tp(method as never),
+        f,
+      }),
+    [storeName, profile, t, tu, tp, f],
+  );
+  const test = useCallback(
+    (): Promise<PrintResult> => printModel(testModel),
+    [printModel, testModel],
   );
 
-  return { print: run, printModel, test };
+  return { print: run, printModel, test, testModel };
 }

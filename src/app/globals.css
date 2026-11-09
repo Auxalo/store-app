@@ -165,7 +165,8 @@ html {
     width: 100%;
     /* biome-ignore lint/complexity/noImportantStyles: must beat the receipt's max-width utility when printing */
     max-width: none !important;
-    padding: 0;
+    /* The roll prints with no page margin (see src/lib/print/paper.ts): keep text off its edges. */
+    padding: 1mm 2mm;
     background: #fff;
     color: #000;
     /* Thermal paper prints black or nothing: no greys, no colour. */

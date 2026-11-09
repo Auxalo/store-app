@@ -3,35 +3,74 @@
 import {
   Bluetooth,
   Check,
+  Copy,
+  Download,
   Loader2,
+  type LucideIcon,
   Printer,
   Smartphone,
+  SquareMousePointer,
   Usb,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { SlipPaper } from "@/components/pos/slip-paper";
 import { BackLink } from "@/components/shared/back-link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { useFormat } from "@/i18n/use-format";
 import {
   chooseBle,
   chooseSerial,
+  chooseUsb,
   PrintError,
   printSupport,
   RAWBT_PLAY_URL,
 } from "@/lib/print/transports";
 import { usePrintReceipt } from "@/lib/print/use-print-receipt";
+import {
+  appStartUrl,
+  type OneTapPaper,
+  SETUP_FILE_NAME,
+  setupScript,
+  shortcutLine,
+} from "@/lib/print/windows-setup";
 import { cn } from "@/lib/utils";
 import { type ReceiptPaper, usePreferences } from "@/stores/preferences";
 
 const KINDS: ReceiptPaper[] = ["58mm", "80mm", "a4"];
 
+type Way = "windows" | "usb" | "serial" | "ble" | "rawbt";
+type Support = ReturnType<typeof printSupport>;
+
+/** The ways this phone or computer can reach a receipt printer, the best one first. */
+function waysFor(s: Support): Way[] {
+  const has = (on: boolean, way: Way): Way[] => (on ? [way] : []);
+  // Windows: a USB printer is a Windows printer (its driver holds it), so it prints through Windows.
+  if (s.windows)
+    return ["windows", ...has(s.serial, "serial"), ...has(s.ble, "ble")];
+  // Android: most receipt printers there are Bluetooth.
+  if (s.android)
+    return [
+      ...has(s.serial, "serial"),
+      ...has(s.usb, "usb"),
+      ...has(s.ble, "ble"),
+      "rawbt",
+    ];
+  // Mac, Chromebook, Linux: a USB printer can be reached directly.
+  return [
+    ...has(s.usb, "usb"),
+    ...has(s.serial, "serial"),
+    ...has(s.ble, "ble"),
+  ];
+}
+
 /**
  * Settings → Printer, for people who are not technical: pick the paper (small receipt, big receipt,
- * A4), pick how the printer is connected (the buttons shown are only the ones this phone or
- * computer can do), print a test, done. After that every Print button prints in one tap.
+ * A4), pick how the printer is connected (only the ways this phone or computer can do are shown,
+ * the best one first), print a test, done. After that every Print button prints in one tap.
  */
 export function PrinterScreen() {
   const t = useTranslations("printer");
@@ -40,38 +79,63 @@ export function PrinterScreen() {
   const printer = usePreferences((s) => s.printer);
   const setPrinter = usePreferences((s) => s.setPrinter);
   const clearPrinter = usePreferences((s) => s.clearPrinter);
-  const { test } = usePrintReceipt();
-  const [busy, setBusy] = useState<"choose" | "test" | null>(null);
+  const { test, testModel } = usePrintReceipt();
+  const [busy, setBusy] = useState<"serial" | "ble" | "usb" | "test" | null>(
+    null,
+  );
   const [message, setMessage] = useState<{
     kind: "ok" | "bad";
     text: string;
   } | null>(null);
   // Browser features are read after the page loads (they do not exist on the server).
-  const [support, setSupport] = useState<ReturnType<
-    typeof printSupport
-  > | null>(null);
+  const [support, setSupport] = useState<Support | null>(null);
   useEffect(() => setSupport(printSupport()), []);
 
   const thermal = paper !== "a4";
+  const ways = support ? waysFor(support) : [];
+  const viaWindow =
+    !thermal || printer.via === "system" || printer.via === "windows";
 
-  async function choose(kind: "serial" | "ble") {
-    setBusy("choose");
+  async function choose(kind: "serial" | "ble" | "usb") {
+    setBusy(kind);
     setMessage(null);
     try {
       if (kind === "serial") {
         const { name } = await chooseSerial();
         setPrinter({ via: "serial", name, id: undefined });
-      } else {
+      } else if (kind === "ble") {
         const { name, id } = await chooseBle();
         setPrinter({ via: "ble", name, id });
+      } else {
+        const { name, id } = await chooseUsb();
+        setPrinter({ via: "usb", name, id });
       }
       setMessage({ kind: "ok", text: t("chosen") });
     } catch (error) {
-      if (!(error instanceof PrintError && error.code === "CANCELLED"))
-        setMessage({ kind: "bad", text: t("chooseFailed") });
+      const code = error instanceof PrintError ? error.code : null;
+      if (code === "CANCELLED") return;
+      setMessage({
+        kind: "bad",
+        text:
+          code === "BLOCKED" || code === "NO_OUTPUT"
+            ? t(`fail_${code}`)
+            : t("chooseFailed"),
+      });
     } finally {
       setBusy(null);
     }
+  }
+
+  function pick(via: "rawbt" | "windows" | "system") {
+    setPrinter({
+      via,
+      name: via === "rawbt" ? "RawBT" : undefined,
+      id: undefined,
+    });
+    setMessage({
+      kind: "ok",
+      text: via === "windows" ? t("chosenWindows") : t("chosen"),
+    });
   }
 
   async function runTest() {
@@ -83,9 +147,11 @@ export function PrinterScreen() {
       setMessage({
         kind: "ok",
         text:
-          printer.via === "system" || !thermal
-            ? t("testSystem")
-            : t("testSent"),
+          printer.via === "windows" && thermal
+            ? t("testWindows")
+            : viaWindow
+              ? t("testSystem")
+              : t("testSent"),
       });
     else
       setMessage({
@@ -94,11 +160,90 @@ export function PrinterScreen() {
       });
   }
 
-  const optionClass = (on: boolean) =>
-    cn(
-      "flex w-full items-center gap-3 rounded-xl border p-3 text-start",
-      on ? "border-primary bg-primary/10" : "hover:bg-muted/50",
-    );
+  const phone = !!support?.android;
+  const way = (w: Way, first: boolean) => {
+    const common = {
+      badge: first ? t("recommended") : undefined,
+      testId: `way-${w}`,
+    };
+    switch (w) {
+      case "windows":
+        return (
+          <Choice
+            key={w}
+            {...common}
+            icon={Usb}
+            title={t("wayWindows")}
+            hint={t("wayWindowsHint")}
+            selected={printer.via === "windows"}
+            onClick={() => pick("windows")}
+          />
+        );
+      case "usb":
+        return (
+          <Choice
+            key={w}
+            {...common}
+            icon={Usb}
+            title={t(phone ? "wayUsbPhone" : "wayUsb")}
+            hint={t(phone ? "wayUsbPhoneHint" : "wayUsbHint")}
+            selected={printer.via === "usb"}
+            busy={busy === "usb"}
+            disabled={busy !== null}
+            onClick={() => void choose("usb")}
+          />
+        );
+      case "serial":
+        return (
+          <Choice
+            key={w}
+            {...common}
+            icon={Bluetooth}
+            title={t(phone ? "waySerialPhone" : "waySerialPc")}
+            hint={t(phone ? "waySerialPhoneHint" : "waySerialPcHint")}
+            selected={printer.via === "serial"}
+            busy={busy === "serial"}
+            disabled={busy !== null}
+            onClick={() => void choose("serial")}
+          />
+        );
+      case "ble":
+        return (
+          <Choice
+            key={w}
+            {...common}
+            icon={Bluetooth}
+            title={t("wayBle")}
+            hint={t("wayBleHint")}
+            selected={printer.via === "ble"}
+            busy={busy === "ble"}
+            disabled={busy !== null}
+            onClick={() => void choose("ble")}
+          />
+        );
+      case "rawbt":
+        return (
+          <div key={w} className="flex flex-col gap-1">
+            <Choice
+              {...common}
+              icon={Smartphone}
+              title={t("wayRawbt")}
+              hint={t("wayRawbtHint")}
+              selected={printer.via === "rawbt"}
+              onClick={() => pick("rawbt")}
+            />
+            <a
+              href={RAWBT_PLAY_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="self-start px-3 text-xs font-medium text-primary underline-offset-4 hover:underline"
+            >
+              {t("rawbtInstall")}
+            </a>
+          </div>
+        );
+    }
+  };
 
   return (
     <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
@@ -111,10 +256,12 @@ export function PrinterScreen() {
         </CardHeader>
         <CardContent className="grid gap-2" data-testid="printer-kinds">
           {KINDS.map((k) => (
-            <button
+            <Choice
               key={k}
-              type="button"
-              aria-pressed={paper === k}
+              icon={Printer}
+              title={t(`kind_${k}` as never)}
+              hint={t(`kindHint_${k}` as never)}
+              selected={paper === k}
               onClick={() => {
                 setPaper(k);
                 // A4 / office printers have a driver: the normal print window is the way.
@@ -122,22 +269,8 @@ export function PrinterScreen() {
                 else if (printer.via === "system")
                   setPrinter({ via: null, name: undefined });
               }}
-              className={optionClass(paper === k)}
-              data-testid={`kind-${k}`}
-            >
-              <Printer className="size-5 shrink-0" aria-hidden />
-              <span className="min-w-0 flex-1">
-                <span className="block font-medium">
-                  {t(`kind_${k}` as never)}
-                </span>
-                <span className="block text-xs text-muted-foreground">
-                  {t(`kindHint_${k}` as never)}
-                </span>
-              </span>
-              {paper === k ? (
-                <Check className="size-5 text-primary" aria-hidden />
-              ) : null}
-            </button>
+              testId={`kind-${k}`}
+            />
           ))}
         </CardContent>
       </Card>
@@ -149,107 +282,29 @@ export function PrinterScreen() {
             <p className="text-sm text-muted-foreground">{t("step2Hint")}</p>
           </CardHeader>
           <CardContent className="grid gap-2" data-testid="printer-ways">
-            {support?.serial ? (
-              <Button
-                variant={printer.via === "serial" ? "default" : "outline"}
-                className="h-auto justify-start gap-3 whitespace-normal py-3 text-start"
-                onClick={() => void choose("serial")}
-                disabled={busy !== null}
-                data-testid="way-serial"
-              >
-                {busy === "choose" ? (
-                  <Loader2 className="animate-spin" aria-hidden />
-                ) : support.android ? (
-                  <Bluetooth aria-hidden />
-                ) : (
-                  <Usb aria-hidden />
-                )}
-                <span>
-                  <span className="block font-medium">
-                    {t(support.android ? "waySerialPhone" : "waySerialPc")}
-                  </span>
-                  <span className="block text-xs opacity-80">
-                    {t(
-                      support.android
-                        ? "waySerialPhoneHint"
-                        : "waySerialPcHint",
-                    )}
-                  </span>
-                </span>
-              </Button>
-            ) : null}
-            {support?.ble ? (
-              <Button
-                variant={printer.via === "ble" ? "default" : "outline"}
-                className="h-auto justify-start gap-3 whitespace-normal py-3 text-start"
-                onClick={() => void choose("ble")}
-                disabled={busy !== null}
-                data-testid="way-ble"
-              >
-                <Bluetooth aria-hidden />
-                <span>
-                  <span className="block font-medium">{t("wayBle")}</span>
-                  <span className="block text-xs opacity-80">
-                    {t("wayBleHint")}
-                  </span>
-                </span>
-              </Button>
-            ) : null}
-            {support?.android ? (
-              <div
-                className={cn(
-                  "rounded-xl border p-3",
-                  printer.via === "rawbt" && "border-primary bg-primary/10",
-                )}
-              >
-                <Button
-                  variant={printer.via === "rawbt" ? "default" : "outline"}
-                  className="h-auto w-full justify-start gap-3 whitespace-normal py-3 text-start"
-                  onClick={() => {
-                    setPrinter({ via: "rawbt", name: "RawBT", id: undefined });
-                    setMessage({ kind: "ok", text: t("chosen") });
-                  }}
-                  data-testid="way-rawbt"
-                >
-                  <Smartphone aria-hidden />
-                  <span>
-                    <span className="block font-medium">{t("wayRawbt")}</span>
-                    <span className="block text-xs opacity-80">
-                      {t("wayRawbtHint")}
-                    </span>
-                  </span>
-                </Button>
-                <a
-                  href={RAWBT_PLAY_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-2 inline-block text-xs font-medium text-primary underline-offset-4 hover:underline"
-                >
-                  {t("rawbtInstall")}
-                </a>
-              </div>
-            ) : null}
-            {support && !support.serial && !support.ble && !support.android ? (
+            {ways.map((w, i) => way(w, i === 0))}
+            {support && ways.length === 0 ? (
               <p className="rounded-lg bg-amber-500/10 p-2 text-sm">
                 {t("noDirect")}
               </p>
             ) : null}
-            <Button
-              variant={printer.via === "system" ? "default" : "ghost"}
-              className="justify-start"
-              onClick={() => {
-                setPrinter({ via: "system", name: undefined, id: undefined });
-                setMessage({ kind: "ok", text: t("chosen") });
-              }}
-              data-testid="way-system"
-            >
-              {t("waySystem")}
-            </Button>
+            <Choice
+              icon={SquareMousePointer}
+              title={t("waySystem")}
+              hint={t("waySystemHint")}
+              selected={printer.via === "system"}
+              onClick={() => pick("system")}
+              testId="way-system"
+            />
           </CardContent>
         </Card>
       ) : (
         <p className="rounded-xl border bg-card p-3 text-sm">{t("a4Note")}</p>
       )}
+
+      {thermal && support?.windows && printer.via === "windows" ? (
+        <WindowsOneTap paper={paper as OneTapPaper} />
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -326,6 +381,202 @@ export function PrinterScreen() {
           ) : null}
         </CardContent>
       </Card>
+
+      {/* What the print window prints for Test print (only the receipt is printed, see globals.css). */}
+      {viaWindow ? (
+        <div className="hidden print:block">
+          <SlipPaper model={testModel} />
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+/** One big choice: icon, name, a line of help, a tick when chosen. Grows with its text. */
+function Choice({
+  icon: Icon,
+  title,
+  hint,
+  badge,
+  selected,
+  busy = false,
+  disabled = false,
+  onClick,
+  testId,
+}: {
+  icon: LucideIcon;
+  title: string;
+  hint: string;
+  badge?: string;
+  selected: boolean;
+  busy?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  testId: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "flex w-full items-start gap-3 rounded-xl border p-3 text-start transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+        selected
+          ? "border-primary bg-primary/10"
+          : "hover:bg-muted/50 focus-visible:bg-muted/50",
+      )}
+      data-testid={testId}
+    >
+      <span
+        className={cn(
+          "grid size-9 shrink-0 place-items-center rounded-lg",
+          selected ? "bg-primary text-primary-foreground" : "bg-muted",
+        )}
+      >
+        {busy ? (
+          <Loader2 className="size-5 animate-spin" aria-hidden />
+        ) : (
+          <Icon className="size-5" aria-hidden />
+        )}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium leading-snug">
+          {title}
+          {badge ? (
+            <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-semibold text-primary">
+              {badge}
+            </span>
+          ) : null}
+        </span>
+        <span className="mt-0.5 block text-xs text-muted-foreground">
+          {hint}
+        </span>
+      </span>
+      {selected ? (
+        <Check className="mt-2 size-5 shrink-0 text-primary" aria-hidden />
+      ) : null}
+    </button>
+  );
+}
+
+/**
+ * A USB receipt printer on Windows prints through Windows. This makes that one tap, once: a setup
+ * file (or the same by hand) sets the receipt printer as the main printer and puts a desktop icon
+ * that opens the app with printing that skips the print window. See src/lib/print/windows-setup.ts.
+ */
+function WindowsOneTap({ paper }: { paper: OneTapPaper }) {
+  const t = useTranslations("printer");
+  const [copied, setCopied] = useState(false);
+  const url = appStartUrl(window.location.origin, paper);
+  let line = "";
+  try {
+    line = shortcutLine(url);
+  } catch {
+    /* an unusual address: only the setup file's own check would refuse it too */
+  }
+
+  function download() {
+    let text: string;
+    try {
+      text = setupScript(url);
+    } catch {
+      toast.error(t("oneTapFailed"));
+      return;
+    }
+    const href = URL.createObjectURL(
+      new Blob([text], { type: "application/octet-stream" }),
+    );
+    const a = document.createElement("a");
+    a.href = href;
+    a.download = SETUP_FILE_NAME;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 10_000);
+  }
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(line);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error(t("copyFailed"));
+    }
+  }
+
+  return (
+    <Card className="border-primary/40" data-testid="windows-onetap">
+      <CardHeader>
+        <CardTitle className="text-base">{t("oneTapTitle")}</CardTitle>
+        <p className="text-sm text-muted-foreground">{t("oneTapIntro")}</p>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <ol className="flex flex-col gap-3">
+          <Step n={1}>
+            <p>{t("oneTapStep1")}</p>
+            <Button
+              className="mt-2 h-auto min-h-10 w-full whitespace-normal py-2 md:h-auto sm:w-auto"
+              onClick={download}
+              data-testid="onetap-download"
+            >
+              <Download aria-hidden />
+              {t("oneTapDownload")}
+            </Button>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {t("oneTapWarn")}
+            </p>
+          </Step>
+          <Step n={2}>{t("oneTapStep2")}</Step>
+          <Step n={3}>{t("oneTapStep3")}</Step>
+          <Step n={4}>{t("oneTapStep4")}</Step>
+        </ol>
+        <p className="rounded-lg bg-muted p-2 text-xs">
+          {t("oneTapNoPrinter")}
+        </p>
+        <details className="rounded-lg border p-3 text-sm">
+          <summary className="cursor-pointer font-medium">
+            {t("oneTapManual")}
+          </summary>
+          <ol className="mt-3 list-decimal space-y-3 ps-5">
+            <li>{t("oneTapManual1")}</li>
+            <li>
+              {t("oneTapManual2")}
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-start">
+                <code
+                  className="min-w-0 flex-1 rounded-md bg-muted p-2 font-mono text-[11px] break-all"
+                  data-testid="onetap-line"
+                >
+                  {line}
+                </code>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="self-start"
+                  onClick={() => void copy()}
+                >
+                  {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
+                  {copied ? t("copied") : t("copy")}
+                </Button>
+              </div>
+            </li>
+            <li>{t("oneTapManual3")}</li>
+          </ol>
+        </details>
+      </CardContent>
+    </Card>
+  );
+}
+
+function Step({ n, children }: { n: number; children: ReactNode }) {
+  const f = useFormat();
+  return (
+    <li className="flex gap-3">
+      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+        {f.integer(n)}
+      </span>
+      <div className="min-w-0 flex-1 pt-0.5 text-sm">{children}</div>
+    </li>
   );
 }

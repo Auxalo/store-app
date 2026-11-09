@@ -11,11 +11,15 @@ export type ReceiptPaper = "58mm" | "80mm" | "a4";
 
 /** The receipt printer chosen on this device (the paper width is `receiptPaper`). */
 export interface PrinterPrefs {
-  /** How the receipt reaches it; null until someone has chosen. */
-  via: "serial" | "ble" | "rawbt" | "system" | null;
+  /**
+   * How the receipt reaches it; null until someone has chosen. "windows" is a USB printer
+   * installed in Windows: printed through Windows (one tap once the setup is done, see
+   * src/lib/print/windows-setup.ts).
+   */
+  via: "serial" | "ble" | "usb" | "rawbt" | "windows" | "system" | null;
   /** Shown to people. */
   name?: string;
-  /** A Bluetooth Low Energy device's id, to find it again. */
+  /** A Bluetooth Low Energy device's id or a USB printer's key, to find it again. */
   id?: string;
   /** Print by itself as soon as a sale is saved. */
   autoPrint: boolean;
