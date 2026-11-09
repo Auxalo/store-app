@@ -26,6 +26,9 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
   },
   formatDetection: { telephone: false },
+  // The app has its own Bangla and English: Chrome must not offer to translate it (it did every
+  // time the Windows one-tap icon opened, in its fresh browser profile).
+  other: { google: "notranslate" },
 };
 
 export const viewport: Viewport = {
@@ -42,6 +45,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="bn"
+      translate="no"
       className={`${inter.variable} ${bengali.variable} h-full antialiased`}
       suppressHydrationWarning
     >
