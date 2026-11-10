@@ -535,6 +535,12 @@ function WindowsOneTap({ paper }: { paper: OneTapPaper }) {
         <p className="rounded-lg bg-muted p-2 text-xs">
           {t("oneTapNoPrinter")}
         </p>
+        <p
+          className="rounded-lg bg-amber-500/10 p-2 text-xs"
+          data-testid="onetap-stuck"
+        >
+          {t("oneTapStuck")}
+        </p>
         <details className="rounded-lg border p-3 text-sm">
           <summary className="cursor-pointer font-medium">
             {t("oneTapManual")}

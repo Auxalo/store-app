@@ -596,13 +596,13 @@
     "fail_NO_OUTPUT": "That USB device is not a printer. Choose the receipt printer.",
     "oneTapTitle": "Print in one tap: set it up once",
     "oneTapIntro": "Now Windows shows its print window every time. Do this once on this computer and Print will print straight away, with no window.",
-    "oneTapStep1": "Download the setup file and open it.",
+    "oneTapStep1": "Turn the receipt printer on, with paper in it. Then download the setup file and open it.",
     "oneTapDownload": "Download the setup file",
-    "oneTapWarn": "If Chrome or Windows warns you, choose 'Keep', then 'More info' and 'Run anyway'. The file only sets your main printer and replaces the Trade Hishab desktop icon.",
-    "oneTapStep2": "In the black window, type the number of your receipt printer (for example EPSON TM-T20) and press Enter.",
+    "oneTapWarn": "If Chrome or Windows warns you, choose 'Keep', then 'More info' and 'Run anyway'. The file finds your printer, makes it the main printer and replaces the Trade Hishab desktop icon.",
+    "oneTapStep2": "A small test paper prints. If it came out, type Y and press Enter. If not, type N: the next printer is tried. There is no list to choose from.",
     "oneTapStep3": "Trade Hishab opens from the new desktop icon, with this printer already set. Sign in once, then Print prints straight away.",
     "oneTapStep4": "The old Trade Hishab icon on the desktop is replaced by this one (same logo). From now on, open the app only from it. If the old app is pinned to the taskbar, unpin it.",
-    "oneTapNoPrinter": "Your printer is not in the list? Install its driver first (from the box or the maker's website). If it shows as a COM port instead, choose 'Bluetooth printer or COM port' above.",
+    "oneTapNoPrinter": "No test paper came out? Then nothing is changed: keep using the normal print window. Check the printer is on and its driver is installed (from the box or the maker's website). If it shows as a COM port instead, choose 'Bluetooth printer or COM port' above.",
     "oneTapManual": "Or do it by hand",
     "oneTapManual1": "In Windows Settings → Bluetooth & devices → Printers & scanners, turn off 'Let Windows manage my default printer', then open your receipt printer and choose 'Set as default'.",
     "oneTapManual2": "Right-click an empty part of the desktop → New → Shortcut. Paste this line, press Next, name it Trade Hishab and press Finish:",
@@ -610,7 +610,8 @@
     "oneTapFailed": "Could not make the setup file.",
     "copy": "Copy",
     "copied": "Copied",
-    "copyFailed": "Could not copy"
+    "copyFailed": "Could not copy",
+    "oneTapStuck": "Printing got stuck, or the wrong printer prints? Open the setup file again: it closes the stuck window and finds the printer again."
   },
   "receipt": {
     "testItem": "Test item",

@@ -48,7 +48,7 @@ describe("Windows one-tap printing setup", () => {
     expect(bat).toContain('set "TH_PROFILE=%LOCALAPPDATA%\\TradeHishab"');
   });
 
-  it("passes PowerShell through the batch file untouched: no quotes or stray percent signs inside", () => {
+  it("passes PowerShell through the batch file untouched: no quotes or percent signs inside", () => {
     const lines = setupScript(URL_80)
       .split("\r\n")
       .filter((l) => l.startsWith("powershell "));
@@ -57,16 +57,49 @@ describe("Windows one-tap printing setup", () => {
       const code = line.slice(line.indexOf('"') + 1, -1);
       expect(line.endsWith('"')).toBe(true);
       expect(code).not.toContain('"');
-      expect(code.replace("%TH_N%", "")).not.toContain("%");
+      expect(code).not.toContain("%");
     }
   });
 
-  it("makes the main printer, then a desktop icon that prints with no window, in its own profile", () => {
+  it("proves the printer with a test paper before changing anything, and never asks to pick from a list", () => {
     const bat = setupScript(URL_80);
-    expect(bat).toContain("SetDefaultPrinter");
-    expect(bat).toContain("LegacyDefaultPrinterMode");
-    // Skipped when nothing (or not a number) is typed.
-    expect(bat).toContain("if %TH_N% LEQ 0 goto icon");
+    const find = bat
+      .split("\r\n")
+      .find((l) => l.includes("Out-Printer")) as string;
+    // Printers that are not paper are never tried; connected ones are tried first.
+    expect(find).toContain("PDF|XPS|OneNote|Fax");
+    expect(find).toContain("WorkOffline");
+    // The test paper, the yes/no question, and a stuck test job is removed after a "no".
+    expect(find).toContain("Read-Host");
+    expect(find).toContain("Remove-PrintJob");
+    // The main printer is set only after the question, and only on a yes.
+    expect(find.indexOf("SetDefaultPrinter")).toBeGreaterThan(
+      find.indexOf("Read-Host"),
+    );
+    expect(find.indexOf("exit 3")).toBeLessThan(
+      find.indexOf("SetDefaultPrinter"),
+    );
+    expect(find).toContain("LegacyDefaultPrinterMode");
+    // No slip came out: the icon is not made.
+    const lines = bat.split("\r\n");
+    expect(lines[lines.indexOf(find) + 1]).toBe(
+      "if errorlevel 1 goto noprinter",
+    );
+    expect(bat).not.toContain("set /p");
+  });
+
+  it("closes a Trade Hishab window left stuck by an earlier try, and only that one", () => {
+    const close = setupScript(URL_80)
+      .split("\r\n")
+      .find((l) => l.includes("Stop-Process")) as string;
+    expect(close).toContain("$env:TH_PROFILE.Length -gt 10");
+    expect(close).toContain(
+      "$_.CommandLine -like ('*' + $env:TH_PROFILE + '*')",
+    );
+  });
+
+  it("then makes a desktop icon that prints with no window, in its own profile", () => {
+    const bat = setupScript(URL_80);
     expect(bat).toContain("--kiosk-printing");
     expect(bat).toContain("--user-data-dir=");
     expect(bat).toContain("--app=' + $env:TH_URL");
