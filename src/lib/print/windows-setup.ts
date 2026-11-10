@@ -59,20 +59,43 @@ const CLOSE_STUCK = [
   "if ($env:TH_PROFILE -and $env:TH_PROFILE.Length -gt 10) { Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'chrome.exe' -or $_.Name -eq 'msedge.exe') -and $_.CommandLine -like ('*' + $env:TH_PROFILE + '*') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } }",
 ].join("; ");
 
+/** How long a test paper may take to be handed to the printer before that printer is given up on. */
+export const TEST_PRINT_TIMEOUT_MS = 15_000;
+
 /**
- * Finds the receipt printer by printing a test slip and asking whether it came out.
- * Tried in this order: connected before not connected (Windows marks an unplugged USB printer
- * offline), receipt-printer names first, USB ports first. Printers that are not paper (PDF, XPS,
- * OneNote, fax) are never tried. Ends with exit code 3, having changed nothing, when no slip came out.
+ * Prints the test paper on the printer named in TH_TEST, with no "Printing..." box. It is run as
+ * a separate hidden process (the setup file calling itself with "__test"), because a dead copy of
+ * a printer does not fail: with some drivers (Epson) it waits for ever. A process can be stopped.
+ */
+const TEST_PRINT = [
+  "Add-Type -AssemblyName System.Drawing",
+  "$d = New-Object System.Drawing.Printing.PrintDocument",
+  "$d.PrinterSettings.PrinterName = $env:TH_TEST",
+  "$d.PrintController = New-Object System.Drawing.Printing.StandardPrintController",
+  "$d.DocumentName = 'Trade Hishab test'",
+  "$d.add_PrintPage({ param($s, $e) $f = New-Object System.Drawing.Font('Arial', 11); $e.Graphics.DrawString(('Trade Hishab' + [char]10 + 'Printer test: OK' + [char]10 + (Get-Date).ToString('yyyy-MM-dd HH:mm')), $f, [System.Drawing.Brushes]::Black, 4, 4); $e.HasMorePages = $false })",
+  "$d.Print()",
+].join("; ");
+
+/**
+ * Finds the receipt printer by printing a test paper and asking whether it came out.
+ *
+ * Tried in this order: the printer last printed to from Chrome or Edge (the one that works in the
+ * normal print window), connected before not connected, receipt-printer names, USB ports. Printers
+ * that are not paper (PDF, XPS, OneNote, fax) are never tried. A printer that does not take the
+ * test paper within the time limit is stopped and the next one is tried, without asking.
+ * Ends with exit code 3, having changed nothing, when no paper came out.
  */
 const FIND_PRINTER = [
   "$notPaper = 'PDF|XPS|OneNote|Fax|Send To|Microsoft Print|AnyDesk|Snagit'",
   "$all = @(Get-CimInstance Win32_Printer)",
   "$real = @($all | Where-Object { $_.Name -notmatch $notPaper -and $_.PortName -notmatch '^(nul:|PORTPROMPT:|SHRFAX:|FILE:|XPSPort:)' })",
-  "$cands = @($real | Sort-Object @{ Expression = { [int][bool]$_.WorkOffline } }, @{ Expression = { if ($_.Name -match 'EPSON|TM-|Receipt|Thermal|XP-|Xprinter|Bixolon|Rongta|POS-?(58|80)') { 0 } else { 1 } } }, @{ Expression = { if ($_.PortName -match '^(USB|ESDPRT|TMUSB)') { 0 } else { 1 } } }, Name)",
+  // What the browser remembers of its print window: the printers used there, newest first.
+  "$recent = ''; foreach ($root in @(($env:LOCALAPPDATA + '\\Google\\Chrome\\User Data'), ($env:LOCALAPPDATA + '\\Microsoft\\Edge\\User Data'))) { foreach ($f in @(Get-ChildItem -Path ($root + '\\*\\Preferences') -ErrorAction SilentlyContinue)) { try { $t = [IO.File]::ReadAllText($f.FullName); $i = $t.IndexOf('print_preview_sticky_settings'); if ($i -ge 0) { $recent += $t.Substring($i, [Math]::Min(6000, $t.Length - $i)) } } catch { } } }",
+  "$cands = @($real | Sort-Object @{ Expression = { if ($recent.Contains($_.Name + [char]92)) { 0 } else { 1 } } }, @{ Expression = { [int][bool]$_.WorkOffline } }, @{ Expression = { if ($_.Name -match 'EPSON|TM-|Receipt|Thermal|XP-|Xprinter|Bixolon|Rongta|POS-?(58|80)') { 0 } else { 1 } } }, @{ Expression = { if ($_.PortName -match '^(USB|ESDPRT|TMUSB)') { 0 } else { 1 } } }, Name)",
   "if ($cands.Count -eq 0) { '  No printer was found on this computer. Install the printer first'; '  (its driver is in the box or on the maker website), then open this file again.'; exit 3 }",
   "$ok = $null",
-  "foreach ($p in $cands) { ''; '  Printing a small test paper on: ' + $p.Name; try { @('', 'Trade Hishab', 'Printer test: OK', (Get-Date).ToString('yyyy-MM-dd HH:mm'), '', '') | Out-Printer -Name $p.Name } catch { '  (this one could not be used)'; continue }; $a = ''; $n = 0; while ($a -notmatch '^\\s*[yYnN]' -and $n -lt 5) { $n++; $a = [string](Read-Host '  Did the test paper come out of your receipt printer? Type Y (yes) or N (no) and press Enter') }; if ($a -match '^\\s*[yY]') { $ok = $p; break }; try { Get-PrintJob -PrinterName $p.Name -ErrorAction SilentlyContinue | Remove-PrintJob -ErrorAction SilentlyContinue } catch { } }",
+  `foreach ($p in $cands) { ''; '  Printing a small test paper on: ' + $p.Name; $env:TH_TEST = $p.Name; $pr = Start-Process -FilePath $env:ComSpec -ArgumentList ('/c ' + [char]34 + [char]34 + $env:TH_SELF + [char]34 + ' __test' + [char]34) -PassThru -WindowStyle Hidden; $sent = $pr.WaitForExit(${TEST_PRINT_TIMEOUT_MS}); if (-not $sent) { & taskkill /PID $pr.Id /T /F 2>$null | Out-Null; '  This one is not answering. Trying the next one...' }; $a = 'n'; if ($sent) { $a = ''; $n = 0; while ($a -notmatch '^\\s*[yYnN]' -and $n -lt 5) { $n++; $a = [string](Read-Host '  Did the test paper come out of your receipt printer? Type Y (yes) or N (no) and press Enter') } }; if ($a -match '^\\s*[yY]') { $ok = $p; break }; try { Get-PrintJob -PrinterName $p.Name -ErrorAction SilentlyContinue | Remove-PrintJob -ErrorAction SilentlyContinue } catch { } }`,
   "if (-not $ok) { ''; '  No test paper came out, so NOTHING was changed.'; '  You can keep printing from the normal print window as before.'; '  Check that the printer is on and its cable is in, then open this file again.'; exit 3 }",
   "Set-ItemProperty -Path 'HKCU:\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Windows' -Name LegacyDefaultPrinterMode -Value 1 -Type DWord",
   "Invoke-CimMethod -InputObject $ok -MethodName SetDefaultPrinter | Out-Null",
@@ -117,8 +140,11 @@ export function setupScript(url: string): string {
   const target = safeUrl(url);
   return [
     "@echo off",
+    // Called by itself to print one test paper (see TEST_PRINT).
+    'if "%~1"=="__test" goto testprint',
     "setlocal",
     "title Trade Hishab - receipt printer setup",
+    'set "TH_SELF=%~f0"',
     `set "TH_URL=${target}"`,
     `set "TH_PROFILE=%LOCALAPPDATA%\\${PROFILE_FOLDER}"`,
     "echo.",
@@ -152,6 +178,9 @@ export function setupScript(url: string): string {
     "echo.",
     "pause",
     "exit /b 1",
+    ":testprint",
+    `powershell -NoProfile -Command "${TEST_PRINT}"`,
+    "exit /b 0",
     "",
   ].join("\r\n");
 }

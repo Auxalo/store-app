@@ -52,7 +52,7 @@ describe("Windows one-tap printing setup", () => {
     const lines = setupScript(URL_80)
       .split("\r\n")
       .filter((l) => l.startsWith("powershell "));
-    expect(lines).toHaveLength(3);
+    expect(lines).toHaveLength(4);
     for (const line of lines) {
       const code = line.slice(line.indexOf('"') + 1, -1);
       expect(line.endsWith('"')).toBe(true);
@@ -65,11 +65,21 @@ describe("Windows one-tap printing setup", () => {
     const bat = setupScript(URL_80);
     const find = bat
       .split("\r\n")
-      .find((l) => l.includes("Out-Printer")) as string;
+      .find((l) => l.includes("Read-Host")) as string;
     // Printers that are not paper are never tried; connected ones are tried first.
     expect(find).toContain("PDF|XPS|OneNote|Fax");
     expect(find).toContain("WorkOffline");
-    // The test paper, the yes/no question, and a stuck test job is removed after a "no".
+    // The printer last used in the browser print window is tried first.
+    expect(find).toContain("print_preview_sticky_settings");
+    // The test paper is printed by a separate process that is stopped when the printer does not
+    // answer (a dead Epson copy waits for ever), and the next printer is tried.
+    expect(find).toContain("__test");
+    expect(find).toContain("WaitForExit(15000)");
+    expect(find).toContain("taskkill /PID $pr.Id /T /F");
+    expect(bat).toContain('if "%~1"=="__test" goto testprint');
+    expect(bat).toContain("StandardPrintController");
+    expect(bat).not.toContain("Out-Printer");
+    // The yes/no question, and a stuck test job is removed after a "no".
     expect(find).toContain("Read-Host");
     expect(find).toContain("Remove-PrintJob");
     // The main printer is set only after the question, and only on a yes.
