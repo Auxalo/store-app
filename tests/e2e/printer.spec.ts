@@ -446,7 +446,7 @@ test.describe("a Windows PC with a USB receipt printer", () => {
     const text = fs.readFileSync(await file.path(), "utf8");
     expect(text).toContain("--kiosk-printing");
     // The printer is proved with a test paper; nobody picks from a list of printers.
-    expect(text).toContain("Out-Printer");
+    expect(text).toContain("Printer test: OK");
     expect(text).not.toContain("set /p");
     expect(text).toMatch(/set "TH_URL=http:\/\/[^"]+\/pos#onetap-80mm"/);
     expect(text).toContain("\r\n");
