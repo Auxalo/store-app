@@ -52,7 +52,7 @@ describe("Windows one-tap printing setup", () => {
     const lines = setupScript(URL_80)
       .split("\r\n")
       .filter((l) => l.startsWith("powershell "));
-    expect(lines).toHaveLength(4);
+    expect(lines).toHaveLength(5);
     for (const line of lines) {
       const code = line.slice(line.indexOf('"') + 1, -1);
       expect(line.endsWith('"')).toBe(true);
@@ -74,14 +74,18 @@ describe("Windows one-tap printing setup", () => {
     // The test paper is printed by a separate process that is stopped when the printer does not
     // answer (a dead Epson copy waits for ever), and the next printer is tried.
     expect(find).toContain("__test");
-    expect(find).toContain("WaitForExit(15000)");
+    expect(find).toContain("& $run '__test' 15000");
+    // So is removing its job: Windows may not answer about a dead printer either.
+    expect(find).toContain("& $run '__clean' 5000");
+    expect(find).toContain("WaitForExit($ms)");
+    expect(find).not.toContain("Remove-PrintJob");
     expect(find).toContain("taskkill /PID $pr.Id /T /F");
     expect(bat).toContain('if "%~1"=="__test" goto testprint');
     expect(bat).toContain("StandardPrintController");
     expect(bat).not.toContain("Out-Printer");
     // The yes/no question, and a stuck test job is removed after a "no".
     expect(find).toContain("Read-Host");
-    expect(find).toContain("Remove-PrintJob");
+    expect(bat).toContain("Remove-PrintJob");
     // The main printer is set only after the question, and only on a yes.
     expect(find.indexOf("SetDefaultPrinter")).toBeGreaterThan(
       find.indexOf("Read-Host"),
