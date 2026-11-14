@@ -22,6 +22,8 @@ interface ResponsiveDialogProps {
   onOpenChange: (open: boolean) => void;
   title: string;
   description?: string;
+  /** A wider box on a computer (lists, previews). */
+  wide?: boolean;
   children: ReactNode;
 }
 
@@ -31,6 +33,7 @@ export function ResponsiveDialog({
   onOpenChange,
   title,
   description,
+  wide = false,
   children,
 }: ResponsiveDialogProps) {
   const desktop = useMediaQuery("(min-width: 768px)");
@@ -38,7 +41,11 @@ export function ResponsiveDialog({
   if (desktop) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent>
+        <DialogContent
+          className={
+            wide ? "max-h-[92dvh] overflow-y-auto sm:max-w-2xl" : undefined
+          }
+        >
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
             {description ? (

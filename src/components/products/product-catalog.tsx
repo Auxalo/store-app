@@ -1,7 +1,8 @@
 "use client";
 
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { Package, Plus } from "lucide-react";
+import { Package, Plus, ScanBarcode } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
@@ -29,6 +30,15 @@ import { usePreferences } from "@/stores/preferences";
 import { useSyncStore } from "@/sync/store";
 import { StockAdjustDialog } from "./stock-adjust-dialog";
 import { StockBadge } from "./stock-badge";
+
+// Loaded only when someone opens it: the Products page stays as light as it was.
+const BulkLabelDialog = dynamic(
+  () =>
+    import("@/components/labels/bulk-label-dialog").then(
+      (m) => m.BulkLabelDialog,
+    ),
+  { ssr: false },
+);
 
 const ROW_HEIGHT = 76;
 const PAGE = 100;
@@ -58,6 +68,7 @@ export function ProductCatalog({ mode }: { mode: "products" | "inventory" }) {
     stock: ALL,
   });
   const [adjusting, setAdjusting] = useState<Product | null>(null);
+  const [labelling, setLabelling] = useState(false);
 
   const canSeeCost = can(role, "purchasePrice.view");
   const canCreate = can(role, "product.create");
@@ -192,13 +203,26 @@ export function ProductCatalog({ mode }: { mode: "products" | "inventory" }) {
           }))
         }
         trailing={
-          mode === "products" && canCreate ? (
-            <Button asChild>
-              <Link href="/products/new">
-                <Plus aria-hidden />
-                <span className="max-sm:sr-only">{t("products.add")}</span>
-              </Link>
-            </Button>
+          mode === "products" ? (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                aria-label={t("labels.print")}
+                onClick={() => setLabelling(true)}
+                data-testid="open-bulk-labels"
+              >
+                <ScanBarcode aria-hidden />
+                <span className="max-sm:sr-only">{t("labels.print")}</span>
+              </Button>
+              {canCreate ? (
+                <Button asChild>
+                  <Link href="/products/new">
+                    <Plus aria-hidden />
+                    <span className="max-sm:sr-only">{t("products.add")}</span>
+                  </Link>
+                </Button>
+              ) : null}
+            </div>
           ) : null
         }
       />
@@ -347,6 +371,13 @@ export function ProductCatalog({ mode }: { mode: "products" | "inventory" }) {
         product={adjusting}
         onClose={() => setAdjusting(null)}
       />
+
+      {labelling ? (
+        <BulkLabelDialog
+          open
+          onOpenChange={(open) => !open && setLabelling(false)}
+        />
+      ) : null}
     </div>
   );
 }
