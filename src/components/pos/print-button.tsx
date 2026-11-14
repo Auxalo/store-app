@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Button } from "@/components/ui/button";
 import type { Sale, SaleItem } from "@/db/local/types";
+import { printPageReceiptInWindow } from "@/lib/print/print-window";
 import {
   type PrintResult,
   usePrintReceipt,
@@ -22,11 +23,14 @@ import { ShareReceiptButton } from "./share-receipt-button";
  */
 export function PrintAction({
   run,
+  runInWindow,
   fallback,
   className,
   autoPrint = false,
 }: {
   run: () => Promise<PrintResult>;
+  /** The same receipt through the print window (the way out); the receipt shown on the page if not given. */
+  runInWindow?: () => Promise<PrintResult>;
   /** An extra way out when printing fails, e.g. sharing the receipt. */
   fallback?: ReactNode;
   className?: string;
@@ -105,7 +109,8 @@ export function PrintAction({
               variant="outline"
               onClick={() => {
                 setProblem(null);
-                window.print();
+                if (runInWindow) void runInWindow();
+                else printPageReceiptInWindow();
               }}
               data-testid="print-system"
             >
@@ -132,12 +137,13 @@ export function PrintButton({
   className?: string;
   autoPrint?: boolean;
 }) {
-  const { print } = usePrintReceipt();
+  const { print, printInWindow } = usePrintReceipt();
   return (
     <PrintAction
       className={className}
       autoPrint={autoPrint}
       run={() => print(sale, items)}
+      runInWindow={() => printInWindow(sale, items)}
       fallback={
         <ShareReceiptButton
           sale={sale}

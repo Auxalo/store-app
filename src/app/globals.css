@@ -150,15 +150,50 @@ html {
   touch-action: manipulation;
 }
 
+/* The receipt's own spot for printing through the print window (src/lib/print/print-window.ts).
+   Off the screen but drawn, never display:none: Chrome leaves out of the print a picture that was
+   never drawn on the screen (it printed blank). */
+#print-root {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  width: 80mm;
+  pointer-events: none;
+}
+
 /* Printing: show only the receipt (thermal 58/80 mm or A4); paper size comes from the receipt itself. */
 @media print {
-  body * {
-    visibility: hidden;
+  /* Printing #print-root: it alone, at the top of the paper, once. */
+  html.th-print-root body > *:not(#print-root) {
+    /* biome-ignore lint/complexity/noImportantStyles: dialogs and toasts set their own display */
+    display: none !important;
   }
-  #print-receipt,
-  #print-receipt * {
-    visibility: visible;
+  html.th-print-root #print-root {
+    /* Back from off the screen (Chrome keeps the offset otherwise, and the print came out blank).
+       A picture sets the spot to the paper width itself (print-window.ts). */
+    position: static;
+    left: auto;
+    top: auto;
+    width: auto;
+    margin: 0;
   }
+  html:not(.th-print-root) #print-root {
+    display: none;
+  }
+  html.th-print-root,
+  html.th-print-root body {
+    /* biome-ignore lint/complexity/noImportantStyles: an open dialog locks scrolling with !important */
+    overflow: visible !important;
+    height: auto;
+    min-height: 0;
+    background: #fff;
+  }
+  #print-root .print-root-img {
+    display: block;
+    margin: 0 auto;
+    image-rendering: pixelated;
+  }
+
   #print-receipt {
     position: absolute;
     inset: 0 auto auto 0;
@@ -173,5 +208,14 @@ html {
     filter: grayscale(1) contrast(1.4);
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+
+  /* Printing the page itself (Ctrl+P): only the receipt shows. */
+  html:not(.th-print-root) body * {
+    visibility: hidden;
+  }
+  html:not(.th-print-root) #print-receipt,
+  html:not(.th-print-root) #print-receipt * {
+    visibility: visible;
   }
 }

@@ -45,7 +45,7 @@ export function PaymentSlipDialog({
   const { storeName } = useProfile();
   const profile = useSetting<StoreProfile>("store.profile", NO_PROFILE).value;
   const footer = useSetting<string>("receipt.footer", "").value;
-  const { printModel } = usePrintReceipt();
+  const { printModel, printModelInWindow } = usePrintReceipt();
   const loaded = useRecord("payments", slip?.paymentId ?? null);
   const payment = loaded.record;
 
@@ -84,7 +84,11 @@ export function PaymentSlipDialog({
             <SlipPaper model={model} />
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-            <PrintAction autoPrint={slip.fresh} run={() => printModel(model)} />
+            <PrintAction
+              autoPrint={slip.fresh}
+              run={() => printModel(model)}
+              runInWindow={() => printModelInWindow(model)}
+            />
             <Button
               variant="outline"
               onClick={onClose}

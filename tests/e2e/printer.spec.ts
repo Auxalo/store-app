@@ -140,11 +140,11 @@ test("when the printer cannot be reached the person is told in plain words and c
   await expect(problem.getByTestId("share-receipt")).toBeVisible();
   // The normal print window is the way out.
   await page.getByTestId("print-system").click();
-  expect(
-    await page.evaluate(
-      () => (window as unknown as { __prints: number }).__prints,
-    ),
-  ).toBe(1);
+  await expect
+    .poll(() =>
+      page.evaluate(() => (window as unknown as { __prints: number }).__prints),
+    )
+    .toBe(1);
   // The sale itself is saved either way.
   await page.goto("/sales");
   await expect(page.getByTestId("sale-row")).toHaveCount(1);
@@ -186,12 +186,14 @@ test("A4 paper uses the normal print window", async ({ page }, testInfo) => {
   );
   await sellOne(page);
   await page.getByTestId("print-receipt").click();
-  expect(
-    await page.evaluate(
-      () => (window as unknown as { __prints: number }).__prints,
-    ),
-  ).toBe(1);
+  await expect
+    .poll(() =>
+      page.evaluate(() => (window as unknown as { __prints: number }).__prints),
+    )
+    .toBe(1);
   expect(await written(page)).toHaveLength(0);
+  // The receipt is printed on its own (a copy in the print spot), so a dialog prints it once.
+  await expect(page.locator("#print-root #print-receipt")).toHaveCount(1);
 });
 
 test("auto-print sends the receipt right after the sale, without pressing Print", async ({
@@ -488,5 +490,120 @@ test.describe("a Windows PC with a USB receipt printer", () => {
       "aria-pressed",
       "true",
     );
+  });
+});
+
+/** What the print window would print right now: pages in an 80 mm roll PDF, and the receipt picture. */
+async function printedNow(page: Page) {
+  await page.emulateMedia({ media: "print" });
+  const picture = await page.evaluate(() => {
+    const img = document.querySelector<HTMLImageElement>(
+      "#print-root img.print-root-img",
+    );
+    // Everything else on the page is left out of the print.
+    const dialog = document.querySelector('[role="dialog"]');
+    const r = img?.getBoundingClientRect();
+    // The spot is as wide as the paper; the picture sits centred in it.
+    const box = document.getElementById("print-root")?.getBoundingClientRect();
+    return {
+      src: img?.getAttribute("src")?.slice(0, 22) ?? null,
+      width: img?.style.width ?? null,
+      natural: img?.naturalWidth ?? 0,
+      left: r && box ? r.left - box.left : -1,
+      right: r && box ? box.right - r.right : -1,
+      paperWidth: document.getElementById("print-root")?.style.width ?? null,
+      dialogShown: dialog ? dialog.getClientRects().length > 0 : false,
+      active: document.documentElement.classList.contains("th-print-root"),
+    };
+  });
+  await page.emulateMedia({ media: null });
+  // Last: making a PDF fires the browser's own "print done" event.
+  const pdf = await page.pdf({ width: "80mm", height: "297mm" });
+  // (the spot is the paper width; the picture is centred in it)
+  const pages = (pdf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? [])
+    .length;
+  // The picture really is in the print (Chrome leaves out a picture never drawn on the screen).
+  const images = (pdf.toString("latin1").match(/\/Subtype\s*\/Image/g) ?? [])
+    .length;
+  return { pages, images, ...picture };
+}
+
+test.describe("through the print window (a printer installed in Windows)", () => {
+  test.use({
+    userAgent:
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  });
+
+  test("a receipt prints once, as a sharp 72 mm picture centred on the roll: after a sale and from an old sale", async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop", "a computer");
+    test.setTimeout(180_000);
+    await fakePrinter(page);
+    await signUp(page, `prn13${Date.now()}${testInfo.project.name}`);
+    await createProduct(page, {
+      name: "ফ্রেশ দুধ",
+      price: "50",
+      cost: "40",
+      stock: "10",
+    });
+    await page.goto("/settings/printer");
+    await page.getByTestId("kind-80mm").click();
+    await page.getByTestId("way-windows").click();
+
+    // Right after a sale (the receipt is in a dialog): one page, the picture only.
+    await sellOne(page);
+    await page.getByTestId("print-receipt").click();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => (window as unknown as { __prints: number }).__prints,
+        ),
+      )
+      .toBe(1);
+    const afterSale = await printedNow(page);
+    expect(afterSale).toMatchObject({
+      pages: 1,
+      images: 1,
+      src: "data:image/png;base64,",
+      width: "72mm",
+      paperWidth: "80mm",
+      natural: 576,
+      dialogShown: false,
+      active: true,
+    });
+    // Centred, so nothing falls off either edge.
+    expect(Math.abs(afterSale.left - afterSale.right)).toBeLessThan(2);
+    // Nothing went to a direct (Bluetooth / USB) printer.
+    expect(await written(page)).toHaveLength(0);
+    await page.getByRole("button", { name: "নতুন বিক্রি" }).click();
+
+    // An old sale (the receipt is in the page): the same.
+    await page.goto("/sales");
+    await page.getByTestId("sale-row").first().click();
+    await page.getByTestId("print-receipt").click();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => (window as unknown as { __prints: number }).__prints,
+        ),
+      )
+      .toBe(1); // a new page load counts from 0
+    const oldSale = await printedNow(page);
+    expect(oldSale).toMatchObject({
+      pages: 1,
+      images: 1,
+      width: "72mm",
+      natural: 576,
+      active: true,
+    });
+    expect(Math.abs(oldSale.left - oldSale.right)).toBeLessThan(2);
+
+    // Once the print window is done (making the PDF counts), the page prints as a page again.
+    expect(
+      await page.evaluate(() =>
+        document.documentElement.classList.contains("th-print-root"),
+      ),
+    ).toBe(false);
   });
 });

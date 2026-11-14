@@ -11,9 +11,10 @@ import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
 import { usePreferences } from "@/stores/preferences";
 import { receiptJob } from "./escpos";
+import { printImageInWindow, printPageReceiptInWindow } from "./print-window";
 import type { ReceiptModel } from "./receipt-layout";
 import { buildReceiptModel } from "./receipt-model";
-import { renderReceipt } from "./render-receipt";
+import { bitmapToPng, printableMm, renderReceipt } from "./render-receipt";
 import { PrintError, type PrintFailure, sendToPrinter } from "./transports";
 
 const NO_PROFILE: StoreProfile = { name: "", address: "", phone: "" };
@@ -38,6 +39,36 @@ export function usePrintReceipt() {
   const paper = usePreferences((s) => s.receiptPaper);
   const printer = usePreferences((s) => s.printer);
 
+  /**
+   * Prints through the system's print window (see print-window.ts): on receipt paper as a sharp
+   * picture exactly as wide as the printable part of the roll, on A4 the receipt's page layout.
+   * Never throws.
+   */
+  const printModelInWindow = useCallback(
+    async (model: ReceiptModel): Promise<PrintResult> => {
+      if (paper === "a4") {
+        printPageReceiptInWindow();
+        return { ok: true };
+      }
+      let picture: string | null = null;
+      try {
+        picture = bitmapToPng(await renderReceipt(model, paper));
+      } catch (error) {
+        console.warn("receipt picture failed", error);
+      }
+      if (picture)
+        await printImageInWindow(
+          picture,
+          printableMm(paper),
+          paper === "58mm" ? 58 : 80,
+        );
+      // No picture (very old browser): the receipt shown on the page, as before.
+      else printPageReceiptInWindow();
+      return { ok: true };
+    },
+    [paper],
+  );
+
   /** Sends a finished receipt (any kind) the way this device was set up. */
   const printModel = useCallback(
     async (model: ReceiptModel): Promise<PrintResult> => {
@@ -47,10 +78,8 @@ export function usePrintReceipt() {
         paper === "a4" ||
         printer.via === "system" ||
         printer.via === "windows"
-      ) {
-        window.print();
-        return { ok: true };
-      }
+      )
+        return printModelInWindow(model);
       if (!printer.via) return { ok: false, code: "NOT_CHOSEN" };
       try {
         const bitmap = await renderReceipt(model, paper);
@@ -65,25 +94,34 @@ export function usePrintReceipt() {
         return { ok: false, code: "UNKNOWN" };
       }
     },
-    [paper, printer],
+    [paper, printer, printModelInWindow],
   );
 
+  const saleModel = useCallback(
+    (sale: Sale, items: SaleItem[]) =>
+      buildReceiptModel({
+        sale,
+        items,
+        storeName: storeName ?? "",
+        profile,
+        footer,
+        t: (key, values) => t(key as never, values as never),
+        tu: (unit) => tu(unit as never),
+        tp: (method) => tp(method as never),
+        f,
+      }),
+    [storeName, profile, footer, t, tu, tp, f],
+  );
   const run = useCallback(
     (sale: Sale, items: SaleItem[]): Promise<PrintResult> =>
-      printModel(
-        buildReceiptModel({
-          sale,
-          items,
-          storeName: storeName ?? "",
-          profile,
-          footer,
-          t: (key, values) => t(key as never, values as never),
-          tu: (unit) => tu(unit as never),
-          tp: (method) => tp(method as never),
-          f,
-        }),
-      ),
-    [printModel, storeName, profile, footer, t, tu, tp, f],
+      printModel(saleModel(sale, items)),
+    [printModel, saleModel],
+  );
+  /** A sale's receipt through the print window, whatever this device is set to (the way out when direct printing fails). */
+  const printInWindow = useCallback(
+    (sale: Sale, items: SaleItem[]): Promise<PrintResult> =>
+      printModelInWindow(saleModel(sale, items)),
+    [printModelInWindow, saleModel],
   );
 
   /** A small sample receipt, to check the printer and the paper width. */
@@ -139,5 +177,12 @@ export function usePrintReceipt() {
     [printModel, testModel],
   );
 
-  return { print: run, printModel, test, testModel };
+  return {
+    print: run,
+    printModel,
+    printInWindow,
+    printModelInWindow,
+    test,
+    testModel,
+  };
 }

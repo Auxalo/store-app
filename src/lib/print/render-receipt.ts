@@ -61,3 +61,34 @@ export async function renderReceipt(
   const { data } = ctx.getImageData(0, 0, widthPx, layout.height);
   return thresholdToBitmap(data, widthPx, layout.height);
 }
+
+/**
+ * The black-and-white picture as a PNG address (data URL), for printing through the computer's own
+ * print window (print-window.ts): pure black and white, so it prints as sharp as on a Bluetooth
+ * receipt printer.
+ */
+export function bitmapToPng(bitmap: Bitmap): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.widthPx;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("NO_CANVAS");
+  const image = ctx.createImageData(bitmap.widthPx, bitmap.height);
+  const rowBytes = Math.ceil(bitmap.widthPx / 8);
+  for (let y = 0; y < bitmap.height; y++) {
+    for (let x = 0; x < bitmap.widthPx; x++) {
+      const black = bitmap.data[y * rowBytes + (x >> 3)] & (0x80 >> (x & 7));
+      const i = (y * bitmap.widthPx + x) * 4;
+      const v = black ? 0 : 255;
+      image.data[i] = v;
+      image.data[i + 1] = v;
+      image.data[i + 2] = v;
+      image.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(image, 0, 0);
+  return canvas.toDataURL("image/png");
+}
+
+/** How wide the printed part of the roll is, in mm (8 dots per mm at 203 dpi): 48 or 72. */
+export const printableMm = (width: ThermalWidth) => PRINT_WIDTH[width] / 8;
