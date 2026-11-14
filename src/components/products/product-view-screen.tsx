@@ -1,6 +1,7 @@
 "use client";
 
-import { Pencil, SlidersHorizontal, Trash2 } from "lucide-react";
+import { Pencil, ScanBarcode, SlidersHorizontal, Trash2 } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -31,6 +32,16 @@ import { useFormat } from "@/i18n/use-format";
 import { cn } from "@/lib/utils";
 import { usePreferences } from "@/stores/preferences";
 import { StockAdjustDialog } from "./stock-adjust-dialog";
+
+// Loaded only when someone opens it: the Products pages stay as light as they were.
+const LabelPrintDialog = dynamic(
+  () =>
+    import("@/components/labels/label-print-dialog").then(
+      (m) => m.LabelPrintDialog,
+    ),
+  { ssr: false },
+);
+
 import { StockBadge } from "./stock-badge";
 
 function Row({
@@ -60,6 +71,7 @@ export function ProductViewScreen() {
 
   const [adjusting, setAdjusting] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [labelling, setLabelling] = useState(false);
 
   const loaded = useRecord("products", id);
   const product = loaded.record as Product | undefined;
@@ -102,6 +114,15 @@ export function ProductViewScreen() {
           <h2 className="truncate text-xl font-semibold">{title}</h2>
         </div>
         <div className="flex shrink-0 gap-2">
+          <Button
+            variant="outline"
+            aria-label={t("labels.print")}
+            onClick={() => setLabelling(true)}
+            data-testid="open-labels"
+          >
+            <ScanBarcode aria-hidden />
+            <span className="max-sm:sr-only">{t("labels.print")}</span>
+          </Button>
           {can(role, "product.edit") ? (
             <Button
               asChild
@@ -242,6 +263,14 @@ export function ProductViewScreen() {
         product={adjusting ? product : null}
         onClose={() => setAdjusting(false)}
       />
+
+      {labelling ? (
+        <LabelPrintDialog
+          product={product}
+          open
+          onOpenChange={(open) => !open && setLabelling(false)}
+        />
+      ) : null}
 
       <AlertDialog open={deleting} onOpenChange={setDeleting}>
         <AlertDialogContent>

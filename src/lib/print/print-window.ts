@@ -37,12 +37,13 @@ function printRoot(): HTMLElement {
  * just until window.print() returns: the root is never emptied early, so the print cannot come
  * out blank. A later print replaces the root's content.
  */
-function printRootNow() {
+function printRootNow(after?: () => void) {
   const html = document.documentElement;
   html.classList.add(PRINT_ROOT_CLASS);
   const done = () => {
     html.classList.remove(PRINT_ROOT_CLASS);
     window.removeEventListener("afterprint", done);
+    after?.();
   };
   window.addEventListener("afterprint", done);
   window.print();
@@ -93,4 +94,50 @@ export function printPageReceiptInWindow() {
   root.style.width = "";
   root.replaceChildren(shown.cloneNode(true));
   printRootNow();
+}
+
+/** Most labels one print may hold (a print window with thousands of pages freezes the browser). */
+export const MAX_LABELS_PER_PRINT = 1000;
+
+/**
+ * Prints stickers through the print window: one page per label, each page exactly `w` x `h` mm
+ * (the page size is set to the label), with no margins. `labels` are pictures drawn to the label's
+ * own size (src/lib/labels/render-label.ts); each is printed `copies` times.
+ *
+ * Unlike a receipt, the spot is emptied when the print window is done: a leftover "@page" of
+ * label size would otherwise stay in the page.
+ */
+export async function printLabelsInWindow(
+  labels: Array<{ src: string; copies: number }>,
+  size: { w: number; h: number },
+) {
+  const root = printRoot();
+  root.style.width = `${size.w}mm`;
+  const page = document.createElement("style");
+  page.textContent = `@page { size: ${size.w}mm ${size.h}mm; margin: 0; }`;
+  const nodes: HTMLElement[] = [page];
+  const images: HTMLImageElement[] = [];
+  let total = 0;
+  for (const label of labels) {
+    for (let i = 0; i < label.copies && total < MAX_LABELS_PER_PRINT; i++) {
+      const box = document.createElement("div");
+      box.className = "print-label";
+      box.style.width = `${size.w}mm`;
+      box.style.height = `${size.h}mm`;
+      const img = document.createElement("img");
+      img.alt = "";
+      img.src = label.src;
+      images.push(img);
+      box.append(img);
+      nodes.push(box);
+      total++;
+    }
+  }
+  root.replaceChildren(...nodes);
+  await Promise.all(images.map((img) => img.decode().catch(() => undefined)));
+  await new Promise((done) =>
+    requestAnimationFrame(() => requestAnimationFrame(done)),
+  );
+  printRootNow(() => root.replaceChildren());
+  return total;
 }

@@ -188,6 +188,22 @@ html {
     min-height: 0;
     background: #fff;
   }
+  /* One sticker per page (src/lib/print/print-window.ts, printLabelsInWindow). */
+  #print-root .print-label {
+    break-after: page;
+    page-break-after: always;
+    overflow: hidden;
+  }
+  #print-root .print-label:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+  #print-root .print-label img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+  }
   #print-root .print-root-img {
     display: block;
     margin: 0 auto;

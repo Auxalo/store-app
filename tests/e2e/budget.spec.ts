@@ -22,12 +22,15 @@ test.afterEach(async ({ page }) => {
 // opened; worth trimming later.)
 // Raised for the dashboard by about 20 KB for the money in/out cards and the shared invoice button:
 // measured 393 / 576 / 602 / 590 / 588 on a desktop.
+// Raised by about 4 KB for the label printing words in both languages (they ship in the shared
+// messages; the label screens themselves load only when opened): measured 405 / 592 / 619 / 606 / 607
+// on a desktop.
 const BUDGET_KB: Record<string, number> = {
-  "/login": 405,
-  "/pos": 590,
-  "/dashboard": 622,
-  "/reports": 604,
-  "/products": 612,
+  "/login": 410,
+  "/pos": 596,
+  "/dashboard": 626,
+  "/reports": 610,
+  "/products": 616,
 };
 
 test("first-load JavaScript stays within budget", async ({

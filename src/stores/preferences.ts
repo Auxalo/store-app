@@ -31,6 +31,11 @@ interface PreferencesState {
   timeZone: string;
   receiptPaper: ReceiptPaper;
   printer: PrinterPrefs;
+  /** Sticker size (mm) for product labels on this device, and whether the price is printed on them. */
+  labelSize: { w: number; h: number };
+  labelShowPrice: boolean;
+  setLabelSize: (size: { w: number; h: number }) => void;
+  setLabelShowPrice: (show: boolean) => void;
   /** The dashboard's store-worth amounts are shown as dots until tapped. */
   hideWorth: boolean;
   /** The shop's currency, copied here from its settings so money shows right at first paint. */
@@ -56,6 +61,10 @@ export const usePreferences = create<PreferencesState>()(
       timeZone: DEFAULT_TIME_ZONE,
       receiptPaper: "80mm",
       printer: { via: null, autoPrint: false },
+      labelSize: { w: 40, h: 30 },
+      labelShowPrice: false,
+      setLabelSize: (labelSize) => set({ labelSize }),
+      setLabelShowPrice: (labelShowPrice) => set({ labelShowPrice }),
       hideWorth: false,
       currency: DEFAULT_CURRENCY_CODE,
       setCurrency: (currency) => set({ currency }),
