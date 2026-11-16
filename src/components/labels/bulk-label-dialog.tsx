@@ -18,15 +18,20 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { useList } from "@/data/hooks";
 import type { Product } from "@/db/local/types";
-import { useCreateBarcode, usePrintLabels } from "@/hooks/use-labels";
+import {
+  maxLabels,
+  useCreateBarcode,
+  usePrintLabels,
+} from "@/hooks/use-labels";
 import { useFormat } from "@/i18n/use-format";
 import { barcodeProblem, clampSize } from "@/lib/labels/label-layout";
-import { MAX_LABELS_PER_PRINT } from "@/lib/print/print-window";
+import { fitsRoll, isRoll, rollPrintableMm } from "@/lib/labels/label-sheet";
 import { printSupport } from "@/lib/print/transports";
 import { cn } from "@/lib/utils";
 import { usePreferences } from "@/stores/preferences";
 import {
   CopiesStepper,
+  LabelPaperPicker,
   LabelPriceSwitch,
   LabelSizePicker,
 } from "./label-controls";
@@ -61,13 +66,14 @@ export function BulkLabelDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const t = useTranslations("labels");
+  const tp = useTranslations("printer");
   const f = useFormat();
   const { role } = useProfile();
   const size = clampSize(usePreferences((s) => s.labelSize));
   const showPrice = usePreferences((s) => s.labelShowPrice);
   const canEdit = can(role, "product.edit");
   const createBarcode = useCreateBarcode();
-  const { print, busy } = usePrintLabels();
+  const { print, busy, paper } = usePrintLabels();
   const problemText = useProblemText();
 
   const [search, setSearch] = useState("");
@@ -93,7 +99,11 @@ export function BulkLabelDialog({
     () => [...picked.values()].reduce((sum, p) => sum + p.copies, 0),
     [picked],
   );
-  const overLimit = total > MAX_LABELS_PER_PRINT;
+  // On a receipt roll the label must fit the roll, and one print is at most a few metres of paper.
+  const roll = isRoll(paper);
+  const wide = isRoll(paper) && !fitsRoll(size, paper);
+  const most = maxLabels(paper);
+  const overLimit = total > most;
   const ready = items.filter((p) => codeState(p.barcode, size) === "ok");
   const allShownPicked =
     ready.length > 0 && ready.every((p) => picked.has(p.id));
@@ -150,13 +160,16 @@ export function BulkLabelDialog({
         copies,
       })),
     );
-    if (result.ok) toast.success(t("sent"));
-    else
+    if (result.ok)
+      toast.success(t(result.to === "printer" ? "sentPrinter" : "sent"));
+    else if (result.problem)
+      toast.error(`${result.name}: ${problemText(result.problem, size)}`);
+    else if (result.wide && isRoll(paper))
       toast.error(
-        result.problem
-          ? `${result.name}: ${problemText(result.problem, size)}`
-          : t("failed"),
+        t("paperTooWide", { w: size.w, max: rollPrintableMm(paper) }),
       );
+    else if (result.printer) toast.error(tp(`fail_${result.printer}` as never));
+    else toast.error(t("failed"));
   }
 
   const focus = focusId ? picked.get(focusId) : [...picked.values()].at(-1);
@@ -324,12 +337,13 @@ export function BulkLabelDialog({
               {t("nothingSelected")}
             </div>
           )}
+          <LabelPaperPicker total={total} />
           <LabelSizePicker />
           <LabelPriceSwitch />
         </div>
       </div>
 
-      {windows ? (
+      {windows && !roll ? (
         <p className="rounded-lg bg-amber-500/10 p-2 text-xs">
           {t("windowsNote")}
         </p>
@@ -347,13 +361,13 @@ export function BulkLabelDialog({
           </p>
           {overLimit ? (
             <p className="text-xs text-destructive">
-              {t("limit", { n: MAX_LABELS_PER_PRINT })}
+              {t("limit", { n: most })}
             </p>
           ) : null}
         </div>
         <Button
           size="lg"
-          disabled={picked.size === 0 || overLimit || busy}
+          disabled={picked.size === 0 || overLimit || wide || busy}
           onClick={() => void go()}
           data-testid="bulk-print"
         >

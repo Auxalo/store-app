@@ -8,13 +8,19 @@ import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Button } from "@/components/ui/button";
-import { useCreateBarcode, usePrintLabels } from "@/hooks/use-labels";
+import {
+  maxLabels,
+  useCreateBarcode,
+  usePrintLabels,
+} from "@/hooks/use-labels";
 import { useFormat } from "@/i18n/use-format";
 import { barcodeProblem, clampSize } from "@/lib/labels/label-layout";
+import { fitsRoll, isRoll, rollPrintableMm } from "@/lib/labels/label-sheet";
 import { printSupport } from "@/lib/print/transports";
 import { usePreferences } from "@/stores/preferences";
 import {
   CopiesStepper,
+  LabelPaperPicker,
   LabelPriceSwitch,
   LabelSizePicker,
 } from "./label-controls";
@@ -44,12 +50,13 @@ export function LabelPrintDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const t = useTranslations("labels");
+  const tp = useTranslations("printer");
   const f = useFormat();
   const { role } = useProfile();
   const size = clampSize(usePreferences((s) => s.labelSize));
   const showPrice = usePreferences((s) => s.labelShowPrice);
   const createBarcode = useCreateBarcode();
-  const { print, busy } = usePrintLabels();
+  const { print, busy, paper } = usePrintLabels();
   const problemText = useProblemText();
   const [copies, setCopies] = useState(1);
   const [creating, setCreating] = useState(false);
@@ -60,6 +67,11 @@ export function LabelPrintDialog({
   const problem = barcodeProblem(product.barcode, size);
   const canEdit = can(role, "product.edit");
   const price = showPrice ? f.money(product.sellingPrice) : undefined;
+  // On a receipt roll the label must fit the roll, and one print is at most a few metres of paper.
+  const roll = isRoll(paper);
+  const wide = isRoll(paper) && !fitsRoll(size, paper);
+  const most = maxLabels(paper);
+  const overLimit = copies > most;
 
   async function make() {
     setCreating(true);
@@ -75,11 +87,15 @@ export function LabelPrintDialog({
 
   async function go() {
     const result = await print([{ product, copies }]);
-    if (result.ok) toast.success(t("sent"));
-    else
+    if (result.ok)
+      toast.success(t(result.to === "printer" ? "sentPrinter" : "sent"));
+    else if (result.problem) toast.error(problemText(result.problem, size));
+    else if (result.wide && isRoll(paper))
       toast.error(
-        result.problem ? problemText(result.problem, size) : t("failed"),
+        t("paperTooWide", { w: size.w, max: rollPrintableMm(paper) }),
       );
+    else if (result.printer) toast.error(tp(`fail_${result.printer}` as never));
+    else toast.error(t("failed"));
   }
 
   return (
@@ -143,6 +159,7 @@ export function LabelPrintDialog({
           </div>
         ) : null}
 
+        <LabelPaperPicker total={copies} />
         <LabelSizePicker />
         <LabelPriceSwitch />
 
@@ -170,7 +187,13 @@ export function LabelPrintDialog({
           </div>
         </div>
 
-        {windows ? (
+        {overLimit ? (
+          <p className="text-xs text-destructive" data-testid="label-limit">
+            {t("limit", { n: most })}
+          </p>
+        ) : null}
+
+        {windows && !roll ? (
           <p
             className="rounded-lg bg-amber-500/10 p-2 text-xs"
             data-testid="label-windows-note"
@@ -181,7 +204,7 @@ export function LabelPrintDialog({
 
         <Button
           size="lg"
-          disabled={!hasCode || problem !== null || busy}
+          disabled={!hasCode || problem !== null || wide || overLimit || busy}
           onClick={() => void go()}
           data-testid="print-labels"
         >
@@ -194,9 +217,11 @@ export function LabelPrintDialog({
             ? t("printing")
             : t("printNow", { count: copies, n: f.integer(copies) })}
         </Button>
-        <p className="text-center text-xs text-muted-foreground">
-          {t("checkSize")}
-        </p>
+        {paper === "label" ? (
+          <p className="text-center text-xs text-muted-foreground">
+            {t("checkSize")}
+          </p>
+        ) : null}
       </div>
     </ResponsiveDialog>
   );

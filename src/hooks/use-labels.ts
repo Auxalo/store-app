@@ -6,11 +6,33 @@ import { useCommand, useDuplicateCodeCheck } from "@/data/hooks";
 import { useFormat } from "@/i18n/use-format";
 import { makeStoreEan13 } from "@/lib/labels/barcode";
 import { clampSize, type LabelProblem } from "@/lib/labels/label-layout";
-import { renderLabel } from "@/lib/labels/render-label";
+import {
+  A4,
+  defaultLabelPaper,
+  fitsRoll,
+  isRoll,
+  type LabelPaper,
+  MAX_ROLL_LABELS,
+  rollCell,
+  rollPrintableMm,
+  rollTail,
+  sheetGrid,
+  stack,
+} from "@/lib/labels/label-sheet";
+import { drawLabel, FINE_SCALE, renderLabel } from "@/lib/labels/render-label";
+import { type Bitmap, PRINT_WIDTH, receiptJob } from "@/lib/print/escpos";
 import {
   MAX_LABELS_PER_PRINT,
+  printLabelSheetsInWindow,
+  printLabelStripInWindow,
   printLabelsInWindow,
 } from "@/lib/print/print-window";
+import { bitmapToPng } from "@/lib/print/render-receipt";
+import {
+  PrintError,
+  type PrintFailure,
+  sendToPrinter,
+} from "@/lib/print/transports";
 import { usePreferences } from "@/stores/preferences";
 
 interface LabelProduct {
@@ -54,42 +76,136 @@ export function useCreateBarcode() {
   );
 }
 
-/** Makes the stickers and sends them to the print window; says how many went. */
+/** What labels are printed on, on this device (see label-sheet.ts); follows the receipt printer until chosen. */
+export function useLabelPaper(): LabelPaper {
+  const chosen = usePreferences((s) => s.labelPaper);
+  const via = usePreferences((s) => s.printer.via);
+  const receiptPaper = usePreferences((s) => s.receiptPaper);
+  return chosen ?? defaultLabelPaper(via, receiptPaper);
+}
+
+/** Most labels one print may hold on this paper. */
+export const maxLabels = (paper: LabelPaper) =>
+  isRoll(paper) ? MAX_ROLL_LABELS : MAX_LABELS_PER_PRINT;
+
+export type LabelPrintResult =
+  /** `to`: straight to the receipt printer, or to the computer's print window. */
+  | { ok: true; labels: number; to: "printer" | "window" }
+  | {
+      ok: false;
+      /** The product's code cannot be printed (which product is in `name`). */
+      problem?: LabelProblem;
+      name?: string;
+      /** The label is wider than the roll. */
+      wide?: boolean;
+      /** The receipt printer could not be reached. */
+      printer?: PrintFailure | "UNKNOWN";
+    };
+
+/**
+ * Makes the labels and prints them on the paper chosen on this device:
+ * - a sticker roll: one label per page through the print window;
+ * - A4: sheets of labels through the print window;
+ * - a receipt roll: the way receipts go on this device, straight to the printer when one is
+ *   connected in the app (Bluetooth, USB, serial, RawBT), else through the print window (which
+ *   prints with no window from the Windows one-tap icon).
+ * Never throws: it says how many went and where, or why not.
+ */
 export function usePrintLabels() {
   const f = useFormat();
   const size = usePreferences((s) => s.labelSize);
   const showPrice = usePreferences((s) => s.labelShowPrice);
+  const printer = usePreferences((s) => s.printer);
+  const paper = useLabelPaper();
   const [busy, setBusy] = useState(false);
 
   const print = useCallback(
     async (
       items: Array<{ product: LabelProduct; copies: number }>,
-    ): Promise<
-      | { ok: true; labels: number }
-      | { ok: false; problem?: LabelProblem; name?: string }
-    > => {
+    ): Promise<LabelPrintResult> => {
       setBusy(true);
       try {
         const sized = clampSize(size);
+        const max = maxLabels(paper);
+        const input = (product: LabelProduct) => ({
+          name: product.name,
+          barcode: product.barcode,
+          price: showPrice ? f.money(product.sellingPrice) : undefined,
+        });
+        const count = (copies: number) => Math.max(1, Math.min(copies, max));
+
+        if (isRoll(paper)) {
+          if (!fitsRoll(sized, paper)) return { ok: false, wide: true };
+          const dots = PRINT_WIDTH[paper];
+          const cells: Array<{ cell: Bitmap; copies: number }> = [];
+          for (const { product, copies } of items) {
+            const drawn = await drawLabel(input(product), sized);
+            if (!drawn.ok)
+              return { ok: false, problem: drawn.problem, name: product.name };
+            const cell = rollCell(drawn.bitmap, dots);
+            if (!cell) return { ok: false, wide: true };
+            cells.push({ cell, copies: count(copies) });
+          }
+          const via = printer.via;
+          if (
+            via === "serial" ||
+            via === "ble" ||
+            via === "usb" ||
+            via === "rawbt"
+          ) {
+            const parts: Bitmap[] = [];
+            for (const { cell, copies } of cells)
+              for (let i = 0; i < copies && parts.length < max; i++)
+                parts.push(cell);
+            const labels = parts.length;
+            parts.push(rollTail(dots));
+            try {
+              await sendToPrinter(
+                { ...printer, via },
+                receiptJob(stack(parts)),
+              );
+            } catch (error) {
+              if (error instanceof PrintError)
+                return { ok: false, printer: error.code };
+              console.warn("label print failed", error);
+              return { ok: false, printer: "UNKNOWN" };
+            }
+            return { ok: true, labels, to: "printer" };
+          }
+          const labels = await printLabelStripInWindow(
+            cells.map(({ cell, copies }) => ({
+              src: bitmapToPng(cell),
+              copies,
+            })),
+            bitmapToPng(rollTail(dots)),
+            rollPrintableMm(paper),
+            paper === "58mm" ? 58 : 80,
+            max,
+          );
+          return { ok: true, labels, to: "window" };
+        }
+
+        // A sticker roll gets the picture at the printer's own dots; A4 gets it drawn fine.
         const pictures: Array<{ src: string; copies: number }> = [];
         for (const { product, copies } of items) {
           const rendered = await renderLabel(
-            {
-              name: product.name,
-              barcode: product.barcode,
-              price: showPrice ? f.money(product.sellingPrice) : undefined,
-            },
+            input(product),
             sized,
+            paper === "a4" ? FINE_SCALE : 1,
           );
           if (!rendered.ok)
             return { ok: false, problem: rendered.problem, name: product.name };
-          pictures.push({
-            src: rendered.src,
-            copies: Math.max(1, Math.min(copies, MAX_LABELS_PER_PRINT)),
-          });
+          pictures.push({ src: rendered.src, copies: count(copies) });
         }
-        const labels = await printLabelsInWindow(pictures, sized);
-        return { ok: true, labels };
+        const labels =
+          paper === "a4"
+            ? await printLabelSheetsInWindow(pictures, sized, {
+                ...sheetGrid(sized),
+                widthMm: A4.w,
+                edgeMm: A4.edge,
+              })
+            : await printLabelsInWindow(pictures, sized);
+        return { ok: true, labels, to: "window" };
       } catch (error) {
         console.warn("label print failed", error);
         return { ok: false };
@@ -97,8 +213,8 @@ export function usePrintLabels() {
         setBusy(false);
       }
     },
-    [size, showPrice, f],
+    [size, showPrice, f, paper, printer],
   );
 
-  return { print, busy };
+  return { print, busy, paper };
 }

@@ -2,10 +2,11 @@
 
 import { Minus, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useId, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { useLabelPaper } from "@/hooks/use-labels";
 import { useFormat } from "@/i18n/use-format";
 import {
   clampSize,
@@ -14,10 +15,155 @@ import {
   MAX_LABEL_MM,
   MIN_LABEL_MM,
 } from "@/lib/labels/label-layout";
+import {
+  fitsRoll,
+  isRoll,
+  LABEL_PAPERS,
+  type LabelPaper,
+  rollLengthMm,
+  rollPrintableMm,
+  sheetGrid,
+  sheetPages,
+} from "@/lib/labels/label-sheet";
 import { cn } from "@/lib/utils";
 import { usePreferences } from "@/stores/preferences";
 
 const same = (a: LabelSize, b: LabelSize) => a.w === b.w && a.h === b.h;
+
+const chip = (on: boolean) =>
+  cn(
+    "h-auto rounded-full px-3 py-1.5 text-sm",
+    on
+      ? "border-primary bg-primary/10 text-primary hover:bg-primary/15"
+      : "text-muted-foreground",
+  );
+
+/** A tiny picture of the A4 sheet: every place a label can go, the ones this print fills in green. */
+function SheetMap({
+  cols,
+  rows,
+  filled,
+  label,
+}: {
+  cols: number;
+  rows: number;
+  filled: number;
+  label: string;
+}) {
+  return (
+    <div
+      role="img"
+      aria-label={label}
+      className="grid shrink-0 gap-px rounded-sm bg-white p-[3px] shadow-sm ring-1 ring-black/15"
+      style={{
+        width: 46,
+        aspectRatio: "210 / 297",
+        gridTemplateColumns: `repeat(${cols}, 1fr)`,
+        gridTemplateRows: `repeat(${rows}, 1fr)`,
+      }}
+      data-testid="label-sheet-map"
+    >
+      {Array.from({ length: cols * rows }, (_, i) => (
+        <span
+          // biome-ignore lint/suspicious/noArrayIndexKey: the places on the sheet never move
+          key={i}
+          className={cn(
+            "rounded-[1px]",
+            i < filled ? "bg-primary" : "bg-neutral-200",
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * What the labels are printed on (kept on this device): a sticker roll, the receipt printer roll
+ * or A4 paper, and under it what to expect for `total` labels: how many fit on a page and how many
+ * pages, or how much of the roll it takes. A label too wide for the roll is said in red.
+ */
+export function LabelPaperPicker({ total }: { total: number }) {
+  const t = useTranslations("labels");
+  const f = useFormat();
+  const paper = useLabelPaper();
+  const setPaper = usePreferences((s) => s.setLabelPaper);
+  const size = clampSize(usePreferences((s) => s.labelSize));
+  const names: Record<LabelPaper, string> = {
+    label: t("paperLabel"),
+    "80mm": t("paper80mm"),
+    "58mm": t("paper58mm"),
+    a4: t("paperA4"),
+  };
+  const count = Math.max(1, total);
+
+  let hint: ReactNode;
+  if (paper === "a4") {
+    const grid = sheetGrid(size);
+    const pages = sheetPages(count, grid);
+    hint = (
+      <div className="flex items-center gap-3">
+        <SheetMap
+          cols={grid.cols}
+          rows={grid.rows}
+          filled={Math.min(count, grid.perPage)}
+          label={t("sheetAlt")}
+        />
+        <p>
+          {t("hintA4", {
+            per: f.integer(grid.perPage),
+            pc: pages,
+            p: f.integer(pages),
+          })}
+        </p>
+      </div>
+    );
+  } else if (isRoll(paper)) {
+    if (fitsRoll(size, paper)) {
+      const cm = Math.round(rollLengthMm(count, size) / 10);
+      const len =
+        cm < 100
+          ? t("lenCm", { n: f.integer(cm) })
+          : t("lenM", { n: f.number(Math.round(cm / 10) / 10) });
+      hint = <p>{t("hintRoll", { len })}</p>;
+    } else
+      hint = (
+        <p
+          role="alert"
+          className="font-medium text-destructive"
+          data-testid="label-paper-wide"
+        >
+          {t("paperTooWide", { w: size.w, max: rollPrintableMm(paper) })}
+        </p>
+      );
+  } else hint = <p>{t("hintLabel")}</p>;
+
+  return (
+    <div className="flex flex-col gap-2" data-testid="label-paper">
+      <p className="text-sm font-medium">{t("paper")}</p>
+      <div className="flex flex-wrap gap-2">
+        {LABEL_PAPERS.map((p) => (
+          <Button
+            key={p}
+            type="button"
+            variant="outline"
+            aria-pressed={paper === p}
+            className={chip(paper === p)}
+            onClick={() => setPaper(p)}
+            data-testid={`label-paper-${p}`}
+          >
+            {names[p]}
+          </Button>
+        ))}
+      </div>
+      <div
+        className="text-xs text-muted-foreground"
+        data-testid="label-paper-hint"
+      >
+        {hint}
+      </div>
+    </div>
+  );
+}
 
 /** The sticker size (kept on this device): the usual ones as buttons, or a size of one's own. */
 export function LabelSizePicker() {
@@ -37,14 +183,6 @@ export function LabelSizePicker() {
     setW(String(next.w));
     setH(String(next.h));
   }
-
-  const chip = (on: boolean) =>
-    cn(
-      "h-auto rounded-full px-3 py-1.5 text-sm",
-      on
-        ? "border-primary bg-primary/10 text-primary hover:bg-primary/15"
-        : "text-muted-foreground",
-    );
 
   return (
     <div className="flex flex-col gap-2" data-testid="label-size">
