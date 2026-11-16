@@ -1636,6 +1636,7 @@
     "bulkSearch": "Search products",
     "selectAll": "Select all shown",
     "clearAll": "Clear",
+    "showAll": "Show all products",
     "selected": "{pc, plural, one {{p} product} other {{p} products}} · {lc, plural, one {{l} label} other {{l} labels}}",
     "nothingSelected": "Tick the products to print",
     "noResults": "No products found",

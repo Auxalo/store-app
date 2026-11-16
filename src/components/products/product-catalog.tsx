@@ -376,6 +376,14 @@ export function ProductCatalog({ mode }: { mode: "products" | "inventory" }) {
         <BulkLabelDialog
           open
           onOpenChange={(open) => !open && setLabelling(false)}
+          category={
+            filters.category === ALL
+              ? null
+              : {
+                  id: filters.category as string,
+                  name: categoryName.get(filters.category as string) ?? "",
+                }
+          }
         />
       ) : null}
     </div>

@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { scan } from "../../src/lib/labels/__tests__/scan-helpers";
-import { createProduct, signUp } from "./helpers";
+import { addCategory, createProduct, signUp } from "./helpers";
 
 test.afterEach(async ({ page }) => {
   await page.goto("about:blank").catch(() => undefined);
@@ -398,4 +398,72 @@ test("on a receipt roll: the labels one under another, as wide as the roll print
   await page.getByTestId("copies-input").fill("201");
   await expect(page.getByTestId("label-limit")).toBeVisible();
   await expect(page.getByTestId("print-labels")).toBeDisabled();
+});
+
+test("labels for many products start on the category the Products page is showing", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(240_000);
+  await signUp(page, `lab6${Date.now()}${testInfo.project.name}`);
+  await page.goto("/categories");
+  await addCategory(page, "Dairy", "দুগ্ধজাত");
+  await expect(
+    page.getByTestId("category-row").filter({ hasText: "দুগ্ধজাত" }),
+  ).toBeVisible();
+
+  await createProduct(page, {
+    name: "Alpha Soap",
+    price: "90",
+    stock: "10",
+    barcode: EAN_A,
+  });
+  // A second product, in the category.
+  await page.goto("/products/new");
+  await page.getByLabel("পণ্যের নাম").fill("Fresh Milk");
+  await page.getByLabel("বিক্রয়মূল্য (৳)").fill("60");
+  await page.getByLabel(/এখন হাতে স্টক/).fill("10");
+  await page.getByLabel("ক্রয়মূল্য (৳)", { exact: true }).fill("50");
+  await page.getByLabel("বারকোড").fill(EAN_B);
+  await page
+    .getByText("ক্যাটাগরি", { exact: true })
+    .locator("xpath=..")
+    .getByRole("combobox")
+    .click();
+  await page.getByRole("option", { name: "দুগ্ধজাত" }).click();
+  await page.getByRole("button", { name: "সংরক্ষণ" }).click();
+  await expect(page).toHaveURL(/\/products$/);
+
+  // No category chosen: every product, and no chip.
+  await page.getByTestId("open-bulk-labels").click();
+  const rows = page.getByTestId("bulk-row");
+  await expect(rows).toHaveCount(2);
+  await expect(page.getByTestId("bulk-category")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(rows).toHaveCount(0);
+
+  // Show one category on the Products page, then print labels: only that category.
+  await page.getByTestId("list-filters").click();
+  await page.getByTestId("filter-category").click();
+  await page.getByRole("option", { name: "দুগ্ধজাত" }).click();
+  await page.getByTestId("filters-done").click();
+  await page.getByTestId("open-bulk-labels").click();
+  await expect(rows).toHaveCount(1);
+  await expect(rows).toContainText("Fresh Milk");
+  const chip = page.getByTestId("bulk-category");
+  await expect(chip).toContainText("দুগ্ধজাত");
+
+  // Select all takes the category's products only.
+  await page.getByTestId("bulk-select-all").click();
+  await expect(rows.first().getByTestId("bulk-check")).toBeChecked();
+
+  // The chip takes the limit off; what was ticked stays ticked.
+  await chip.click();
+  await expect(rows).toHaveCount(2);
+  await expect(chip).toHaveCount(0);
+  await expect(
+    rows.filter({ hasText: "Fresh Milk" }).getByTestId("bulk-check"),
+  ).toBeChecked();
+  await expect(
+    rows.filter({ hasText: "Alpha Soap" }).getByTestId("bulk-check"),
+  ).not.toBeChecked();
 });
