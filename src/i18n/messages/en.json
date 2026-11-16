@@ -1630,7 +1630,7 @@
     "badCode": "This code has letters or signs that cannot be printed as a barcode. Edit the product and use only English letters, digits and common signs.",
     "tooLong": "This code is too long to print as a barcode.",
     "tooWide": "This code is too long for a {w} × {h} mm label. Choose a wider label.",
-    "windowsNote": "Print labels from the normal Chrome window, not from the Trade Hishab desktop icon (that icon sends everything to the receipt printer). In the print window, choose your label printer once; Chrome remembers it.",
+    "windowsNote": "Print these from the normal Chrome window, not from the Trade Hishab desktop icon (that icon sends everything to the receipt printer). In the print window, choose the printer once; Chrome remembers it.",
     "checkSize": "In the print window, set the paper to the label size and turn Margins off if the printer asks.",
     "bulkTitle": "Print labels for many products",
     "bulkSearch": "Search products",
@@ -1642,6 +1642,19 @@
     "noCode": "No barcode",
     "showMore": "Show more",
     "previewOf": "Preview: {name}",
-    "price": "Price"
+    "price": "Price",
+    "paper": "Print on",
+    "paperLabel": "Sticker roll",
+    "paper80mm": "Receipt 80 mm",
+    "paper58mm": "Receipt 58 mm",
+    "paperA4": "A4 page",
+    "hintLabel": "One label per sticker, in a label printer.",
+    "hintRoll": "One under another on the receipt roll, with lines to cut along. About {len} of paper.",
+    "lenCm": "{n} cm",
+    "lenM": "{n} m",
+    "hintA4": "{per} labels fit on a page, with lines to cut along · {pc, plural, one {{p} page} other {{p} pages}}",
+    "paperTooWide": "A {w} mm wide label does not fit this roll (it prints {max} mm). Pick a smaller label size.",
+    "sentPrinter": "Sent to the printer",
+    "sheetAlt": "How the page will be filled"
   }
 }

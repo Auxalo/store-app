@@ -204,6 +204,38 @@ html {
     height: 100%;
     image-rendering: pixelated;
   }
+  /* Labels on A4 (printLabelSheetsInWindow): a sheet per page, the labels in rows, a dashed line to cut along. */
+  #print-root .print-sheet {
+    box-sizing: border-box;
+    break-after: page;
+    page-break-after: always;
+  }
+  #print-root .print-sheet:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+  #print-root .print-sheet-grid {
+    display: grid;
+    justify-content: center;
+  }
+  #print-root .print-sheet-cell {
+    box-sizing: border-box;
+    overflow: hidden;
+    outline: 0.2mm dashed #777;
+    outline-offset: -0.1mm;
+    break-inside: avoid;
+  }
+  #print-root .print-sheet-cell img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+  }
+  /* Labels on a receipt roll (printLabelStripInWindow): never split a label over two pages. */
+  #print-root .print-strip {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
   #print-root .print-root-img {
     display: block;
     margin: 0 auto;

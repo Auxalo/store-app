@@ -141,3 +141,108 @@ export async function printLabelsInWindow(
   printRootNow(() => root.replaceChildren());
   return total;
 }
+
+/** Waits until every picture is ready and drawn (off the screen), then prints the spot and empties it. */
+async function printPictures(root: HTMLElement, images: HTMLImageElement[]) {
+  await Promise.all(images.map((img) => img.decode().catch(() => undefined)));
+  await new Promise((done) =>
+    requestAnimationFrame(() => requestAnimationFrame(done)),
+  );
+  printRootNow(() => root.replaceChildren());
+}
+
+/**
+ * Prints labels on A4 paper: `cols` x `rows` to a sheet, each exactly `w` x `h` mm, with a thin
+ * dashed line round every label to cut along, and as many sheets as it takes. The page has no
+ * margins of its own (so no date / web address is printed); the sheet keeps `edgeMm` empty all
+ * round instead. `labels` are pictures of the label (drawn fine, see render-label.ts), each
+ * printed `copies` times, one product after another.
+ */
+export async function printLabelSheetsInWindow(
+  labels: Array<{ src: string; copies: number }>,
+  size: { w: number; h: number },
+  sheet: { cols: number; rows: number; widthMm: number; edgeMm: number },
+) {
+  const root = printRoot();
+  root.style.width = `${sheet.widthMm}mm`;
+  const page = document.createElement("style");
+  page.textContent = "@page { size: A4; margin: 0; }";
+  const nodes: HTMLElement[] = [page];
+  const images: HTMLImageElement[] = [];
+  const perPage = sheet.cols * sheet.rows;
+  let grid: HTMLElement | null = null;
+  let total = 0;
+  for (const label of labels) {
+    for (let i = 0; i < label.copies && total < MAX_LABELS_PER_PRINT; i++) {
+      if (!grid || total % perPage === 0) {
+        const paper = document.createElement("div");
+        paper.className = "print-sheet";
+        paper.style.width = `${sheet.widthMm}mm`;
+        paper.style.padding = `${sheet.edgeMm}mm 0 0`;
+        grid = document.createElement("div");
+        grid.className = "print-sheet-grid";
+        grid.style.gridTemplateColumns = `repeat(${sheet.cols}, ${size.w}mm)`;
+        grid.style.gridAutoRows = `${size.h}mm`;
+        paper.append(grid);
+        nodes.push(paper);
+      }
+      const cell = document.createElement("div");
+      cell.className = "print-sheet-cell";
+      const img = document.createElement("img");
+      img.alt = "";
+      img.src = label.src;
+      images.push(img);
+      cell.append(img);
+      grid.append(cell);
+      total++;
+    }
+  }
+  root.replaceChildren(...nodes);
+  await printPictures(root, images);
+  return total;
+}
+
+/**
+ * Prints labels on a receipt printer's roll through the print window, one under another. Each
+ * picture is one label already as wide as the printable part of the roll, with its cut lines
+ * (label-sheet.ts, rollCell); it is printed `widthMm` wide, centred on paper `paperMm` wide, with
+ * no page margins, exactly like a receipt (printImageInWindow). A label is never split over two
+ * pages, so a driver that cuts the paper at a page end never cuts through one. `tail` closes the
+ * strip (the last cut line).
+ */
+export async function printLabelStripInWindow(
+  labels: Array<{ src: string; copies: number }>,
+  tail: string,
+  widthMm: number,
+  paperMm: number,
+  max: number,
+) {
+  const root = printRoot();
+  root.style.width = `${paperMm}mm`;
+  const page = document.createElement("style");
+  page.textContent = "@page { margin: 0; }";
+  const nodes: HTMLElement[] = [page];
+  const images: HTMLImageElement[] = [];
+  const add = (src: string) => {
+    const block = document.createElement("div");
+    block.className = "print-strip";
+    const img = document.createElement("img");
+    img.className = "print-root-img";
+    img.alt = "";
+    img.style.width = `${widthMm}mm`;
+    img.src = src;
+    images.push(img);
+    block.append(img);
+    nodes.push(block);
+  };
+  let total = 0;
+  for (const label of labels)
+    for (let i = 0; i < label.copies && total < max; i++) {
+      add(label.src);
+      total++;
+    }
+  add(tail);
+  root.replaceChildren(...nodes);
+  await printPictures(root, images);
+  return total;
+}

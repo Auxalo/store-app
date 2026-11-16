@@ -4,7 +4,7 @@ import { ScanBarcode, TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import type { LabelProblem, LabelSize } from "@/lib/labels/label-layout";
-import { renderLabel } from "@/lib/labels/render-label";
+import { FINE_SCALE, renderLabel } from "@/lib/labels/render-label";
 import { cn } from "@/lib/utils";
 
 type Shown =
@@ -30,8 +30,8 @@ export function useProblemText() {
 }
 
 /**
- * The sticker as it will print (the very same picture), on a soft mat, in the label's own
- * proportions. A product that cannot get a barcode shows a red dashed sticker saying why instead.
+ * The sticker as it will print (the same layout, drawn fine so it is sharp on the screen), on a
+ * soft mat, in the label's own proportions. A product that cannot get a barcode shows a red dashed sticker saying why instead.
  */
 export function LabelPreview({
   name,
@@ -52,7 +52,7 @@ export function LabelPreview({
 
   useEffect(() => {
     let cancelled = false;
-    renderLabel({ name, barcode, price }, size)
+    renderLabel({ name, barcode, price }, size, FINE_SCALE)
       .then((r) => {
         if (cancelled) return;
         setShown(
@@ -87,7 +87,6 @@ export function LabelPreview({
             src={shown.src}
             alt={t("previewAlt")}
             className="size-full rounded-md bg-white shadow-md ring-1 ring-black/10"
-            style={{ imageRendering: "pixelated" }}
             data-testid="label-preview-image"
           />
         ) : shown.status === "problem" ? (
