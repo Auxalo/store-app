@@ -30,9 +30,12 @@ export function createFormat({
   const nu =
     numerals === "auto" ? (locale === "bn" ? "beng" : "latn") : numerals;
   const tag = `${INTL_LOCALE[locale]}-u-nu-${nu}`;
-  // Numbers group as the currency does: lakh (1,25,000) for taka and rupee, thousands (125,000) for
-  // dollar and euro. Dates keep the language's own locale.
-  const numberTag = cur.lakh ? tag : `en-US-u-nu-${nu}`;
+  // Numbers are written as the currency's are: lakh (1,25,000) for taka and rupee, thousands
+  // (125,000.50) for dollar, and for euro a comma before the cents (125.000,50). Dates keep the
+  // language's own locale.
+  const numberTag = cur.lakh
+    ? tag
+    : `${cur.comma ? "de-DE" : "en-US"}-u-nu-${nu}`;
 
   const integer = new Intl.NumberFormat(numberTag, {
     maximumFractionDigits: 0,
@@ -74,7 +77,7 @@ export function createFormat({
     integer: (n: number) => integer.format(n),
     percent: (n: number) => `${percent.format(n)}%`,
     /**
-     * Minor units → "৳1,250" or "€1,250.50". The symbol always leads (Intl puts it after the
+     * Minor units → "৳1,250" or "€1.250,50". The symbol always leads (Intl puts it after the
      * number in bn-BD). `fraction: "always"` forces two decimals, e.g. for receipts.
      */
     money: (amount: Poisha, fraction: "auto" | "always" = "auto") => {

@@ -10,6 +10,11 @@ describe("numerals", () => {
   it("parses mixed and formatted input", () => {
     expect(parseDecimal("১২৫০")).toBe(1250);
     expect(parseDecimal("1,25,000.50")).toBe(125000.5);
+    expect(parseDecimal("1,5")).toBe(1.5);
+    expect(parseDecimal("40,50")).toBe(40.5);
+    expect(parseDecimal("1.250,50")).toBe(1250.5);
+    expect(parseDecimal("1,250")).toBe(1250);
+    expect(parseDecimal("12,")).toBe(12);
     expect(parseDecimal("১,২৫,০০০.৫০")).toBe(125000.5);
     expect(parseDecimal(" 12 ")).toBe(12);
     expect(parseDecimal(".5")).toBe(0.5);

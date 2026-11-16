@@ -7,6 +7,14 @@ describe("money", () => {
     expect(parseMoney("১২৫.৫০")).toBe(12550);
     expect(parseMoney("0.1")).toBe(10);
     expect(parseMoney("1,250")).toBe(125000);
+    // A comma before the cents, as euro amounts are written.
+    expect(parseMoney("40,50")).toBe(4050);
+    expect(parseMoney("30,00")).toBe(3000);
+    expect(parseMoney("40,5")).toBe(4050);
+    expect(parseMoney("1.250,50")).toBe(125050);
+    expect(parseMoney("৪০,৫০")).toBe(4050);
+    expect(parseMoney("1,25,000")).toBe(12500000);
+    expect(parseMoney("1,250.50")).toBe(125050);
     expect(parseMoney("1.005")).toBe(101);
     expect(parseMoney("1.004")).toBe(100);
     expect(parseMoney("-5")).toBe(-500);

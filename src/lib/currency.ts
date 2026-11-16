@@ -11,6 +11,8 @@ export const CURRENCIES = [
     nameBn: "টাকা",
     /** Lakh/crore grouping (1,25,000), as written in Bangladesh and India. */
     lakh: true,
+    /** Written the continental way: a comma before the cents and dots between thousands (1.250,50). */
+    comma: false,
     /** Round-number notes a customer hands over, in minor units (for the quick-cash buttons). */
     notes: [5_000, 10_000, 50_000, 100_000],
   },
@@ -20,6 +22,7 @@ export const CURRENCIES = [
     nameEn: "US Dollar",
     nameBn: "ডলার",
     lakh: false,
+    comma: false,
     notes: [500, 1_000, 2_000, 5_000, 10_000],
   },
   {
@@ -28,6 +31,7 @@ export const CURRENCIES = [
     nameEn: "Euro",
     nameBn: "ইউরো",
     lakh: false,
+    comma: true,
     notes: [500, 1_000, 2_000, 5_000, 10_000],
   },
   {
@@ -36,6 +40,7 @@ export const CURRENCIES = [
     nameEn: "Indian Rupee",
     nameBn: "রুপি",
     lakh: true,
+    comma: false,
     notes: [5_000, 10_000, 50_000, 200_000],
   },
 ] as const;
