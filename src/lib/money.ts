@@ -1,4 +1,4 @@
-import { bnToEn, parseDecimal } from "./numerals";
+import { parseDecimal, plainDecimal } from "./numerals";
 
 /** Money is always an integer number of poisha (৳1 = 100 poisha). Never a float. */
 export type Poisha = number;
@@ -6,13 +6,13 @@ export type Poisha = number;
 export const POISHA_PER_TAKA = 100;
 
 /**
- * "125.50" / "১২৫.৫০" → 12550. Parsed from the decimal string (not via floats) so
+ * "125.50" / "১২৫.৫০" / "125,50" → 12550. Parsed from the decimal string (not via floats) so
  * values like 1.005 round the way a person expects. Returns null for invalid input.
  */
 export function parseMoney(input: string): Poisha | null {
   const n = parseDecimal(input);
   if (!Number.isFinite(n)) return null;
-  const match = /^(-?)(\d*)\.?(\d*)$/.exec(bnToEn(input).replace(/[\s,]/g, ""));
+  const match = /^(-?)(\d*)\.?(\d*)$/.exec(plainDecimal(input));
   if (!match) return toPoisha(n);
   const [, sign, int = "", frac = ""] = match;
   const padded = `${frac}000`;

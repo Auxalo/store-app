@@ -10,21 +10,32 @@ describe("money in the shop's currency", () => {
     expect(createFormat({ locale: "bn" }).money(125_000)).toBe("৳১,২৫০");
   });
 
-  it("euro and dollar use their sign and thousands grouping", () => {
+  it("euro has a comma before the cents and dots between thousands", () => {
     const eur = createFormat({ locale: "en", currency: "EUR" });
     expect(eur.symbol).toBe("€");
-    expect(eur.money(12_500_000)).toBe("€125,000");
-    expect(eur.money(125_050)).toBe("€1,250.50");
+    expect(eur.money(12_500_000)).toBe("€125.000");
+    expect(eur.money(125_050)).toBe("€1.250,50");
     expect(eur.money(-5_000)).toBe("-€50");
-    expect(
-      createFormat({ locale: "en", currency: "USD" }).money(9_900, "always"),
-    ).toBe("$99.00");
+    // As on a receipt: always two decimals.
+    expect(eur.money(3_000, "always")).toBe("€30,00");
+    expect(eur.money(4_050, "always")).toBe("€40,50");
+    expect(eur.money(4_050)).toBe("€40,50");
+    expect(eur.qty(1_500)).toBe("1,5");
+    expect(eur.percent(7.5)).toBe("7,5%");
+  });
+
+  it("dollar keeps a dot before the cents and thousands grouping", () => {
+    const usd = createFormat({ locale: "en", currency: "USD" });
+    expect(usd.money(9_900, "always")).toBe("$99.00");
+    expect(usd.money(125_050)).toBe("$1,250.50");
+    expect(usd.qty(1_500)).toBe("1.5");
   });
 
   it("a Bangla-language shop in euro keeps Bangla digits and the euro sign", () => {
     const f = createFormat({ locale: "bn", currency: "EUR" });
-    expect(f.money(12_500_000)).toBe("€১২৫,০০০");
-    expect(f.money(125_000)).toBe("€১,২৫০");
+    expect(f.money(12_500_000)).toBe("€১২৫.০০০");
+    expect(f.money(125_000)).toBe("€১.২৫০");
+    expect(f.money(4_050, "always")).toBe("€৪০,৫০");
   });
 
   it("rupee keeps lakh grouping", () => {

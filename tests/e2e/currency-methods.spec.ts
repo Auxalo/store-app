@@ -54,7 +54,7 @@ test("a shop in euro sees the euro sign everywhere money is shown", async ({
   await expect(cart.getByText("৳")).toHaveCount(0);
   await cart.getByTestId("complete-sale").click();
   const receipt = page.locator("#print-receipt");
-  await expect(receipt).toContainText("€৫০.০০");
+  await expect(receipt).toContainText("€৫০,০০");
   await expect(receipt).not.toContainText("৳");
 
   // Elsewhere too, and it is still there after a reload.
