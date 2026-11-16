@@ -6,6 +6,7 @@ import {
   ScanBarcode,
   Search,
   TriangleAlert,
+  X,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
@@ -56,14 +57,18 @@ function codeState(
 /**
  * "Print labels" for many products from the Products page: search, tick the products, set how
  * many labels each, and print them all in one go. Products with no barcode are red and cannot be
- * ticked until they have one (one tap makes it).
+ * ticked until they have one (one tap makes it). When the Products page is showing one category,
+ * the list starts on that category; its chip takes the limit off.
  */
 export function BulkLabelDialog({
   open,
   onOpenChange,
+  category = null,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** The category the Products page is filtered to, if any. */
+  category?: { id: string; name: string } | null;
 }) {
   const t = useTranslations("labels");
   const tp = useTranslations("printer");
@@ -77,6 +82,7 @@ export function BulkLabelDialog({
   const problemText = useProblemText();
 
   const [search, setSearch] = useState("");
+  const [only, setOnly] = useState(category);
   const [q, setQ] = useState("");
   const [picked, setPicked] = useState<Map<string, Picked>>(new Map());
   const [focusId, setFocusId] = useState<string | null>(null);
@@ -90,7 +96,7 @@ export function BulkLabelDialog({
 
   const list = useList(
     "products",
-    { q, active: "active", sort: "name" },
+    { q, categoryId: only?.id, active: "active", sort: "name" },
     { pageSize: 50, enabled: open },
   );
   const items = list.items as Product[];
@@ -201,6 +207,21 @@ export function BulkLabelDialog({
               data-testid="bulk-search"
             />
           </div>
+
+          {only ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-auto self-start rounded-full border-primary bg-primary/10 px-3 py-1 text-sm text-primary hover:bg-primary/15"
+              onClick={() => setOnly(null)}
+              title={t("showAll")}
+              data-testid="bulk-category"
+            >
+              {only.name}
+              <X aria-hidden />
+              <span className="sr-only">{t("showAll")}</span>
+            </Button>
+          ) : null}
 
           <div className="flex items-center justify-between gap-2 text-sm">
             <div className="flex items-center gap-2">
