@@ -46,6 +46,7 @@ test("on a phone the invoice goes to the share sheet as plain text (WhatsApp, Me
   });
   await sellOne(page, `shr${Date.now()}${testInfo.project.name}`);
   await page.getByTestId("share-receipt").click();
+  await page.getByTestId("share-other").click();
 
   const shared = await page.evaluate(
     () => (window as unknown as { __shared: Array<{ text: string }> }).__shared,
@@ -71,6 +72,7 @@ test("without a share sheet (a computer) a window offers WhatsApp to the custome
   });
   await sellOne(page, `shr2${Date.now()}${testInfo.project.name}`);
   await page.getByTestId("share-receipt").click();
+  await page.getByTestId("share-other").click();
 
   await expect(page.getByTestId("share-dialog")).toBeVisible();
   await expect(page.getByTestId("share-text")).toHaveValue(/ফ্রেশ দুধ/);
@@ -96,5 +98,57 @@ test("an invoice can be shared again from the sale's own page", async ({
   await page.goto("/sales");
   await page.getByTestId("sale-row").first().click();
   await page.getByTestId("share-receipt").click();
+  await page.getByTestId("share-other").click();
   await expect(page.getByTestId("share-text")).toHaveValue(/ফ্রেশ দুধ/);
+});
+
+test("WhatsApp directly: Share opens the customer's chat with the invoice; turned off in Customize, Share goes straight to the share sheet", async ({
+  page,
+}, testInfo) => {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __opened: string[]; __shared: unknown[] };
+    w.__opened = [];
+    w.__shared = [];
+    window.open = ((url: string) => {
+      w.__opened.push(String(url));
+      return null;
+    }) as typeof window.open;
+    Object.defineProperty(navigator, "share", {
+      configurable: true,
+      value: async (data: unknown) => {
+        w.__shared.push(data);
+      },
+    });
+  });
+  await sellOne(page, `shr4${Date.now()}${testInfo.project.name}`);
+  await page.getByTestId("share-receipt").click();
+  await expect(page.getByTestId("share-direct-whatsapp")).toContainText(
+    "01711000001",
+  );
+  await page.getByTestId("share-direct-whatsapp").click();
+  const opened = await page.evaluate(
+    () => (window as unknown as { __opened: string[] }).__opened,
+  );
+  expect(opened).toHaveLength(1);
+  expect(opened[0]).toMatch(/^https:\/\/wa\.me\/8801711000001\?text=/);
+  expect(decodeURIComponent(opened[0])).toContain("ফ্রেশ দুধ");
+
+  // Turn it off: Share goes straight to the share sheet, no choice.
+  await page.getByRole("button", { name: "নতুন বিক্রি" }).click();
+  await page.goto("/customize");
+  const toggle = page.getByTestId("whatsapp-direct");
+  await expect(toggle).toBeChecked();
+  await toggle.click();
+  await expect(toggle).not.toBeChecked();
+  await page.goto("/sales");
+  await page.getByTestId("sale-row").first().click();
+  await page.getByTestId("share-receipt").click();
+  await expect(page.getByTestId("share-direct-whatsapp")).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as unknown as { __shared: unknown[] }).__shared.length,
+      ),
+    )
+    .toBe(1);
 });
