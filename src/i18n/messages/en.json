@@ -1617,6 +1617,8 @@
     "copiesOf": "Copies of {name}",
     "printNow": "Print {count, plural, one {{n} label} other {{n} labels}}",
     "printing": "Preparing…",
+    "downloadPdf": "Download PDF",
+    "downloaded": "PDF downloaded",
     "sent": "Sent to the print window",
     "failed": "Could not make the label. Try again.",
     "limit": "At most {n} labels can be printed at once.",

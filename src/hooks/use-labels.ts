@@ -5,7 +5,17 @@ import { errorCode } from "@/data/errors";
 import { useCommand, useDuplicateCodeCheck } from "@/data/hooks";
 import { useFormat } from "@/i18n/use-format";
 import { makeStoreEan13 } from "@/lib/labels/barcode";
-import { clampSize, type LabelProblem } from "@/lib/labels/label-layout";
+import {
+  clampSize,
+  DOTS_PER_MM,
+  type LabelProblem,
+} from "@/lib/labels/label-layout";
+import {
+  downloadPdf,
+  makePdf,
+  type PdfPage,
+  type PdfPlacement,
+} from "@/lib/labels/label-pdf";
 import {
   A4,
   defaultLabelPaper,
@@ -89,8 +99,8 @@ export const maxLabels = (paper: LabelPaper) =>
   isRoll(paper) ? MAX_ROLL_LABELS : MAX_LABELS_PER_PRINT;
 
 export type LabelPrintResult =
-  /** `to`: straight to the receipt printer, or to the computer's print window. */
-  | { ok: true; labels: number; to: "printer" | "window" }
+  /** `to`: straight to the receipt printer, to the computer's print window, or a downloaded PDF. */
+  | { ok: true; labels: number; to: "printer" | "window" | "file" }
   | {
       ok: false;
       /** The product's code cannot be printed (which product is in `name`). */
@@ -216,5 +226,106 @@ export function usePrintLabels() {
     [size, showPrice, f, paper, printer],
   );
 
-  return { print, busy, paper };
+  /**
+   * The same labels laid out as they would print on the chosen paper, as a PDF download: one label
+   * per page for a sticker roll, full A4 sheets with cut lines, or a long strip as wide as the roll.
+   */
+  const download = useCallback(
+    async (
+      items: Array<{ product: LabelProduct; copies: number }>,
+    ): Promise<LabelPrintResult> => {
+      setBusy(true);
+      try {
+        const sized = clampSize(size);
+        const max = maxLabels(paper);
+        const images: Bitmap[] = [];
+        const order: number[] = [];
+        for (const { product, copies } of items) {
+          const drawn = await drawLabel(
+            {
+              name: product.name,
+              barcode: product.barcode,
+              price: showPrice ? f.money(product.sellingPrice) : undefined,
+            },
+            sized,
+            isRoll(paper) ? 1 : FINE_SCALE,
+          );
+          if (!drawn.ok)
+            return { ok: false, problem: drawn.problem, name: product.name };
+          let picture = drawn.bitmap;
+          if (isRoll(paper)) {
+            const cell = fitsRoll(sized, paper)
+              ? rollCell(picture, PRINT_WIDTH[paper])
+              : null;
+            if (!cell) return { ok: false, wide: true };
+            picture = cell;
+          }
+          images.push(picture);
+          const n = Math.max(1, Math.min(copies, max));
+          for (let i = 0; i < n && order.length < max; i++)
+            order.push(images.length - 1);
+        }
+
+        const pages: PdfPage[] = [];
+        if (isRoll(paper)) {
+          const dots = PRINT_WIDTH[paper];
+          const paperMm = paper === "58mm" ? 58 : 80;
+          const wide = rollPrintableMm(paper);
+          const left = (paperMm - wide) / 2;
+          const tail = images.push(rollTail(dots)) - 1;
+          const tallMm = (i: number) => images[i].height / DOTS_PER_MM;
+          // A long strip, in pages of at most 100 labels (PDF readers stop at about 5 m a page).
+          for (let start = 0; start < order.length; start += 100) {
+            const place: PdfPlacement[] = [];
+            let y = 0;
+            for (const image of [...order.slice(start, start + 100), tail]) {
+              place.push({ image, x: left, y, w: wide, h: tallMm(image) });
+              y += tallMm(image);
+            }
+            pages.push({ w: paperMm, h: y, place });
+          }
+        } else if (paper === "a4") {
+          const grid = sheetGrid(sized);
+          const left = (A4.w - grid.cols * sized.w) / 2;
+          for (let start = 0; start < order.length; start += grid.perPage) {
+            const page: PdfPage = { w: A4.w, h: A4.h, place: [], cuts: [] };
+            order.slice(start, start + grid.perPage).forEach((image, i) => {
+              const box = {
+                x: left + (i % grid.cols) * sized.w,
+                y: A4.edge + Math.floor(i / grid.cols) * sized.h,
+                w: sized.w,
+                h: sized.h,
+              };
+              page.place.push({ image, ...box });
+              page.cuts?.push(box);
+            });
+            pages.push(page);
+          }
+        } else
+          for (const image of order)
+            pages.push({
+              w: sized.w,
+              h: sized.h,
+              place: [{ image, x: 0, y: 0, w: sized.w, h: sized.h }],
+            });
+
+        const bytes = await makePdf(images, pages);
+        const day = new Date().toISOString().slice(0, 10);
+        const name =
+          items.length === 1
+            ? items[0].product.name.replace(/[\\/:*?"<>|]+/g, " ").trim()
+            : "";
+        downloadPdf(bytes, `${name ? `${name} ` : ""}labels ${day}.pdf`);
+        return { ok: true, labels: order.length, to: "file" };
+      } catch (error) {
+        console.warn("label pdf failed", error);
+        return { ok: false };
+      } finally {
+        setBusy(false);
+      }
+    },
+    [size, showPrice, f, paper],
+  );
+
+  return { print, download, busy, paper };
 }

@@ -302,6 +302,20 @@ test("on A4 paper: as many labels as fit on a sheet, in rows, and more sheets wh
   expect(Math.abs(pdf.widthMm - 210)).toBeLessThan(0.6);
   expect(Math.abs(pdf.heightMm - 297)).toBeLessThan(0.6);
 
+  // The same sheets as a PDF download.
+  const [file] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByTestId("label-download").click(),
+  ]);
+  expect(file.suggestedFilename()).toMatch(/.pdf$/);
+  const saved = await file.path();
+  const bytes = (await import("node:fs"))
+    .readFileSync(saved)
+    .toString("latin1");
+  expect(bytes.startsWith("%PDF")).toBe(true);
+  expect(bytes).toContain("/Count 2");
+  expect(bytes).toContain("/MediaBox [0 0 595.276 841.89]");
+
   // Kept on this device.
   await page.reload();
   await page.getByTestId("open-labels").click();

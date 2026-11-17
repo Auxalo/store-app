@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Download,
   Loader2,
   Printer,
   ScanBarcode,
@@ -78,7 +79,7 @@ export function BulkLabelDialog({
   const showPrice = usePreferences((s) => s.labelShowPrice);
   const canEdit = can(role, "product.edit");
   const createBarcode = useCreateBarcode();
-  const { print, busy, paper } = usePrintLabels();
+  const { print, download, busy, paper } = usePrintLabels();
   const problemText = useProblemText();
 
   const [search, setSearch] = useState("");
@@ -159,15 +160,23 @@ export function BulkLabelDialog({
     }
   }
 
-  async function go() {
-    const result = await print(
+  async function go(save = false) {
+    const result = await (save ? download : print)(
       [...picked.values()].map(({ product, copies }) => ({
         product: live(product.id, product),
         copies,
       })),
     );
     if (result.ok)
-      toast.success(t(result.to === "printer" ? "sentPrinter" : "sent"));
+      toast.success(
+        t(
+          result.to === "printer"
+            ? "sentPrinter"
+            : result.to === "file"
+              ? "downloaded"
+              : "sent",
+        ),
+      );
     else if (result.problem)
       toast.error(`${result.name}: ${problemText(result.problem, size)}`);
     else if (result.wide && isRoll(paper))
@@ -400,6 +409,15 @@ export function BulkLabelDialog({
           {busy
             ? t("printing")
             : t("printNow", { count: total, n: f.integer(total) })}
+        </Button>
+        <Button
+          variant="outline"
+          disabled={picked.size === 0 || overLimit || wide || busy}
+          onClick={() => void go(true)}
+          data-testid="bulk-download"
+        >
+          <Download aria-hidden />
+          {t("downloadPdf")}
         </Button>
       </div>
     </ResponsiveDialog>
