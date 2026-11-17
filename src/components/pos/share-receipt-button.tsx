@@ -7,6 +7,12 @@ import { toast } from "sonner";
 import type { StoreProfile } from "@/components/settings/settings-screen";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import type { Sale, SaleItem } from "@/db/local/types";
 import { usePaymentMethods } from "@/hooks/use-payment-methods";
@@ -17,6 +23,13 @@ import { normalizePhone } from "@/lib/phone";
 import { saleStanding } from "@/lib/sale-math";
 
 const NO_PROFILE: StoreProfile = { name: "", address: "", phone: "" };
+
+/** Shop setting: Share offers "WhatsApp" straight to the customer's chat first (on unless turned off). */
+export const WHATSAPP_DIRECT_KEY = "share.whatsappDirect";
+
+/** WhatsApp's own link: opens the chat with that number (saved in the phone or not), the text typed in. */
+export const whatsappLink = (phone: string, text: string) =>
+  `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 
 /** A number WhatsApp understands: country code first, digits only (01711000001 → 8801711000001). */
 export function whatsappNumber(phone: string | undefined): string {
@@ -31,6 +44,8 @@ export function whatsappNumber(phone: string | undefined): string {
  * Sends the invoice as a message: the phone's own share sheet (WhatsApp, Messenger, SMS ...) where
  * there is one; on a computer a small window with "WhatsApp" (to the customer's number when known)
  * and "copy". It is plain text, so it works offline too and reads well in any chat app.
+ * With "WhatsApp directly" on (Customize, on by default) Share first asks: WhatsApp, straight to the
+ * customer's chat, or another app.
  */
 export function ShareReceiptButton({
   sale,
@@ -49,6 +64,7 @@ export function ShareReceiptButton({
   const f = useFormat();
   const profile = useSetting<StoreProfile>("store.profile", NO_PROFILE).value;
   const footer = useSetting<string>("receipt.footer", "").value;
+  const direct = useSetting<boolean>(WHATSAPP_DIRECT_KEY, true).value !== false;
   const [open, setOpen] = useState(false);
 
   const text = () => {
@@ -124,19 +140,53 @@ export function ShareReceiptButton({
 
   const message = open ? text() : "";
   const phone = whatsappNumber(sale.customerPhone);
-  const whatsapp = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+  const whatsapp = whatsappLink(phone, message);
+
+  const button = (
+    <Button
+      variant="outline"
+      className={className}
+      onClick={direct ? undefined : () => void share()}
+      data-testid="share-receipt"
+    >
+      <Share2 aria-hidden />
+      {t("share")}
+    </Button>
+  );
 
   return (
     <>
-      <Button
-        variant="outline"
-        className={className}
-        onClick={() => void share()}
-        data-testid="share-receipt"
-      >
-        <Share2 aria-hidden />
-        {t("share")}
-      </Button>
+      {direct ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-56">
+            <DropdownMenuItem
+              onSelect={() => {
+                window.open(
+                  whatsappLink(phone, text()),
+                  "_blank",
+                  "noopener,noreferrer",
+                );
+              }}
+              data-testid="share-direct-whatsapp"
+            >
+              <MessageCircle aria-hidden />
+              {phone
+                ? t("shareWhatsappTo", { phone: sale.customerPhone ?? "" })
+                : t("shareWhatsapp")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => void share()}
+              data-testid="share-other"
+            >
+              <Share2 aria-hidden />
+              {t("shareOther")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : (
+        button
+      )}
       <ResponsiveDialog
         open={open}
         onOpenChange={setOpen}

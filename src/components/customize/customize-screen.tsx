@@ -1,10 +1,21 @@
 "use client";
 
-import { ChevronRight, Coins, type LucideIcon, Ruler } from "lucide-react";
+import {
+  ChevronRight,
+  Coins,
+  type LucideIcon,
+  MessageCircle,
+  Ruler,
+} from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { useState } from "react";
+import { toast } from "sonner";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
+import { WHATSAPP_DIRECT_KEY } from "@/components/pos/share-receipt-button";
+import { Switch } from "@/components/ui/switch";
+import { useSetting } from "@/hooks/use-setting";
 
 interface Card {
   id: string;
@@ -44,7 +55,22 @@ const CARDS: readonly Card[] = [
 export function CustomizeScreen() {
   const t = useTranslations("customize");
   const tp = useTranslations("products");
+  const tn = useTranslations("common");
   const { role } = useProfile();
+  const whatsapp = useSetting<boolean>(WHATSAPP_DIRECT_KEY, true);
+  const [saving, setSaving] = useState(false);
+
+  async function setWhatsapp(on: boolean) {
+    setSaving(true);
+    try {
+      await whatsapp.set(on);
+      toast.success(t("saved"));
+    } catch {
+      toast.error(tn("somethingWrong"));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   if (!can(role, "product.edit")) {
     return (
@@ -86,6 +112,30 @@ export function CustomizeScreen() {
             </Link>
           </li>
         ))}
+        <li>
+          <label
+            htmlFor="whatsapp-direct"
+            className="flex items-center gap-3 rounded-xl border bg-card p-4"
+            data-testid="card-whatsapp"
+          >
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <MessageCircle className="size-5" aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-medium">{t("whatsappCard")}</span>
+              <span className="block text-sm text-muted-foreground">
+                {t("whatsappCardBody")}
+              </span>
+            </span>
+            <Switch
+              id="whatsapp-direct"
+              checked={whatsapp.value !== false}
+              disabled={saving || !can(role, "settings.manage")}
+              onCheckedChange={(on) => void setWhatsapp(on)}
+              data-testid="whatsapp-direct"
+            />
+          </label>
+        </li>
       </ul>
     </div>
   );

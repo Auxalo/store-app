@@ -621,6 +621,7 @@
     "shareHint": "Opens WhatsApp with the invoice written out. For Messenger or other apps, copy it and paste it into the chat.",
     "shareWhatsapp": "Send on WhatsApp",
     "shareWhatsappTo": "Send on WhatsApp to {phone}",
+    "shareOther": "Other apps",
     "shareCopy": "Copy the text",
     "shareCopied": "Copied",
     "shareCopyFailed": "Could not copy",
@@ -1570,6 +1571,9 @@
     "currencyCardBody": "The sign your money shows with (৳, $, €, ₹).",
     "paymentsCard": "Payment methods",
     "paymentsCardBody": "Choose which methods you take (cash, bank, card, wallets) and add your own.",
+    "whatsappCard": "Share on WhatsApp directly",
+    "whatsappCardBody": "Share on an invoice offers WhatsApp first, opening the customer's chat with the invoice typed in, even if the number is not saved in your phone.",
+    "saved": "Saved",
     "currency": {
       "title": "Currency",
       "intro": "Pick the currency your shop works in. It changes the sign and name everywhere money is shown: counter, receipts, reports.",
