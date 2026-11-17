@@ -78,14 +78,15 @@ export function createFormat({
     percent: (n: number) => `${percent.format(n)}%`,
     /**
      * Minor units → "৳1,250" or "€1.250,50". The symbol always leads (Intl puts it after the
-     * number in bn-BD). `fraction: "always"` forces two decimals, e.g. for receipts.
+     * number in bn-BD). `fraction: "always"` forces two decimals, e.g. for receipts. Euro always
+     * shows its cents (€308,00), as prices in euro are written.
      */
     money: (amount: Poisha, fraction: "auto" | "always" = "auto") => {
       const negative = amount < 0;
       const abs = Math.abs(amount);
       const whole = abs % 100 === 0;
       const body =
-        fraction === "auto" && whole
+        fraction === "auto" && whole && !cur.comma
           ? integer.format(abs / 100)
           : fixed2.format(abs / 100);
       return `${negative ? "-" : ""}${cur.symbol}${body}`;

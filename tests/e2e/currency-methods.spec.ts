@@ -49,7 +49,7 @@ test("a shop in euro sees the euro sign everywhere money is shown", async ({
   await tapProduct(page, "ফ্রেশ দুধ");
   await openCart(page);
   const cart = page.getByTestId("cart-panel");
-  await expect(cart.getByTestId("cart-total")).toHaveText("€৫০");
+  await expect(cart.getByTestId("cart-total")).toHaveText("€৫০,০০");
   await expect(cart.getByText("ছাড় (€)")).toBeVisible();
   await expect(cart.getByText("৳")).toHaveCount(0);
   await cart.getByTestId("complete-sale").click();
@@ -59,9 +59,9 @@ test("a shop in euro sees the euro sign everywhere money is shown", async ({
 
   // Elsewhere too, and it is still there after a reload.
   await page.goto("/products");
-  await expect(page.getByText("€৫০").first()).toBeVisible();
+  await expect(page.getByText("€৫০,০০").first()).toBeVisible();
   await page.reload();
-  await expect(page.getByText("€৫০").first()).toBeVisible();
+  await expect(page.getByText("€৫০,০০").first()).toBeVisible();
   await expect(page.getByText("৳৫০")).toHaveCount(0);
 });
 
