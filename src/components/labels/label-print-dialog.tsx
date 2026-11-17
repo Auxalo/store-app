@@ -1,6 +1,12 @@
 "use client";
 
-import { Loader2, Printer, ScanBarcode, TriangleAlert } from "lucide-react";
+import {
+  Download,
+  Loader2,
+  Printer,
+  ScanBarcode,
+  TriangleAlert,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -56,7 +62,7 @@ export function LabelPrintDialog({
   const size = clampSize(usePreferences((s) => s.labelSize));
   const showPrice = usePreferences((s) => s.labelShowPrice);
   const createBarcode = useCreateBarcode();
-  const { print, busy, paper } = usePrintLabels();
+  const { print, download, busy, paper } = usePrintLabels();
   const problemText = useProblemText();
   const [copies, setCopies] = useState(1);
   const [creating, setCreating] = useState(false);
@@ -85,10 +91,18 @@ export function LabelPrintDialog({
     }
   }
 
-  async function go() {
-    const result = await print([{ product, copies }]);
+  async function go(save = false) {
+    const result = await (save ? download : print)([{ product, copies }]);
     if (result.ok)
-      toast.success(t(result.to === "printer" ? "sentPrinter" : "sent"));
+      toast.success(
+        t(
+          result.to === "printer"
+            ? "sentPrinter"
+            : result.to === "file"
+              ? "downloaded"
+              : "sent",
+        ),
+      );
     else if (result.problem) toast.error(problemText(result.problem, size));
     else if (result.wide && isRoll(paper))
       toast.error(
@@ -216,6 +230,15 @@ export function LabelPrintDialog({
           {busy
             ? t("printing")
             : t("printNow", { count: copies, n: f.integer(copies) })}
+        </Button>
+        <Button
+          variant="outline"
+          disabled={!hasCode || problem !== null || wide || overLimit || busy}
+          onClick={() => void go(true)}
+          data-testid="label-download"
+        >
+          <Download aria-hidden />
+          {t("downloadPdf")}
         </Button>
         {paper === "label" ? (
           <p className="text-center text-xs text-muted-foreground">
