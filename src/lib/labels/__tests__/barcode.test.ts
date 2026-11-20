@@ -5,7 +5,8 @@ import {
   code128Values,
   encodeBarcode,
   hasValidCheckDigit,
-  makeStoreEan13,
+  isPriceCode,
+  makeStoreCode,
   normalizeCode,
   QUIET_MODULES,
 } from "../barcode";
@@ -123,18 +124,33 @@ describe("a scanner reads every barcode back", () => {
 });
 
 describe("a code of the shop's own", () => {
-  it("starts with 2, has 13 digits and a right check digit, and scans", () => {
-    for (let i = 0; i < 50; i++) {
-      const code = makeStoreEan13();
-      expect(code).toMatch(/^2\d{12}$/);
-      expect(hasValidCheckDigit(code)).toBe(true);
-      expect(encode(code).kind).toBe("ean13");
+  it("is 7 digits, never starting with 0 or 2, printed as Code 128, and scans", () => {
+    for (let i = 0; i < 500; i++) {
+      const code = makeStoreCode();
+      expect(code).toMatch(/^[13-9]\d{6}$/);
+      expect(encode(code).kind).toBe("code128");
+      expect(isPriceCode(code)).toBe(false);
     }
+    for (const code of [makeStoreCode(() => 0), makeStoreCode(() => 0.999)])
+      expect(
+        scan(barsImage(encode(code).modules, QUIET_MODULES.code128, 2))?.text,
+      ).toBe(code);
     // The random source can be given, so a code can be checked exactly.
-    expect(makeStoreEan13(() => 0)).toBe(
-      `200000000000${checkDigit("200000000000")}`,
-    );
-    const a = new Set(Array.from({ length: 100 }, () => makeStoreEan13()));
+    expect(makeStoreCode(() => 0)).toBe("1000000");
+    expect(makeStoreCode(() => 0.999)).toBe("9999999");
+    const a = new Set(Array.from({ length: 100 }, () => makeStoreCode()));
     expect(a.size).toBeGreaterThan(95);
+  });
+});
+
+describe("codes a shop till may read a price from", () => {
+  it("are 13 digits starting with 2 with a right check digit", () => {
+    expect(isPriceCode(`200000000000${checkDigit("200000000000")}`)).toBe(true);
+    expect(isPriceCode("2000000000001")).toBe(
+      hasValidCheckDigit("2000000000001"),
+    );
+    expect(isPriceCode("5901234123457")).toBe(false);
+    expect(isPriceCode("1139141")).toBe(false);
+    expect(isPriceCode("")).toBe(false);
   });
 });

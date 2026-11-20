@@ -34,6 +34,8 @@ interface PreferencesState {
   /** Sticker size (mm) for product labels on this device, and whether the price is printed on them. */
   labelSize: { w: number; h: number };
   labelShowPrice: boolean;
+  /** The shop's name on top of each label. */
+  labelShowShop: boolean;
   /**
    * What labels are printed on: a sticker roll, a receipt roll or A4 (src/lib/labels/label-sheet.ts).
    * null until chosen: then it follows the receipt printer set up on this device.
@@ -42,6 +44,7 @@ interface PreferencesState {
   setLabelPaper: (paper: "label" | "80mm" | "58mm" | "a4") => void;
   setLabelSize: (size: { w: number; h: number }) => void;
   setLabelShowPrice: (show: boolean) => void;
+  setLabelShowShop: (show: boolean) => void;
   /** The dashboard's store-worth amounts are shown as dots until tapped. */
   hideWorth: boolean;
   /** The shop's currency, copied here from its settings so money shows right at first paint. */
@@ -69,10 +72,12 @@ export const usePreferences = create<PreferencesState>()(
       printer: { via: null, autoPrint: false },
       labelSize: { w: 40, h: 30 },
       labelShowPrice: false,
+      labelShowShop: false,
       labelPaper: null,
       setLabelPaper: (labelPaper) => set({ labelPaper }),
       setLabelSize: (labelSize) => set({ labelSize }),
       setLabelShowPrice: (labelShowPrice) => set({ labelShowPrice }),
+      setLabelShowShop: (labelShowShop) => set({ labelShowShop }),
       hideWorth: false,
       currency: DEFAULT_CURRENCY_CODE,
       setCurrency: (currency) => set({ currency }),

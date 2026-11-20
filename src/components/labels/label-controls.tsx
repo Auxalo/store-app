@@ -274,6 +274,27 @@ export function LabelPriceSwitch() {
   );
 }
 
+/** "Shop name on top" (kept on this device). */
+export function LabelShopSwitch() {
+  const t = useTranslations("labels");
+  const show = usePreferences((s) => s.labelShowShop);
+  const set = usePreferences((s) => s.setLabelShowShop);
+  const id = useId();
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <label htmlFor={id} className="text-sm font-medium">
+        {t("showShop")}
+      </label>
+      <Switch
+        id={id}
+        checked={show}
+        onCheckedChange={set}
+        data-testid="label-show-shop"
+      />
+    </div>
+  );
+}
+
 /** − 3 + : how many labels. Big buttons, so it is easy to tap. */
 export function CopiesStepper({
   value,

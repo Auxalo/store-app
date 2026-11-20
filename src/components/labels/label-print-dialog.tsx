@@ -17,9 +17,11 @@ import { Button } from "@/components/ui/button";
 import {
   maxLabels,
   useCreateBarcode,
+  useLabelShop,
   usePrintLabels,
 } from "@/hooks/use-labels";
 import { useFormat } from "@/i18n/use-format";
+import { isPriceCode } from "@/lib/labels/barcode";
 import { barcodeProblem, clampSize } from "@/lib/labels/label-layout";
 import { fitsRoll, isRoll, rollPrintableMm } from "@/lib/labels/label-sheet";
 import { printSupport } from "@/lib/print/transports";
@@ -28,9 +30,11 @@ import {
   CopiesStepper,
   LabelPaperPicker,
   LabelPriceSwitch,
+  LabelShopSwitch,
   LabelSizePicker,
 } from "./label-controls";
 import { LabelPreview, useProblemText } from "./label-preview";
+import { ReplaceCodeButton } from "./replace-code";
 
 interface LabelProduct {
   id: string;
@@ -61,6 +65,7 @@ export function LabelPrintDialog({
   const { role } = useProfile();
   const size = clampSize(usePreferences((s) => s.labelSize));
   const showPrice = usePreferences((s) => s.labelShowPrice);
+  const shop = useLabelShop();
   const createBarcode = useCreateBarcode();
   const { print, download, busy, paper } = usePrintLabels();
   const problemText = useProblemText();
@@ -124,6 +129,7 @@ export function LabelPrintDialog({
           name={product.name}
           barcode={product.barcode}
           price={price}
+          shop={shop}
           size={size}
         />
 
@@ -171,11 +177,29 @@ export function LabelPrintDialog({
             <TriangleAlert className="mt-0.5 size-5 shrink-0" aria-hidden />
             <p>{problemText(problem, size)}</p>
           </div>
+        ) : isPriceCode(product.barcode) ? (
+          <div
+            className="flex flex-col gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3"
+            data-testid="label-price-code"
+          >
+            <div className="flex items-start gap-3">
+              <TriangleAlert
+                className="mt-0.5 size-5 shrink-0 text-amber-600"
+                aria-hidden
+              />
+              <div className="min-w-0 text-sm">
+                <p className="font-medium">{t("priceCodeTitle")}</p>
+                <p className="text-muted-foreground">{t("priceCodeBody")}</p>
+              </div>
+            </div>
+            {canEdit ? <ReplaceCodeButton product={product} /> : null}
+          </div>
         ) : null}
 
         <LabelPaperPicker total={copies} />
         <LabelSizePicker />
         <LabelPriceSwitch />
+        <LabelShopSwitch />
 
         <div className="flex flex-col gap-2">
           <p className="text-sm font-medium">{t("copies")}</p>

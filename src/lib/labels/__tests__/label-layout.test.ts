@@ -237,3 +237,62 @@ describe("which codes fit which label (no fonts needed)", () => {
     );
   });
 });
+
+describe("the shop's name on top", () => {
+  const m = (text: string, _bold: boolean, size: number) =>
+    text.length * size * 0.55;
+  it("is one small line above the name, cut short when long, and the bars keep room on every size", () => {
+    for (const size of LABEL_SIZES) {
+      const plain = layoutLabel(
+        { name: "Cashew Kernels (250g)", barcode: "1139141", price: "€3,80" },
+        size,
+        m,
+      );
+      const withShop = layoutLabel(
+        {
+          name: "Cashew Kernels (250g)",
+          barcode: "1139141",
+          price: "€3,80",
+          shop: "MD ANILA SRLS — a very long shop name that cannot fit",
+        },
+        size,
+        m,
+      );
+      if (!plain.ok || !withShop.ok) throw new Error("no layout");
+      const first = withShop.ops[0];
+      expect(first.kind).toBe("text");
+      if (first.kind !== "text") continue;
+      expect(first.text.startsWith("MD ANILA")).toBe(true);
+      expect(first.text.endsWith("…")).toBe(true);
+      expect(m(first.text, false, first.size)).toBeLessThanOrEqual(
+        size.w * 8 - 12,
+      );
+      expect(first.y).toBe(6);
+      const bars = withShop.ops.find((o) => o.kind === "bars");
+      if (bars?.kind !== "bars") throw new Error("no bars");
+      expect(bars.h).toBeGreaterThanOrEqual(40);
+      // Everything still inside the label.
+      const last = withShop.ops.at(-1);
+      if (last?.kind === "text")
+        expect(last.y + last.size).toBeLessThanOrEqual(size.h * 8);
+      // Without it the label is as before.
+      expect(plain.ops.filter((o) => o.kind === "text")).toHaveLength(
+        withShop.ops.filter((o) => o.kind === "text").length - 1,
+      );
+    }
+  });
+
+  it("an empty name is left out", () => {
+    const a = layoutLabel(
+      { name: "Milk", barcode: "1139141" },
+      LABEL_SIZES[1],
+      m,
+    );
+    const b = layoutLabel(
+      { name: "Milk", barcode: "1139141", shop: "  " },
+      LABEL_SIZES[1],
+      m,
+    );
+    expect(b).toEqual(a);
+  });
+});

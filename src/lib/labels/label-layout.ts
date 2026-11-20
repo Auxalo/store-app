@@ -44,6 +44,8 @@ export interface LabelInput {
   barcode: string;
   /** Shown only when given (already formatted, e.g. "৳৯০"). */
   price?: string;
+  /** The shop's name, on one small line at the top; only when given. */
+  shop?: string;
 }
 
 export type LabelProblem = "EMPTY" | "UNSUPPORTED" | "TOO_LONG" | "TOO_WIDE";
@@ -148,11 +150,23 @@ export function layoutLabel(
   const nameSize = height >= 240 ? 24 : 20;
   const codeSize = height >= 240 ? 22 : 20;
   const priceSize = height >= 240 ? 26 : 22;
+  const shopSize = height >= 240 ? 20 : 17;
+  const shopLine = shopSize + 2;
   const nameLine = Math.round(nameSize * 1.15);
   const textW = width - 2 * EDGE;
 
   const withPrice = Boolean(input.price);
-  const fixed = EDGE + codeSize + (withPrice ? priceSize + 2 : 0) + EDGE;
+  const shop = input.shop?.trim()
+    ? fitName(input.shop.trim(), textW, 1, (t) =>
+        measure(t, false, shopSize),
+      )[0]
+    : "";
+  const fixed =
+    EDGE +
+    (shop ? shopLine : 0) +
+    codeSize +
+    (withPrice ? priceSize + 2 : 0) +
+    EDGE;
   // Two lines of name if the name needs them and the bars still have room, else one. The bars get
   // all the height the name does not use.
   const nameAt = (n: number) =>
@@ -167,6 +181,17 @@ export function layoutLabel(
 
   const ops: LabelOp[] = [];
   let y = EDGE;
+  if (shop) {
+    ops.push({
+      kind: "text",
+      text: shop,
+      x: width / 2,
+      y,
+      size: shopSize,
+      bold: false,
+    });
+    y += shopLine;
+  }
   for (const text of lines) {
     ops.push({
       kind: "text",

@@ -37,12 +37,14 @@ export function LabelPreview({
   name,
   barcode,
   price,
+  shop,
   size,
   className,
 }: {
   name: string;
   barcode: string;
   price?: string;
+  shop?: string;
   size: LabelSize;
   className?: string;
 }) {
@@ -52,7 +54,7 @@ export function LabelPreview({
 
   useEffect(() => {
     let cancelled = false;
-    renderLabel({ name, barcode, price }, size, FINE_SCALE)
+    renderLabel({ name, barcode, price, shop }, size, FINE_SCALE)
       .then((r) => {
         if (cancelled) return;
         setShown(
@@ -67,7 +69,7 @@ export function LabelPreview({
     return () => {
       cancelled = true;
     };
-  }, [name, barcode, price, size]);
+  }, [name, barcode, price, shop, size]);
 
   return (
     <div

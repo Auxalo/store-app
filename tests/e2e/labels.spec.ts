@@ -143,9 +143,10 @@ test("a product with no barcode is red; Create barcode gives it one of the shop'
   await expect(page.getByTestId("label-preview-image")).toBeVisible();
   await expect(page.getByTestId("print-labels")).toBeEnabled();
   const read = await scanPreview(page);
-  expect(read?.read?.format).toBe("EAN_13");
+  expect(read?.read?.format).toBe("CODE_128");
   const made = read?.read?.text ?? "";
-  expect(made).toMatch(/^2\d{12}$/);
+  // 7 digits, never starting with 2 (a till would read a price from it) or 0.
+  expect(made).toMatch(/^[13-9]\d{6}$/);
 
   // It is saved on the product: still there after a reload (and at the counter, by the same search).
   await page.reload();
@@ -480,4 +481,56 @@ test("labels for many products start on the category the Products page is showin
   await expect(
     rows.filter({ hasText: "Alpha Soap" }).getByTestId("bulk-check"),
   ).not.toBeChecked();
+});
+
+test("a code starting with 2 is flagged and can be swapped for a short code; the shop name can go on top", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(240_000);
+  await signUp(page, `lab7${Date.now()}${testInfo.project.name}`);
+  // A code made by the app before (13 digits starting with 2): a till reads a price from it.
+  const OLD = "2001234000000";
+  await createProduct(page, {
+    name: "Cashew Kernels",
+    price: "90",
+    stock: "10",
+    barcode: OLD,
+  });
+
+  await openProduct(page, "Cashew Kernels");
+  await page.getByTestId("open-labels").click();
+  await expect(page.getByTestId("label-price-code")).toBeVisible();
+  await expect(page.getByTestId("print-labels")).toBeEnabled();
+
+  // Asked first; cancelling keeps the old code.
+  await page.getByTestId("replace-code").click();
+  await expect(page.getByRole("alertdialog")).toContainText(OLD);
+  await page.getByRole("alertdialog").getByRole("button").first().click();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await expect(page.getByTestId("label-price-code")).toBeVisible();
+
+  await page.getByTestId("replace-code").click();
+  await page.getByTestId("replace-code-confirm").click();
+  await expect(page.getByTestId("label-price-code")).toHaveCount(0);
+  const read = await scanPreview(page);
+  expect(read?.read?.format).toBe("CODE_128");
+  const made = read?.read?.text ?? "";
+  expect(made).toMatch(/^[13-9]\d{6}$/);
+
+  // The shop name on top: the label picture changes, still scans, and the switch is remembered.
+  const before = await page
+    .getByTestId("label-preview-image")
+    .getAttribute("src");
+  await page.getByTestId("label-show-shop").click();
+  await expect
+    .poll(() => page.getByTestId("label-preview-image").getAttribute("src"))
+    .not.toBe(before);
+  expect((await scanPreview(page))?.read?.text).toBe(made);
+  await page.reload();
+  await page.getByTestId("open-labels").click();
+  await expect(page.getByTestId("label-show-shop")).toBeChecked();
+
+  // Saved on the product.
+  await openProduct(page, "Cashew Kernels");
+  await expect(page.getByText(made).first()).toBeVisible();
 });
