@@ -23,9 +23,11 @@ import type { Product } from "@/db/local/types";
 import {
   maxLabels,
   useCreateBarcode,
+  useLabelShop,
   usePrintLabels,
 } from "@/hooks/use-labels";
 import { useFormat } from "@/i18n/use-format";
+import { isPriceCode } from "@/lib/labels/barcode";
 import { barcodeProblem, clampSize } from "@/lib/labels/label-layout";
 import { fitsRoll, isRoll, rollPrintableMm } from "@/lib/labels/label-sheet";
 import { printSupport } from "@/lib/print/transports";
@@ -35,9 +37,11 @@ import {
   CopiesStepper,
   LabelPaperPicker,
   LabelPriceSwitch,
+  LabelShopSwitch,
   LabelSizePicker,
 } from "./label-controls";
 import { LabelPreview, useProblemText } from "./label-preview";
+import { ReplaceCodeButton } from "./replace-code";
 
 interface Picked {
   product: Product;
@@ -77,6 +81,7 @@ export function BulkLabelDialog({
   const { role } = useProfile();
   const size = clampSize(usePreferences((s) => s.labelSize));
   const showPrice = usePreferences((s) => s.labelShowPrice);
+  const shop = useLabelShop();
   const canEdit = can(role, "product.edit");
   const createBarcode = useCreateBarcode();
   const { print, download, busy, paper } = usePrintLabels();
@@ -288,8 +293,18 @@ export function BulkLabelDialog({
                   >
                     <span className="block truncate font-medium">{p.name}</span>
                     {state === "ok" ? (
-                      <span className="block truncate font-mono text-xs text-muted-foreground">
-                        {p.barcode}
+                      <span className="flex min-w-0 items-center gap-1 font-mono text-xs text-muted-foreground">
+                        <span className="truncate">{p.barcode}</span>
+                        {isPriceCode(p.barcode) ? (
+                          <span
+                            className="flex shrink-0 items-center gap-0.5 font-sans font-medium text-amber-600"
+                            title={t("priceCodeBody")}
+                            data-testid="bulk-price-code"
+                          >
+                            <TriangleAlert className="size-3.5" aria-hidden />
+                            {t("priceCodeTitle")}
+                          </span>
+                        ) : null}
                       </span>
                     ) : (
                       <span className="flex items-center gap-1 text-xs font-medium text-destructive">
@@ -321,6 +336,9 @@ export function BulkLabelDialog({
                       ) : null}
                       {t("createBarcode")}
                     </Button>
+                  ) : null}
+                  {state === "ok" && canEdit && isPriceCode(p.barcode) ? (
+                    <ReplaceCodeButton product={p} compact />
                   ) : null}
                   {entry ? (
                     <CopiesStepper
@@ -360,6 +378,7 @@ export function BulkLabelDialog({
               name={focusProduct.name}
               barcode={focusProduct.barcode}
               price={showPrice ? f.money(focusProduct.sellingPrice) : undefined}
+              shop={shop}
               size={size}
             />
           ) : (
@@ -370,6 +389,7 @@ export function BulkLabelDialog({
           <LabelPaperPicker total={total} />
           <LabelSizePicker />
           <LabelPriceSwitch />
+          <LabelShopSwitch />
         </div>
       </div>
 

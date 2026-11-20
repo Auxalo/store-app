@@ -351,14 +351,28 @@ export const QUIET_MODULES: Record<BarcodeKind, number> = {
 
 // ---- a code of the shop's own ----
 
+/** First digit of a code of the shop's own: never 0 (some systems drop it) and never 2 (see below). */
+const STORE_FIRST = "13456789";
+const STORE_LENGTH = 7;
+
 /**
- * A new code for a product that has none: an EAN-13 starting with 2, the range meant for codes a
- * shop makes itself (no maker's code can clash with it). 11 random digits and the check digit.
+ * A new code for a product that has none: 7 digits, printed as Code 128. Maker codes have 8, 12 or
+ * 13 digits, so it cannot clash with one. It never starts with 2: shop tills (cash registers) read
+ * a price or a weight out of codes starting with 2 and charge the wrong amount.
  */
-export function makeStoreEan13(random: () => number = secureRandom): string {
-  let digits = "2";
-  for (let i = 0; i < 11; i++) digits += String(Math.floor(random() * 10));
-  return digits + checkDigit(digits);
+export function makeStoreCode(random: () => number = secureRandom): string {
+  let code = STORE_FIRST[Math.floor(random() * STORE_FIRST.length)];
+  while (code.length < STORE_LENGTH) code += String(Math.floor(random() * 10));
+  return code;
+}
+
+/**
+ * A 13-digit code starting with 2 (codes this app used to make, and codes from weighing scales):
+ * many shop tills read a price or weight out of it, so it is better replaced by a short code.
+ */
+export function isPriceCode(code: string): boolean {
+  const text = normalizeCode(code);
+  return /^2\d{12}$/.test(text) && hasValidCheckDigit(text);
 }
 
 function secureRandom(): number {

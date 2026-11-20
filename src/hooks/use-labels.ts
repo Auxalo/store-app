@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useProfile } from "@/auth/use-auth";
+import type { StoreProfile } from "@/components/settings/settings-screen";
 import { errorCode } from "@/data/errors";
 import { useCommand, useDuplicateCodeCheck } from "@/data/hooks";
+import { useSetting } from "@/hooks/use-setting";
 import { useFormat } from "@/i18n/use-format";
-import { makeStoreEan13 } from "@/lib/labels/barcode";
+import { makeStoreCode } from "@/lib/labels/barcode";
 import {
   clampSize,
   DOTS_PER_MM,
@@ -65,7 +68,7 @@ export function useCreateBarcode() {
     async (product: Pick<LabelProduct, "id" | "version">): Promise<string> => {
       let lastError: unknown = null;
       for (let attempt = 0; attempt < 5; attempt++) {
-        const code = makeStoreEan13();
+        const code = makeStoreCode();
         // Used already (checked here, and again by the server when online): draw another.
         if (await checkDuplicate("barcode", code, product.id)) continue;
         try {
@@ -92,6 +95,17 @@ export function useLabelPaper(): LabelPaper {
   const via = usePreferences((s) => s.printer.via);
   const receiptPaper = usePreferences((s) => s.receiptPaper);
   return chosen ?? defaultLabelPaper(via, receiptPaper);
+}
+
+const NO_PROFILE: StoreProfile = { name: "", address: "", phone: "" };
+
+/** The shop's name for the top of each label, when that is switched on (else undefined). */
+export function useLabelShop(): string | undefined {
+  const show = usePreferences((s) => s.labelShowShop);
+  const profile = useSetting<StoreProfile>("store.profile", NO_PROFILE).value;
+  const { storeName } = useProfile();
+  if (!show) return undefined;
+  return (profile.name || storeName || "").trim() || undefined;
 }
 
 /** Most labels one print may hold on this paper. */
@@ -125,6 +139,7 @@ export function usePrintLabels() {
   const f = useFormat();
   const size = usePreferences((s) => s.labelSize);
   const showPrice = usePreferences((s) => s.labelShowPrice);
+  const shop = useLabelShop();
   const printer = usePreferences((s) => s.printer);
   const paper = useLabelPaper();
   const [busy, setBusy] = useState(false);
@@ -141,6 +156,7 @@ export function usePrintLabels() {
           name: product.name,
           barcode: product.barcode,
           price: showPrice ? f.money(product.sellingPrice) : undefined,
+          shop,
         });
         const count = (copies: number) => Math.max(1, Math.min(copies, max));
 
@@ -223,7 +239,7 @@ export function usePrintLabels() {
         setBusy(false);
       }
     },
-    [size, showPrice, f, paper, printer],
+    [size, showPrice, shop, f, paper, printer],
   );
 
   /**
@@ -246,6 +262,7 @@ export function usePrintLabels() {
               name: product.name,
               barcode: product.barcode,
               price: showPrice ? f.money(product.sellingPrice) : undefined,
+              shop,
             },
             sized,
             isRoll(paper) ? 1 : FINE_SCALE,
@@ -324,7 +341,7 @@ export function usePrintLabels() {
         setBusy(false);
       }
     },
-    [size, showPrice, f, paper],
+    [size, showPrice, shop, f, paper],
   );
 
   return { print, download, busy, paper };
