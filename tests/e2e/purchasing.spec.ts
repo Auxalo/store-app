@@ -275,3 +275,57 @@ test("a purchase line needs a cost above zero before it can be saved", async ({
   await expect(page.getByTestId("cost-missing")).toHaveCount(0);
   await expect(page.getByTestId("save-purchase")).toBeEnabled();
 });
+
+test("a new purchase: clear sections, the invoice number is optional, and a product not in the list is added without leaving the page", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(240_000);
+  await signUp(page, `buy4${Date.now()}${testInfo.project.name}`);
+  await createProduct(page, { name: "ফ্রেশ দুধ", price: "60", stock: "5" });
+
+  // The products page says how many there are, and follows the search.
+  await page.goto("/products");
+  await expect(page.getByTestId("products-count")).toContainText("১");
+  await createProduct(page, { name: "চিনি", price: "120", stock: "3" });
+  await expect(page.getByTestId("products-count")).toContainText("২");
+  await page.getByTestId("list-search").fill("চিনি");
+  await expect(page.getByTestId("products-count")).toContainText("১");
+
+  await page.goto("/purchases/new");
+  await expect(page.getByText("(ঐচ্ছিক)")).toBeVisible();
+  await expect(page.getByTestId("purchase-empty")).toBeVisible();
+  await expect(page.getByTestId("save-purchase")).toBeDisabled();
+
+  // A product in the list: shown with its stock, added on tap.
+  await page.getByTestId("purchase-search").fill("দুধ");
+  await expect(page.getByTestId("product-results")).toContainText("স্টকে");
+  await page.getByTestId("product-results").getByRole("button").first().click();
+  await expect(page.getByTestId("purchase-line")).toHaveCount(1);
+
+  // Not in the list: said so, with a way to add it here.
+  await page.getByTestId("purchase-search").fill("মসুর ডাল");
+  await expect(page.getByTestId("product-not-found")).toBeVisible();
+  await page.getByTestId("add-as-new").click();
+  const dialog = page.getByTestId("quick-product");
+  await expect(dialog.getByTestId("quick-name")).toHaveValue("মসুর ডাল");
+  // Both prices are needed.
+  await dialog.getByTestId("quick-save").click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByTestId("quick-cost").fill("90");
+  await dialog.getByTestId("quick-price").fill("110");
+  await dialog.getByTestId("quick-save").click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByTestId("purchase-line")).toHaveCount(2);
+  await expect(
+    page.getByTestId("purchase-line").filter({ hasText: "মসুর ডাল" }),
+  ).toBeVisible();
+
+  // Saved with no invoice number: the purchase goes through and the new product has the stock.
+  await page.getByTestId("save-purchase").click();
+  await expect(page).toHaveURL(/\/purchases\/view/);
+  await page.goto("/products");
+  await page.getByTestId("list-search").fill("মসুর");
+  await expect(
+    page.getByTestId("product-row").filter({ hasText: "মসুর ডাল" }),
+  ).toContainText("১");
+});

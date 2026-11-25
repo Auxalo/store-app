@@ -19,7 +19,12 @@ import { ListError } from "@/components/shared/load-more";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useCategories, useList, usePrefetchRecord } from "@/data/hooks";
+import {
+  useCategories,
+  useList,
+  usePrefetchRecord,
+  useTotals,
+} from "@/data/hooks";
 import { useDataMode } from "@/data/mode-store";
 import type { Product } from "@/db/local/types";
 import { useUnits } from "@/hooks/use-units";
@@ -84,22 +89,21 @@ export function ProductCatalog({ mode }: { mode: "products" | "inventory" }) {
   );
 
   const stock = filters.stock as StockFilter;
-  const list = useList(
-    "products",
-    {
-      q,
-      categoryId:
-        filters.category === ALL ? undefined : (filters.category as string),
-      stock,
-      // Products shows everything (to edit it); Inventory only what is for sale.
-      active:
-        mode === "products"
-          ? (filters.active as "all" | "active" | "inactive")
-          : "active",
-      sort,
-    },
-    { pageSize: PAGE },
-  );
+  const params = {
+    q,
+    categoryId:
+      filters.category === ALL ? undefined : (filters.category as string),
+    stock,
+    // Products shows everything (to edit it); Inventory only what is for sale.
+    active:
+      mode === "products"
+        ? (filters.active as "all" | "active" | "inactive")
+        : "active",
+    sort,
+  };
+  const list = useList("products", params, { pageSize: PAGE });
+  // How many match the search and filters (all of them, not just the page on screen).
+  const totals = useTotals("products", params);
   const items = list.items;
 
   const listRef = useRef<HTMLDivElement>(null);
@@ -238,6 +242,18 @@ export function ProductCatalog({ mode }: { mode: "products" | "inventory" }) {
             <TabsTrigger value="out">{t("inventory.tabOut")}</TabsTrigger>
           </TabsList>
         </Tabs>
+      ) : null}
+
+      {totals && totals.count > 0 && list.status !== "error" ? (
+        <p
+          className="text-sm text-muted-foreground"
+          data-testid="products-count"
+        >
+          {t("products.count", {
+            count: totals.count,
+            n: f.integer(totals.count),
+          })}
+        </p>
       ) : null}
 
       {list.status === "error" ? (
