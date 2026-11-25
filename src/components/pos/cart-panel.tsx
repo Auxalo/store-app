@@ -2,7 +2,7 @@
 
 import { Pause, Play, ShoppingCart, Trash2, User } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { can } from "@/auth/permissions";
 import { useProfile } from "@/auth/use-auth";
 import { Button } from "@/components/ui/button";
@@ -81,6 +81,14 @@ export function CartPanel({
     if (cart.customerId && buyerBalance !== undefined)
       setCredit(Math.max(0, -buyerBalance));
   }, [cart.customerId, buyerBalance, setCredit]);
+  // A scan or tap puts that line on top: bring the list back up so it is seen.
+  const linesBox = useRef<HTMLDivElement>(null);
+  const newest = cart.lines.at(-1);
+  const newestMark = newest ? `${newest.key}:${newest.qty}` : "";
+  const lineCount = cart.lines.length;
+  useEffect(() => {
+    if (newestMark && lineCount) linesBox.current?.scrollTo({ top: 0 });
+  }, [newestMark, lineCount]);
   const toPay = totals.total - totals.creditUsed;
   // The same product can be on several lines: the warning looks at all of them together.
   const inCart = (productId: string) =>
@@ -166,14 +174,19 @@ export function CartPanel({
         ) : null}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto" data-testid="cart-lines">
+      <div
+        ref={linesBox}
+        className="min-h-0 flex-1 overflow-y-auto"
+        data-testid="cart-lines"
+      >
         {itemCount === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
             {t("pos.emptyCart")}
           </p>
         ) : (
           <ul className="flex flex-col gap-2">
-            {cart.lines.map((line) => (
+            {/* Newest first: what was just scanned or tapped is on top, in sight. */}
+            {[...cart.lines].reverse().map((line) => (
               <li
                 key={line.key}
                 className="rounded-xl border bg-card p-2.5"

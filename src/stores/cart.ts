@@ -145,11 +145,13 @@ export const useCart = create<CartState>()(
               l.unitPrice === product.sellingPrice &&
               l.discount === 0,
           );
+          // It moves to the end (the newest), which the cart shows at the top.
           if (same)
             return {
-              lines: s.lines.map((l) =>
-                l === same ? { ...l, qty: l.qty + qty } : l,
-              ),
+              lines: [
+                ...s.lines.filter((l) => l !== same),
+                { ...same, qty: same.qty + qty },
+              ],
             };
           const line: CartLine = {
             key: newId(),

@@ -51,6 +51,10 @@ test("a sale made offline: instant, receipt, stock down, then synced to a second
 
   const cart = page.getByTestId("cart-panel");
   await expect(cart.getByTestId("cart-line")).toHaveCount(2); // milk, rice (2)
+  // The newest is on top, in sight without scrolling.
+  await expect(cart.getByTestId("cart-line").first()).toContainText(
+    "মিনিকেট চাল",
+  );
   await expect(cart.getByTestId("cart-total")).toHaveText("৳২৯০"); // 50 + 2 × 120
 
   // The customer hands over 500; change is 210.
