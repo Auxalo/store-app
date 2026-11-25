@@ -1,6 +1,17 @@
 "use client";
 
-import { Search, Trash2, User } from "lucide-react";
+import {
+  CalendarDays,
+  Info,
+  PackagePlus,
+  PackageSearch,
+  Plus,
+  ReceiptText,
+  ScanBarcode,
+  Search,
+  Trash2,
+  User,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
@@ -33,6 +44,7 @@ import { cn } from "@/lib/utils";
 import { purchaseTotals } from "@/schemas/purchase";
 import type { PaymentMethod } from "@/schemas/sale";
 import { usePreferences } from "@/stores/preferences";
+import { QuickProductDialog } from "./quick-product-dialog";
 
 interface Line {
   key: string;
@@ -77,6 +89,9 @@ export function PurchaseFormScreen() {
   const [query, setQuery] = useState("");
   const [deferred] = useDebounceValue(query.trim(), 200);
   const [saving, setSaving] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [quickText, setQuickText] = useState("");
+  const canCreateProduct = can(role, "product.create");
 
   const found = useList(
     "products",
@@ -84,6 +99,12 @@ export function PurchaseFormScreen() {
     { pageSize: 6, enabled: deferred !== "" },
   );
   const results: Product[] = deferred !== "" ? found.items : [];
+  // Searched, and the shop has no such product: offer to add it.
+  const nothingFound =
+    deferred !== "" &&
+    deferred === query.trim() &&
+    found.status === "ready" &&
+    found.items.length === 0;
 
   const totals = useMemo(
     () =>
@@ -178,158 +199,308 @@ export function PurchaseFormScreen() {
   }
 
   const name = (p: Product) => p.name;
+  const openQuick = (text: string) => {
+    setQuickText(text);
+    setQuickOpen(true);
+  };
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
       <BackLink href="/purchases" label={t("nav.purchases")} />
       <h2 className="text-lg font-semibold">{t("purchases.add")}</h2>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Button
-          variant="outline"
-          className="justify-start"
-          onClick={() => setSupplierOpen(true)}
-          data-testid="supplier-button"
+      <section
+        className="flex flex-col gap-3 rounded-xl border bg-card p-3 sm:p-4"
+        aria-labelledby="purchase-details"
+      >
+        <h3
+          id="purchase-details"
+          className="flex items-center gap-2 text-sm font-semibold"
         >
-          <User aria-hidden />
-          <span className="truncate">
-            {supplier.id ? supplier.name : t("purchases.noSupplier")}
-          </span>
-        </Button>
-        <Input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          aria-label={t("purchases.date")}
-          data-testid="purchase-date"
-        />
-        <Input
-          value={invoiceRef}
-          onChange={(e) => setInvoiceRef(e.target.value)}
-          placeholder={t("purchases.invoiceRef")}
-          aria-label={t("purchases.invoiceRef")}
-          maxLength={60}
-        />
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <div className="relative">
-          <Search
-            className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void onEnter();
-              }
-            }}
-            placeholder={t("purchases.searchProduct")}
-            aria-label={t("purchases.searchProduct")}
-            className="ps-9"
-            inputMode="search"
-            autoComplete="off"
-          />
+          <ReceiptText className="size-4 text-primary" aria-hidden />
+          {t("purchases.detailsTitle")}
+        </h3>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-muted-foreground">
+              {t("purchases.supplier")}
+            </span>
+            <Button
+              variant="outline"
+              className="justify-start"
+              onClick={() => setSupplierOpen(true)}
+              data-testid="supplier-button"
+            >
+              <User aria-hidden />
+              <span className="truncate">
+                {supplier.id ? supplier.name : t("purchases.noSupplier")}
+              </span>
+            </Button>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label
+              htmlFor="purchase-date"
+              className="flex items-center gap-1 text-xs font-medium text-muted-foreground"
+            >
+              <CalendarDays className="size-3.5" aria-hidden />
+              {t("purchases.date")}
+            </label>
+            <Input
+              id="purchase-date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              data-testid="purchase-date"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <label
+              htmlFor="purchase-invoice"
+              className="text-xs font-medium text-muted-foreground"
+            >
+              {t("purchases.invoiceRef")}{" "}
+              <span className="font-normal">({t("purchases.optional")})</span>
+            </label>
+            <Input
+              id="purchase-invoice"
+              value={invoiceRef}
+              onChange={(e) => setInvoiceRef(e.target.value)}
+              placeholder={t("purchases.invoicePlaceholder")}
+              maxLength={60}
+              data-testid="purchase-invoice"
+            />
+          </div>
         </div>
-        {results && results.length > 0 ? (
-          <ul
-            className="rounded-lg border bg-card"
-            data-testid="product-results"
+      </section>
+
+      <section
+        className="flex flex-col gap-3 rounded-xl border bg-card p-3 sm:p-4"
+        aria-labelledby="purchase-items"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <h3
+            id="purchase-items"
+            className="flex items-center gap-2 text-sm font-semibold"
           >
-            {results.map((p) => (
-              <li key={p.id}>
+            <PackageSearch className="size-4 text-primary" aria-hidden />
+            {t("purchases.itemsTitle")}
+            {lines.length > 0 ? (
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+                {f.integer(lines.length)}
+              </span>
+            ) : null}
+          </h3>
+          {canCreateProduct ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => openQuick("")}
+              data-testid="new-product"
+            >
+              <Plus aria-hidden />
+              {t("purchases.newProduct")}
+            </Button>
+          ) : null}
+        </div>
+        <p className="flex items-start gap-2 rounded-lg bg-muted/60 p-2.5 text-xs text-muted-foreground">
+          <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          <span>
+            {canCreateProduct
+              ? t("purchases.itemsHint")
+              : t("purchases.itemsHintNoCreate")}
+          </span>
+        </p>
+
+        <div className="flex flex-col gap-2">
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void onEnter();
+                }
+              }}
+              placeholder={t("purchases.searchProduct")}
+              aria-label={t("purchases.searchProduct")}
+              className="h-11 ps-9 pe-10"
+              inputMode="search"
+              autoComplete="off"
+              data-testid="purchase-search"
+            />
+            <ScanBarcode
+              className="pointer-events-none absolute end-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground/70"
+              aria-hidden
+            />
+          </div>
+          {results && results.length > 0 ? (
+            <ul
+              className="divide-y overflow-hidden rounded-lg border bg-background shadow-sm"
+              data-testid="product-results"
+            >
+              {results.map((p) => {
+                const added = lines.find((l) => l.product.id === p.id);
+                return (
+                  <li key={p.id}>
+                    <button
+                      type="button"
+                      onClick={() => addProduct(p)}
+                      className="flex w-full items-center gap-3 px-3 py-2.5 text-start hover:bg-muted"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium">
+                          {name(p)}
+                        </span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {[
+                            p.sku,
+                            p.barcode,
+                            t("purchases.inStock", {
+                              qty: `${f.qty(p.stock)} ${unitName(p.unit)}`,
+                            }),
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-end">
+                        <span className="block text-sm font-medium">
+                          {f.money(p.purchasePrice)}
+                        </span>
+                        <span className="block text-xs text-primary">
+                          {added
+                            ? t("purchases.addOneMore")
+                            : t("purchases.tapToAdd")}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : nothingFound ? (
+            <div
+              className="flex flex-col items-start gap-2 rounded-lg border border-dashed p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+              data-testid="product-not-found"
+            >
+              <span className="text-muted-foreground">
+                {t("purchases.noResults", { q: query.trim() })}
+              </span>
+              {canCreateProduct ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => openQuick(query)}
+                  data-testid="add-as-new"
+                >
+                  <PackagePlus aria-hidden />
+                  {t("purchases.addAsNew")}
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        <ul className="flex flex-col gap-2" data-testid="purchase-lines">
+          {lines.map((l) => (
+            <li
+              key={l.key}
+              className="rounded-xl border bg-card p-2.5"
+              data-testid="purchase-line"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <p className="min-w-0 flex-1 truncate text-sm font-medium">
+                  {name(l.product)}
+                </p>
                 <button
                   type="button"
-                  onClick={() => addProduct(p)}
-                  className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-start hover:bg-muted"
+                  className="text-muted-foreground hover:text-destructive"
+                  aria-label={t("pos.remove")}
+                  onClick={() =>
+                    setLines((ls) => ls.filter((x) => x.key !== l.key))
+                  }
                 >
-                  <span className="min-w-0 truncate">{name(p)}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {f.money(p.purchasePrice)}
-                  </span>
+                  <Trash2 className="size-4" aria-hidden />
                 </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
-
-      <ul className="flex flex-col gap-2" data-testid="purchase-lines">
-        {lines.map((l) => (
-          <li
-            key={l.key}
-            className="rounded-xl border bg-card p-2.5"
-            data-testid="purchase-line"
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <QtyField
+                    aria-label={t("purchases.qty")}
+                    className="h-9 w-20 text-center"
+                    value={l.qty}
+                    unit={l.product.unit}
+                    onValue={(q) =>
+                      setLines((ls) =>
+                        ls.map((x) => (x.key === l.key ? { ...x, qty: q } : x)),
+                      )
+                    }
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    {unitName(l.product.unit)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground">
+                    {t("purchases.unitCost")}
+                  </span>
+                  <MoneyField
+                    aria-label={t("purchases.unitCost")}
+                    className="h-9 w-24 text-end"
+                    value={l.unitCost}
+                    onValue={(v) =>
+                      v !== null &&
+                      setLines((ls) =>
+                        ls.map((x) =>
+                          x.key === l.key ? { ...x, unitCost: v } : x,
+                        ),
+                      )
+                    }
+                  />
+                </div>
+                <span className="ms-auto font-semibold">
+                  {f.money(
+                    lineAmount({
+                      qty: l.qty,
+                      unitPrice: l.unitCost,
+                      discount: 0,
+                    }),
+                  )}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+        {lines.length === 0 ? (
+          <div
+            className="flex flex-col items-center gap-1 rounded-lg border border-dashed px-4 py-6 text-center"
+            data-testid="purchase-empty"
           >
-            <div className="flex items-start justify-between gap-2">
-              <p className="min-w-0 flex-1 truncate text-sm font-medium">
-                {name(l.product)}
-              </p>
-              <button
-                type="button"
-                className="text-muted-foreground hover:text-destructive"
-                aria-label={t("pos.remove")}
-                onClick={() =>
-                  setLines((ls) => ls.filter((x) => x.key !== l.key))
-                }
-              >
-                <Trash2 className="size-4" aria-hidden />
-              </button>
-            </div>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1.5">
-                <QtyField
-                  aria-label={t("purchases.qty")}
-                  className="h-9 w-20 text-center"
-                  value={l.qty}
-                  unit={l.product.unit}
-                  onValue={(q) =>
-                    setLines((ls) =>
-                      ls.map((x) => (x.key === l.key ? { ...x, qty: q } : x)),
-                    )
-                  }
-                />
-                <span className="text-xs text-muted-foreground">
-                  {unitName(l.product.unit)}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">
-                  {t("purchases.unitCost")}
-                </span>
-                <MoneyField
-                  aria-label={t("purchases.unitCost")}
-                  className="h-9 w-24 text-end"
-                  value={l.unitCost}
-                  onValue={(v) =>
-                    v !== null &&
-                    setLines((ls) =>
-                      ls.map((x) =>
-                        x.key === l.key ? { ...x, unitCost: v } : x,
-                      ),
-                    )
-                  }
-                />
-              </div>
-              <span className="ms-auto font-semibold">
-                {f.money(
-                  lineAmount({
-                    qty: l.qty,
-                    unitPrice: l.unitCost,
-                    discount: 0,
-                  }),
-                )}
-              </span>
-            </div>
-          </li>
-        ))}
-      </ul>
+            <PackageSearch
+              className="size-8 text-muted-foreground/60"
+              aria-hidden
+            />
+            <p className="text-sm font-medium">{t("purchases.emptyTitle")}</p>
+            <p className="text-xs text-muted-foreground">
+              {canCreateProduct
+                ? t("purchases.emptyBody")
+                : t("purchases.emptyBodyNoCreate")}
+            </p>
+          </div>
+        ) : null}
+      </section>
 
       {lines.length > 0 ? (
-        <div className="flex flex-col gap-3 rounded-xl border bg-card p-3">
+        <div className="flex flex-col gap-3 rounded-xl border bg-card p-3 sm:p-4">
+          <h3 className="text-sm font-semibold">
+            {t("purchases.paymentTitle")}
+          </h3>
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1 text-xs text-muted-foreground">
               <span>
@@ -468,11 +639,7 @@ export function PurchaseFormScreen() {
             </p>
           ) : null}
         </div>
-      ) : (
-        <p className="py-4 text-center text-sm text-muted-foreground">
-          {t("purchases.noLines")}
-        </p>
-      )}
+      ) : null}
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button variant="outline" onClick={() => router.back()}>
@@ -486,6 +653,13 @@ export function PurchaseFormScreen() {
           {t("purchases.save")}
         </Button>
       </div>
+
+      <QuickProductDialog
+        open={quickOpen}
+        onOpenChange={setQuickOpen}
+        initial={quickText}
+        onCreated={addProduct}
+      />
 
       <PartyPicker
         kind="supplier"
