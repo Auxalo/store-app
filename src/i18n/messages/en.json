@@ -653,8 +653,7 @@
     "paymentReceived": "Payment received",
     "dueNow": "Due now",
     "allSettled": "All settled",
-    "itemCount": "Items",
-    "rounding": "Rounding"
+    "itemCount": "Items"
   },
   "customers": {
     "add": "Add customer",

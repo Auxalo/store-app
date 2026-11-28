@@ -89,8 +89,9 @@ test("a euro shop rounds the total to 0 or 5 cents, and the receipt says how man
 
   const receipt = page.locator("#print-receipt");
   await expect(receipt.getByTestId("receipt-item-count")).toContainText("২");
-  await expect(receipt.getByTestId("receipt-rounding")).toContainText("€০,০২");
   await expect(receipt).toContainText("€১০,২০");
+  // No rounding row on the receipt: the total is simply rounded.
+  await expect(receipt).not.toContainText("রাউন্ডিং");
 
   // The saved sale keeps the rounded total.
   await page.goto("/sales");

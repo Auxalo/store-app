@@ -653,8 +653,7 @@
     "paymentReceived": "জমা পেয়েছি",
     "dueNow": "এখন বাকি",
     "allSettled": "কোনো বাকি নেই",
-    "itemCount": "মোট পণ্য",
-    "rounding": "রাউন্ডিং"
+    "itemCount": "মোট পণ্য"
   },
   "customers": {
     "add": "ক্রেতা যোগ করুন",

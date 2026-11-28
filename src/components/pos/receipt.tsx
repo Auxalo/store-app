@@ -111,13 +111,6 @@ export function Receipt({ sale, items, storeName }: ReceiptProps) {
             value={`− ${f.money(sale.discount, "always")}`}
           />
         ) : null}
-        {sale.rounding ? (
-          <Line
-            label={t("rounding")}
-            value={`${sale.rounding > 0 ? "+" : "−"} ${f.money(Math.abs(sale.rounding), "always")}`}
-            testId="receipt-rounding"
-          />
-        ) : null}
         <Line label={t("total")} value={f.money(sale.total, "always")} bold />
         {(sale.creditUsed ?? 0) > 0 ? (
           <Line

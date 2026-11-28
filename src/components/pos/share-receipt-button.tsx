@@ -87,10 +87,6 @@ export function ShareReceiptButton({
     lines.push("--------------------");
     if (sale.discount > 0)
       lines.push(`${t("discount")}: − ${f.money(sale.discount, "always")}`);
-    if (sale.rounding)
-      lines.push(
-        `${t("rounding")}: ${sale.rounding > 0 ? "+" : "−"} ${f.money(Math.abs(sale.rounding), "always")}`,
-      );
     lines.push(`${t("total")}: ${f.money(sale.total, "always")}`);
     if ((sale.creditUsed ?? 0) > 0)
       lines.push(
