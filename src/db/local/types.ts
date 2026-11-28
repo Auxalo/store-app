@@ -92,6 +92,8 @@ export interface Sale {
   subtotal: number;
   discount: number;
   total: number;
+  /** Cash rounding in the total (+ added, − taken off). Absent when there was none. */
+  rounding?: number;
   /** Paid from the customer's store credit. Absent on older sales (none). */
   creditUsed?: number;
   /** Cash the customer handed over (above `paid` when change was given). Absent on older sales. */

@@ -469,7 +469,8 @@
     "dueAmount": "On credit: {value}",
     "receiptUnavailable": "The sale is saved, but its receipt could not be shown. You can find it under Sales.",
     "codeNotFound": "No product with this code or name.",
-    "discountIncludesCut": "Includes {value} from lowered prices"
+    "discountIncludesCut": "Includes {value} from lowered prices",
+    "rounding": "Rounding"
   },
   "sales": {
     "searchPlaceholder": "Invoice number, customer name or mobile",
@@ -651,7 +652,9 @@
     "paymentTitle": "Payment receipt",
     "paymentReceived": "Payment received",
     "dueNow": "Due now",
-    "allSettled": "All settled"
+    "allSettled": "All settled",
+    "itemCount": "Items",
+    "rounding": "Rounding"
   },
   "customers": {
     "add": "Add customer",

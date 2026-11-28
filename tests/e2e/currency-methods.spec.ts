@@ -65,6 +65,38 @@ test("a shop in euro sees the euro sign everywhere money is shown", async ({
   await expect(page.getByText("৳৫০")).toHaveCount(0);
 });
 
+test("a euro shop rounds the total to 0 or 5 cents, and the receipt says how many items", async ({
+  page,
+}, testInfo) => {
+  await signUp(page, `eurr${Date.now()}${testInfo.project.name}`);
+  await createProduct(page, { name: "চকলেট", price: "5.09", stock: "100" });
+  await page.goto("/customize/currency");
+  await page.getByTestId("currency-EUR").click();
+  await expect(page.getByTestId("currency-EUR")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+
+  await page.goto("/pos");
+  await tapProduct(page, "চকলেট");
+  await tapProduct(page, "চকলেট");
+  await openCart(page);
+  const cart = page.getByTestId("cart-panel");
+  // 2 × 5,09 = 10,18 → 10,20
+  await expect(cart.getByTestId("cart-rounding")).toHaveText("+€০,০২");
+  await expect(cart.getByTestId("cart-total")).toHaveText("€১০,২০");
+  await cart.getByTestId("complete-sale").click();
+
+  const receipt = page.locator("#print-receipt");
+  await expect(receipt.getByTestId("receipt-item-count")).toContainText("২");
+  await expect(receipt.getByTestId("receipt-rounding")).toContainText("€০,০২");
+  await expect(receipt).toContainText("€১০,২০");
+
+  // The saved sale keeps the rounded total.
+  await page.goto("/sales");
+  await expect(page.getByText("€১০,২০").first()).toBeVisible();
+});
+
 test("a shop hides a wallet it does not use and adds its own payment method", async ({
   page,
 }, testInfo) => {

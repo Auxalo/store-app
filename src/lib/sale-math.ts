@@ -33,6 +33,8 @@ export interface SaleTotals {
   /** Cart-level discount actually applied (never more than the subtotal). */
   discount: number;
   total: number;
+  /** What rounding the total added (+) or took off (−), so the total ends on 0 or 5 cents. */
+  rounding: number;
   /** Paid from the customer's store credit (money they had paid ahead), never more than the total. */
   creditUsed: number;
   /** Amount received now, capped at what is left after store credit (change is not part of the sale). */
@@ -69,10 +71,12 @@ export function computeTotals(
   cartDiscount: number,
   tendered: number,
   creditUsed = 0,
+  /** Saved on the sale (see roundingFor); 0 for a shop that does not round and for older sales. */
+  rounding = 0,
 ): SaleTotals {
   const subtotal = lines.reduce((sum, line) => sum + lineAmount(line), 0);
   const discount = Math.min(Math.max(0, cartDiscount), subtotal);
-  const total = subtotal - discount;
+  const total = Math.max(0, subtotal - discount + rounding);
   // Store credit pays first; money received covers the rest; what is left is the due.
   const credit = Math.min(Math.max(0, creditUsed), total);
   const paid = Math.min(Math.max(0, tendered), total - credit);
@@ -80,10 +84,37 @@ export function computeTotals(
     subtotal,
     discount,
     total,
+    rounding: total - (subtotal - discount),
     creditUsed: credit,
     paid,
     due: total - credit - paid,
   };
+}
+
+/**
+ * What brings an amount to the nearest multiple of `step` minor units (cash rounding): with 5,
+ * 5,09 → 5,10 (+1), 65,02 → 65,00 (−2), 5,03 → 5,05 (+2), 5,07 → 5,05 (−2). 0 when not rounding.
+ */
+export function cashRounding(amount: number, step: number): number {
+  if (!(step > 1)) return 0;
+  return Math.round(amount / step) * step - amount;
+}
+
+/** The rounding a sale gets: on its total after discounts, never on the lines. */
+export function roundingFor(
+  lines: SaleLineAmounts[],
+  cartDiscount: number,
+  step: number,
+): number {
+  return cashRounding(computeTotals(lines, cartDiscount, 0).total, step);
+}
+
+/**
+ * How many items a bill has, for the receipt: whole pieces count one each (3 × milk = 3), a weighed
+ * or measured line (1,250 kg) counts as one item.
+ */
+export function itemCount(lines: Array<{ qty: number }>): number {
+  return lines.reduce((n, l) => n + (l.qty % 1000 === 0 ? l.qty / 1000 : 1), 0);
 }
 
 /** Quantity of each product across all lines (the same product may appear on several lines). */

@@ -13,6 +13,11 @@ export const CURRENCIES = [
     lakh: true,
     /** Written the continental way: a comma before the cents and dots between thousands (1.250,50). */
     comma: false,
+    /**
+     * The total is rounded to the nearest multiple of this, in minor units (5 = to 0,05, as euro
+     * shops do since 1 and 2 cent coins are not used). 0 = not rounded.
+     */
+    cashStep: 0,
     /** Round-number notes a customer hands over, in minor units (for the quick-cash buttons). */
     notes: [5_000, 10_000, 50_000, 100_000],
   },
@@ -23,6 +28,7 @@ export const CURRENCIES = [
     nameBn: "ডলার",
     lakh: false,
     comma: false,
+    cashStep: 0,
     notes: [500, 1_000, 2_000, 5_000, 10_000],
   },
   {
@@ -32,6 +38,7 @@ export const CURRENCIES = [
     nameBn: "ইউরো",
     lakh: false,
     comma: true,
+    cashStep: 5,
     notes: [500, 1_000, 2_000, 5_000, 10_000],
   },
   {
@@ -41,6 +48,7 @@ export const CURRENCIES = [
     nameBn: "রুপি",
     lakh: true,
     comma: false,
+    cashStep: 0,
     notes: [5_000, 10_000, 50_000, 200_000],
   },
 ] as const;

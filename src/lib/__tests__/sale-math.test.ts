@@ -26,6 +26,7 @@ describe("sale math", () => {
       subtotal: 12_500,
       discount: 500,
       total: 12_000,
+      rounding: 0,
       creditUsed: 0,
       paid: 12_000,
       due: 0,
