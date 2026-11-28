@@ -5,7 +5,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { getLocalDb } from "@/db/local/db";
 import type { Product } from "@/db/local/types";
 import { newId } from "@/lib/ids";
-import { computeTotals } from "@/lib/sale-math";
+import { computeTotals, roundingFor } from "@/lib/sale-math";
 import type { UnitCode } from "@/lib/units";
 import type { PaymentMethod } from "@/schemas/sale";
 
@@ -259,12 +259,13 @@ export const useCart = create<CartState>()(
   ),
 );
 
-/** Totals for the cart as it stands. */
-export function cartTotals(s: CartContents) {
+/** Totals for the cart as it stands. `cashStep`: the currency's cash rounding (0 = none). */
+export function cartTotals(s: CartContents, cashStep = 0) {
   return computeTotals(
     s.lines,
     s.discount,
     s.tendered ?? Number.MAX_SAFE_INTEGER,
     s.customerId && s.useCredit ? s.credit : 0,
+    roundingFor(s.lines, s.discount, cashStep),
   );
 }

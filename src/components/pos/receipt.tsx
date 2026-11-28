@@ -8,7 +8,7 @@ import { useSetting } from "@/hooks/use-setting";
 import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
 import { PAPER } from "@/lib/print/paper";
-import { saleStanding } from "@/lib/sale-math";
+import { itemCount, saleStanding } from "@/lib/sale-math";
 import { cn } from "@/lib/utils";
 import { usePreferences } from "@/stores/preferences";
 
@@ -69,6 +69,9 @@ export function Receipt({ sale, items, storeName }: ReceiptProps) {
             {t("customer")}: {sale.customerName}
           </p>
         ) : null}
+        <p data-testid="receipt-item-count">
+          {t("itemCount")}: {f.integer(itemCount(items))}
+        </p>
       </div>
 
       <table className="w-full">
@@ -106,6 +109,13 @@ export function Receipt({ sale, items, storeName }: ReceiptProps) {
           <Line
             label={t("discount")}
             value={`− ${f.money(sale.discount, "always")}`}
+          />
+        ) : null}
+        {sale.rounding ? (
+          <Line
+            label={t("rounding")}
+            value={`${sale.rounding > 0 ? "+" : "−"} ${f.money(Math.abs(sale.rounding), "always")}`}
+            testId="receipt-rounding"
           />
         ) : null}
         <Line label={t("total")} value={f.money(sale.total, "always")} bold />

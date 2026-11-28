@@ -60,6 +60,11 @@ const saleBase = z.object({
    * as change: it comes off what they owe, or becomes their advance. Saved as an ordinary payment.
    */
   toAccount: money.default(0),
+  /**
+   * Cash rounding added to (+) or taken off (−) the total, so it ends on 0 or 5 cents (euro). Set by
+   * the counter from the shop's currency; 0 for shops that do not round.
+   */
+  rounding: z.number().int().min(-50).max(50).default(0),
   paymentMethod: paymentMethodCodeSchema.default("cash"),
   notes: text(300).default(""),
 });
@@ -74,6 +79,7 @@ const needsCustomerForDue = (
     sale.discount,
     sale.tendered,
     sale.creditUsed,
+    sale.rounding,
   );
   if ((due > 0 || creditUsed > 0 || sale.toAccount > 0) && !sale.customerId)
     ctx.addIssue({

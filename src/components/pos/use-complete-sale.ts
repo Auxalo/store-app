@@ -5,8 +5,10 @@ import { useCallback } from "react";
 import { toast } from "sonner";
 import { isOffline } from "@/data/errors";
 import { useCommand } from "@/data/hooks";
+import { useFormat } from "@/i18n/use-format";
+import { currencyOf } from "@/lib/currency";
 import { newId } from "@/lib/ids";
-import { computeTotals, priceCut } from "@/lib/sale-math";
+import { computeTotals, priceCut, roundingFor } from "@/lib/sale-math";
 import { cartTotals, useCart } from "@/stores/cart";
 
 /**
@@ -21,7 +23,9 @@ export function useCompleteSale(onSold: (saleId: string) => void) {
   const cart = useCart();
   const saving = cart.saving;
 
-  const totals = cartTotals(cart);
+  // Euro shops round the total to 0 or 5 cents; the rounding is saved on the sale.
+  const cashStep = currencyOf(useFormat().currency).cashStep;
+  const totals = cartTotals(cart, cashStep);
   const needsCustomer = totals.due > 0 && !cart.customerId;
   // A discount bigger than the goods would be quietly cut down to the total: say so, don't sell.
   const discountTooBig = cart.discount > totals.subtotal;
@@ -34,11 +38,13 @@ export function useCompleteSale(onSold: (saleId: string) => void) {
     // the shortcut held down) must see that a sale is already on its way.
     if (state.lines.length === 0 || state.saving) return;
     const credit = state.customerId && state.useCredit ? state.credit : 0;
+    const rounding = roundingFor(state.lines, state.discount, cashStep);
     const { total, due, creditUsed } = computeTotals(
       state.lines,
       state.discount,
       state.tendered ?? Number.MAX_SAFE_INTEGER,
       credit,
+      rounding,
     );
     if (due > 0 && !state.customerId) return;
     if (state.discount > cartTotals(state).subtotal) return;
@@ -69,6 +75,7 @@ export function useCompleteSale(onSold: (saleId: string) => void) {
           : 0,
       paymentMethod: state.paymentMethod,
       notes: state.notes,
+      rounding,
     };
     // Same cart as the last try: same ids. A changed cart is a different sale: new ids.
     const fingerprint = JSON.stringify(input);
@@ -97,7 +104,7 @@ export function useCompleteSale(onSold: (saleId: string) => void) {
     } finally {
       state.setSaving(false);
     }
-  }, [run, onSold, t]);
+  }, [run, onSold, t, cashStep]);
 
   return {
     complete,

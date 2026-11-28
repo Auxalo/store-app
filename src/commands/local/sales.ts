@@ -137,6 +137,7 @@ export async function saleCreate(
     input.discount,
     input.tendered,
     Math.min(input.creditUsed, credit),
+    input.rounding ?? 0,
   );
   // The customer's balance before this sale (for the receipt), and the extra kept on their account:
   // never more than what was handed over beyond the bill.
@@ -248,6 +249,7 @@ export async function saleCreate(
     subtotal: totals.subtotal,
     discount: totals.discount,
     total: totals.total,
+    ...(totals.rounding ? { rounding: totals.rounding } : {}),
     creditUsed: totals.creditUsed,
     tendered: input.tendered,
     ...(previousDue > 0 ? { previousDue } : {}),

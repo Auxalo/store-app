@@ -270,6 +270,7 @@ export async function saleCreate(
     p.discount,
     p.tendered,
     Math.min(p.creditUsed, credit),
+    p.rounding ?? 0,
   );
   const customer = totals.due + totals.creditUsed > 0 ? buyer : null;
   // What the customer already owed before this sale (জের), for the receipt.
@@ -306,6 +307,7 @@ export async function saleCreate(
     subtotal: totals.subtotal,
     discount: totals.discount,
     total: totals.total,
+    ...(totals.rounding ? { rounding: totals.rounding } : {}),
     creditUsed: totals.creditUsed,
     tendered: p.tendered,
     ...(previousDue > 0 ? { previousDue } : {}),

@@ -414,6 +414,12 @@ export function CartPanel({
               −{f.money(totals.discount + priceCut)}
             </Row>
           ) : null}
+          {totals.rounding !== 0 ? (
+            <Row label={t("pos.rounding")} testId="cart-rounding">
+              {totals.rounding > 0 ? "+" : "−"}
+              {f.money(Math.abs(totals.rounding), "always")}
+            </Row>
+          ) : null}
           <div className="flex items-center justify-between text-lg font-semibold">
             <dt>{t("pos.total")}</dt>
             <dd data-testid="cart-total">{f.money(totals.total)}</dd>

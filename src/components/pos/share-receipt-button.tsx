@@ -20,7 +20,7 @@ import { useSetting } from "@/hooks/use-setting";
 import { useUnits } from "@/hooks/use-units";
 import { useFormat } from "@/i18n/use-format";
 import { normalizePhone } from "@/lib/phone";
-import { saleStanding } from "@/lib/sale-math";
+import { itemCount, saleStanding } from "@/lib/sale-math";
 
 const NO_PROFILE: StoreProfile = { name: "", address: "", phone: "" };
 
@@ -78,6 +78,7 @@ export function ShareReceiptButton({
       `${t("date")}: ${f.dateTime(sale.createdAt)}`,
     );
     if (sale.customerName) lines.push(`${t("customer")}: ${sale.customerName}`);
+    lines.push(`${t("itemCount")}: ${f.integer(itemCount(items))}`);
     lines.push("--------------------");
     for (const item of items)
       lines.push(
@@ -86,6 +87,10 @@ export function ShareReceiptButton({
     lines.push("--------------------");
     if (sale.discount > 0)
       lines.push(`${t("discount")}: − ${f.money(sale.discount, "always")}`);
+    if (sale.rounding)
+      lines.push(
+        `${t("rounding")}: ${sale.rounding > 0 ? "+" : "−"} ${f.money(Math.abs(sale.rounding), "always")}`,
+      );
     lines.push(`${t("total")}: ${f.money(sale.total, "always")}`);
     if ((sale.creditUsed ?? 0) > 0)
       lines.push(

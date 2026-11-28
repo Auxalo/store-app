@@ -97,9 +97,10 @@ test("the invoice shows list prices and one total discount for many items; a rai
   await expect(prices).toHaveCount(3);
 
   // Milk ৳90 → ৳80 (two pieces: ৳20 off), sugar ৳50 → ৳40 (৳10 off), soap ৳30 → ৳35 (raised).
-  await prices.nth(0).fill("80");
+  // The newest line is on top: soap, sugar, milk.
+  await prices.nth(2).fill("80");
   await prices.nth(1).fill("40");
-  await prices.nth(2).fill("35");
+  await prices.nth(0).fill("35");
   // The Discount field adds the cuts up: ৳30. The total is what is charged: 160 + 40 + 35.
   await expect(cart.getByTestId("discount-input")).toHaveValue("30");
   await expect(cart.getByTestId("cart-total")).toHaveText("৳২৩৫");

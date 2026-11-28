@@ -1,6 +1,6 @@
 import type { Sale, SaleItem } from "@/db/local/types";
 import type { createFormat } from "@/lib/format";
-import { saleStanding } from "@/lib/sale-math";
+import { itemCount, saleStanding } from "@/lib/sale-math";
 import type { ReceiptModel } from "./receipt-layout";
 
 type Translate = (key: string, values?: Record<string, string>) => string;
@@ -36,12 +36,18 @@ export function buildReceiptModel(input: ReceiptModelInput): ReceiptModel {
     `${t("date")}: ${f.dateTime(sale.createdAt)}`,
   ];
   if (sale.customerName) meta.push(`${t("customer")}: ${sale.customerName}`);
+  meta.push(`${t("itemCount")}: ${f.integer(itemCount(items))}`);
 
   const totals: ReceiptModel["totals"] = [
     { label: t("subtotal"), value: money(sale.subtotal) },
   ];
   if (sale.discount > 0)
     totals.push({ label: t("discount"), value: `− ${money(sale.discount)}` });
+  if (sale.rounding)
+    totals.push({
+      label: t("rounding"),
+      value: `${sale.rounding > 0 ? "+" : "−"} ${money(Math.abs(sale.rounding))}`,
+    });
   totals.push({ label: t("total"), value: money(sale.total), bold: true });
   if ((sale.creditUsed ?? 0) > 0)
     totals.push({

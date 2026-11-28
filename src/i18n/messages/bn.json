@@ -469,7 +469,8 @@
     "dueAmount": "বাকিতে: {value}",
     "receiptUnavailable": "বিক্রি সংরক্ষিত হয়েছে, কিন্তু রসিদ দেখানো যায়নি। বিক্রয় পাতায় এটি পাবেন।",
     "codeNotFound": "এই কোড বা নামে কোনো পণ্য নেই।",
-    "discountIncludesCut": "দাম কমানোর {value} সহ"
+    "discountIncludesCut": "দাম কমানোর {value} সহ",
+    "rounding": "রাউন্ডিং"
   },
   "sales": {
     "searchPlaceholder": "ইনভয়েস নম্বর, ক্রেতার নাম বা মোবাইল",
@@ -651,7 +652,9 @@
     "paymentTitle": "পেমেন্ট রসিদ",
     "paymentReceived": "জমা পেয়েছি",
     "dueNow": "এখন বাকি",
-    "allSettled": "কোনো বাকি নেই"
+    "allSettled": "কোনো বাকি নেই",
+    "itemCount": "মোট পণ্য",
+    "rounding": "রাউন্ডিং"
   },
   "customers": {
     "add": "ক্রেতা যোগ করুন",

@@ -131,6 +131,7 @@ function overlaySale(doc: Doc, op: OutboxOp, sign: 1 | -1): Doc {
     tendered?: number;
     creditUsed?: number;
     toAccount?: number;
+    rounding?: number;
   };
   const bump = { version: doc.version + 1, updatedAt: op.createdAt };
   const qty = qtyByProduct(p.lines).get(doc.id);
@@ -147,6 +148,7 @@ function overlaySale(doc: Doc, op: OutboxOp, sign: 1 | -1): Doc {
             p.discount ?? 0,
             p.tendered ?? 0,
             p.creditUsed ?? 0,
+            p.rounding ?? 0,
           )
         : null;
     // (The extra kept on the account comes off the balance too: it can leave an advance.)
