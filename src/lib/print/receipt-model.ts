@@ -43,11 +43,6 @@ export function buildReceiptModel(input: ReceiptModelInput): ReceiptModel {
   ];
   if (sale.discount > 0)
     totals.push({ label: t("discount"), value: `− ${money(sale.discount)}` });
-  if (sale.rounding)
-    totals.push({
-      label: t("rounding"),
-      value: `${sale.rounding > 0 ? "+" : "−"} ${money(Math.abs(sale.rounding))}`,
-    });
   totals.push({ label: t("total"), value: money(sale.total), bold: true });
   if ((sale.creditUsed ?? 0) > 0)
     totals.push({
